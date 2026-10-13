@@ -22,6 +22,13 @@ import {
   ArrowRight,
   RefreshCw,
   Send,
+  Eye,
+  Truck,
+  Wallet,
+  CheckCheck,
+  CreditCard,
+  Scale,
+  ShieldCheck,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { formatINR } from "@/lib/utils";
@@ -35,6 +42,7 @@ export default function InvoicesPage() {
   // Modals
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [activeInvoice, setActiveInvoice] = useState<any>(null);
+  const [inspectModalOpen, setInspectModalOpen] = useState(false);
   const [upiModalOpen, setUpiModalOpen] = useState(false);
   const [upiQrDataUrl, setUpiQrDataUrl] = useState("");
   const [printModalOpen, setPrintModalOpen] = useState(false);
@@ -252,6 +260,62 @@ export default function InvoicesPage() {
         </div>
       )}
 
+      {/* Financial Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Total Invoiced</span>
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Receipt className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-slate-900">
+            {formatINR(invoices.reduce((s, i) => s + (i.totalAmountPaise || 0), 0))}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-0.5">{invoices.length} Bills issued</p>
+        </div>
+
+        <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200 shadow-xs">
+          <div className="flex items-center justify-between text-emerald-700 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Total Collected</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-emerald-950">
+            {formatINR(invoices.reduce((s, i) => s + (i.paidAmountPaise || 0), 0))}
+          </div>
+          <p className="text-[11px] text-emerald-800/80 mt-0.5">Advance + Driver collections</p>
+        </div>
+
+        <div className="bg-rose-50/70 p-4 rounded-2xl border border-rose-200 shadow-xs">
+          <div className="flex items-center justify-between text-rose-700 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Outstanding Dues</span>
+            <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-rose-950">
+            {formatINR(invoices.reduce((s, i) => s + (i.outstandingPaise || 0), 0))}
+          </div>
+          <p className="text-[11px] text-rose-800/80 mt-0.5">Pending collection from customers</p>
+        </div>
+
+        <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200 shadow-xs">
+          <div className="flex items-center justify-between text-amber-700 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Pending Settlement</span>
+            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-amber-950">
+            {invoices.filter((i) => (i.outstandingPaise || 0) > 0).length}{" "}
+            <span className="text-xs font-normal text-amber-800">Invoices</span>
+          </div>
+          <p className="text-[11px] text-amber-800/80 mt-0.5">Unpaid or partially paid bills</p>
+        </div>
+      </div>
+
       {/* Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
         <div className="relative w-full max-w-md">
@@ -279,15 +343,16 @@ export default function InvoicesPage() {
                 <th className="py-3.5 px-4">Invoice # & Date</th>
                 <th className="py-3.5 px-4">Customer</th>
                 <th className="py-3.5 px-4">Billing Model</th>
-                <th className="py-3.5 px-4">Total Amount</th>
-                <th className="py-3.5 px-4">Status & Dues</th>
+                <th className="py-3.5 px-4">Invoiced Total</th>
+                <th className="py-3.5 px-4">Payment Breakdown</th>
+                <th className="py-3.5 px-4">Status</th>
                 <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 italic">
+                  <td colSpan={7} className="py-12 text-center text-slate-400 italic">
                     No invoices found. Generate monthly batch invoices above or issue a custom invoice.
                   </td>
                 </tr>
@@ -321,27 +386,65 @@ export default function InvoicesPage() {
                       )}
                     </td>
 
-                    <td className="py-3.5 px-4 font-black text-slate-900">
+                    {/* Invoiced Total */}
+                    <td className="py-3.5 px-4 font-black text-slate-900 text-base">
                       {formatINR(inv.totalAmountPaise)}
                     </td>
 
+                    {/* Payment Breakdown (Paid vs Due) */}
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusBadge(
-                          inv.status
-                        )}`}
-                      >
-                        {inv.status}
-                      </span>
-                      {inv.outstandingPaise > 0 && (
-                        <span className="block text-[11px] text-rose-600 font-bold mt-0.5">
-                          Due: {formatINR(inv.outstandingPaise)}
+                      <div className="text-xs space-y-0.5">
+                        {inv.paidAmountPaise > 0 ? (
+                          <span className="text-emerald-700 font-extrabold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Paid: {formatINR(inv.paidAmountPaise)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">No payment recorded</span>
+                        )}
+                        {inv.outstandingPaise > 0 ? (
+                          <span className="text-rose-600 font-black flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                            Due: {formatINR(inv.outstandingPaise)}
+                          </span>
+                        ) : (
+                          <span className="text-emerald-600 font-semibold text-[11px]">Fully Cleared</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Status Badge */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      {inv.status === "PAID" || inv.outstandingPaise === 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <CheckCircle2 className="w-3 h-3" /> Fully Paid
+                        </span>
+                      ) : inv.status === "PARTIALLY_PAID" || (inv.paidAmountPaise > 0 && inv.outstandingPaise > 0) ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300">
+                          <Clock className="w-3 h-3 text-amber-700" /> Partially Paid
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-300">
+                          <AlertCircle className="w-3 h-3 text-rose-600" /> Unpaid
                         </span>
                       )}
                     </td>
 
+                    {/* Actions */}
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Inspect Invoice Button */}
+                        <button
+                          onClick={() => {
+                            setActiveInvoice(inv);
+                            setInspectModalOpen(true);
+                          }}
+                          title="Inspect Invoice Breakdown & Payment History"
+                          className="p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+
                         {/* WhatsApp Share Link */}
                         <a
                           href={inv.whatsAppShareUrl}
@@ -841,6 +944,365 @@ export default function InvoicesPage() {
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Document</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: DETAILED INVOICE INSPECTION & PAYMENT AUDIT TRAIL */}
+      {/* ========================================================================= */}
+      {inspectModalOpen && activeInvoice && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-6">
+            {/* Modal Header */}
+            <div className="flex justify-between items-start border-b border-slate-200 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                    Audit Trail & Inspection
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    ID: {activeInvoice.id}
+                  </span>
+                </div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight mt-1 flex items-center gap-2">
+                  <span>Invoice {activeInvoice.invoiceNumber}</span>
+                  {activeInvoice.status === "PAID" || activeInvoice.outstandingPaise === 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Fully Paid
+                    </span>
+                  ) : activeInvoice.status === "PARTIALLY_PAID" || (activeInvoice.paidAmountPaise > 0 && activeInvoice.outstandingPaise > 0) ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300">
+                      <Clock className="w-3.5 h-3.5 text-amber-700" /> Partially Paid
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-300">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Unpaid
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Billed on <strong>{activeInvoice.invoiceDate}</strong> • Due by <strong>{activeInvoice.dueDate}</strong>
+                </p>
+              </div>
+
+              <button
+                onClick={() => setInspectModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* 4 Financial KPI Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Total Invoiced
+                </span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">
+                  {formatINR(activeInvoice.totalAmountPaise)}
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium">Order Billing Total</span>
+              </div>
+
+              <div className="bg-indigo-50/60 p-3.5 rounded-2xl border border-indigo-200">
+                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">
+                  Advance Paid
+                </span>
+                <span className="text-lg font-black text-indigo-900 mt-1 block">
+                  {formatINR(activeInvoice.advanceReceivedPaise || 0)}
+                </span>
+                <span className="text-[10px] text-indigo-700/80 font-medium">At Order Booking</span>
+              </div>
+
+              <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200">
+                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                  Driver Doorstep Cash
+                </span>
+                <span className="text-lg font-black text-emerald-900 mt-1 block">
+                  {formatINR(activeInvoice.driverCollectedPaise || (activeInvoice.paidAmountPaise - (activeInvoice.advanceReceivedPaise || 0)) || 0)}
+                </span>
+                <span className="text-[10px] text-emerald-700/80 font-medium">Collected at Delivery</span>
+              </div>
+
+              <div className={`${(activeInvoice.outstandingPaise || 0) > 0 ? "bg-rose-50/70 border-rose-200 text-rose-900" : "bg-emerald-50/70 border-emerald-200 text-emerald-900"} p-3.5 rounded-2xl border`}>
+                <span className={`text-[10px] font-bold ${(activeInvoice.outstandingPaise || 0) > 0 ? "text-rose-600" : "text-emerald-700"} uppercase tracking-wider block`}>
+                  {(activeInvoice.outstandingPaise || 0) > 0 ? "Net Balance Due" : "Settlement"}
+                </span>
+                <span className="text-lg font-black mt-1 block">
+                  {formatINR(activeInvoice.outstandingPaise || 0)}
+                </span>
+                <span className={`text-[10px] ${(activeInvoice.outstandingPaise || 0) > 0 ? "text-rose-700" : "text-emerald-700"} font-medium`}>
+                  {(activeInvoice.outstandingPaise || 0) > 0 ? "Awaiting Payment" : "Fully Settled"}
+                </span>
+              </div>
+            </div>
+
+            {/* Customer & Linked Order Context */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Customer Box */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Customer Information
+                  </span>
+                  <span className="text-xs font-mono font-bold text-slate-500">
+                    {activeInvoice.customerCode}
+                  </span>
+                </div>
+                <div>
+                  <strong className="text-slate-900 text-base block">{activeInvoice.customerName}</strong>
+                  <span className="text-xs text-slate-600 block">📞 {activeInvoice.customerPhone}</span>
+                </div>
+                <div className="pt-1 text-[11px] text-slate-500">
+                  Billing Model:{" "}
+                  <strong className="text-slate-700">
+                    {activeInvoice.billingType === "MONTHLY_CONSOLIDATED"
+                      ? "Monthly Consolidated"
+                      : activeInvoice.billingType === "EVENT_SETTLEMENT"
+                      ? "Event / Bulk Supply"
+                      : "Spot Delivery"}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Order Box */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Linked Order Details
+                  </span>
+                  {activeInvoice.orderNumber && (
+                    <span className="text-xs font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                      {activeInvoice.orderNumber}
+                    </span>
+                  )}
+                </div>
+                {activeInvoice.orderNumber ? (
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Quantity Delivered:</span>
+                      <strong className="text-slate-900">{activeInvoice.orderQuantityJars || "—"} Jars</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Agreed Unit Rate:</span>
+                      <strong className="text-slate-900">
+                        {activeInvoice.orderUnitPricePaise
+                          ? formatINR(activeInvoice.orderUnitPricePaise)
+                          : activeInvoice.orderQuantityJars
+                          ? formatINR(Math.round(activeInvoice.totalAmountPaise / activeInvoice.orderQuantityJars))
+                          : "—"}
+                        /Jar
+                      </strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Order Delivery Status:</span>
+                      <span className="font-bold text-emerald-700">{activeInvoice.orderStatus || "DELIVERED"}</span>
+                    </div>
+                    {activeInvoice.eventName && (
+                      <div className="flex justify-between pt-1 border-t border-slate-200">
+                        <span className="text-slate-500">Event:</span>
+                        <strong className="text-indigo-700">{activeInvoice.eventName}</strong>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic pt-2">
+                    Direct commercial invoice issued without linked route delivery order.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Driver Doorstep Cash Collections Section */}
+            <div className="border border-slate-200 rounded-2xl p-4 bg-white space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-emerald-600" />
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                    Doorstep Field Collections by Driver
+                  </h4>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  Total Collected: {formatINR(activeInvoice.driverCollectedPaise || (activeInvoice.paidAmountPaise - (activeInvoice.advanceReceivedPaise || 0)) || 0)}
+                </span>
+              </div>
+
+              {activeInvoice.cashCollections && activeInvoice.cashCollections.length > 0 ? (
+                <div className="divide-y divide-slate-100">
+                  {activeInvoice.cashCollections.map((c: any) => (
+                    <div key={c.id} className="py-2.5 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <strong className="text-slate-900">{c.driverName || "Route Driver"}</strong>
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            Slip #{c.id?.slice(-6).toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          Collected: {c.collectedDateTimeIST || c.collectedTimeIST || "Doorstep delivery"}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-black text-emerald-700 text-sm block">
+                          {formatINR(c.amountCollectedPaise)}
+                        </span>
+                        <span className={`text-[10px] font-bold ${c.isHandedOver ? "text-emerald-600" : "text-amber-600"}`}>
+                          {c.isHandedOver ? "✓ Verified & Vault Deposited" : "In Driver Transit (GL 1120)"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : activeInvoice.advanceReceivedPaise > 0 ? (
+                <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 text-xs flex justify-between items-center">
+                  <span className="text-indigo-900">
+                    Advance Payment received at order booking:
+                  </span>
+                  <strong className="text-indigo-700 text-sm">{formatINR(activeInvoice.advanceReceivedPaise)}</strong>
+                </div>
+              ) : (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center text-xs text-slate-400 italic">
+                  No doorstep cash recorded yet. Amount payable: {formatINR(activeInvoice.outstandingPaise)}
+                </div>
+              )}
+            </div>
+
+            {/* Official Receipts History */}
+            {activeInvoice.receipts && activeInvoice.receipts.length > 0 && (
+              <div className="border border-slate-200 rounded-2xl p-4 bg-white space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-sky-600" />
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                      Official Payment Receipts & Vouchers
+                    </h4>
+                  </div>
+                  <span className="text-xs font-bold text-slate-400">
+                    {activeInvoice.receipts.length} Receipt(s)
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {activeInvoice.receipts.map((r: any) => (
+                    <div key={r.id} className="py-2.5 flex items-center justify-between text-xs">
+                      <div>
+                        <strong className="text-slate-900 block font-mono">{r.receiptNumber}</strong>
+                        <span className="text-[11px] text-slate-500 block">
+                          Mode: <span className="font-semibold">{r.paymentMode}</span> • Ref: {r.transactionReference || "Direct Cash"}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-black text-slate-900 block">{formatINR(r.amountPaise)}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{r.receiptDate}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Double-Entry General Ledger (GL) Audit Trail */}
+            <div className="border border-indigo-100 rounded-2xl p-4 bg-indigo-50/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Scale className="w-4 h-4 text-indigo-700" />
+                  <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider">
+                    Double-Entry General Ledger (GL) Audit Trail
+                  </h4>
+                </div>
+                <span className="text-[10px] font-bold bg-white text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">
+                  Balanced Books
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                {/* Entry 1: Invoice Posting */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">1. Revenue Recognition</span>
+                    <span className="text-slate-700">Dr. 1150 Accounts Receivable / Cr. 4110 Water Sales</span>
+                  </div>
+                  <strong className="text-slate-900">{formatINR(activeInvoice.totalAmountPaise)}</strong>
+                </div>
+
+                {/* Entry 2: Cash Collection */}
+                {(activeInvoice.driverCollectedPaise > 0 || activeInvoice.paidAmountPaise > 0) && (
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">2. Field Collection Credit</span>
+                      <span className="text-slate-700">Dr. 1120 Driver Clearing / Cr. 1150 Accounts Receivable</span>
+                    </div>
+                    <strong className="text-emerald-700">
+                      {formatINR(activeInvoice.driverCollectedPaise || activeInvoice.paidAmountPaise)}
+                    </strong>
+                  </div>
+                )}
+
+                {/* Entry 3: Customer Outstanding */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">3. Net Receivable Balance</span>
+                    <span className="text-slate-700">Customer Balance remaining in A/C 1150</span>
+                  </div>
+                  <strong className={(activeInvoice.outstandingPaise || 0) > 0 ? "text-rose-600 font-black" : "text-emerald-600 font-bold"}>
+                    {formatINR(activeInvoice.outstandingPaise || 0)}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInspectModalOpen(false);
+                    setPrintModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print Bill</span>
+                </button>
+
+                {activeInvoice.outstandingPaise > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInspectModalOpen(false);
+                        setUpiModalOpen(true);
+                      }}
+                      className="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      <span>UPI QR ({formatINR(activeInvoice.outstandingPaise)})</span>
+                    </button>
+
+                    <a
+                      href={activeInvoice.whatsAppShareUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition-colors"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      <span>WhatsApp Due Reminder</span>
+                    </a>
+                  </>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setInspectModalOpen(false)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-black text-white font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Close Inspection
               </button>
             </div>
           </div>

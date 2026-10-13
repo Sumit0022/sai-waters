@@ -311,8 +311,36 @@ export async function POST(request: Request) {
           transactionReference: `Advance payment for order ${orderNumber} (${paymentType})`,
           recordedBy: body.postedBy || "usr_owner_01",
           receiptDate: body.scheduledDate || getTodayIST(),
-          createdAt: new Date(),
         });
+
+        // Double-entry journal entry for advance receipt:
+        // Dr. 1110 Vault Cash (or 1130 Bank if PREPAID)
+        // Cr. 1150 Accounts Receivable (Customer Sub-ledger)
+        await postJournalEntry({
+          sourceDocumentType: "RECEIPT",
+          sourceDocumentId: invoiceData.invoiceId,
+          narration: `Advance payment received for order ${orderNumber}`,
+          postedBy: body.postedBy || "usr_owner_01",
+          lines: [
+            {
+              accountId: paymentType === "PREPAID" ? 1130 : 1110,
+              debitPaise: advanceReceivedPaise,
+              creditPaise: 0,
+            },
+            {
+              accountId: 1150, // Accounts Receivable
+              debitPaise: 0,
+              creditPaise: advanceReceivedPaise,
+              subLedgerType: "CUSTOMER",
+              subLedgerId: customerId,
+            },
+          ],
+        });
+
+        // Reduce customer current balance by advance amount
+        await db.execute(sql`
+          UPDATE customers SET current_balance_paise = GREATEST(0, current_balance_paise - ${advanceReceivedPaise}) WHERE id = ${customerId};
+        `);
       }
 
       // If advance security deposit collected

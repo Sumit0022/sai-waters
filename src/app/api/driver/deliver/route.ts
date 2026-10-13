@@ -10,6 +10,7 @@ import {
   jarMovementEvents,
   cashCollectionSubmissions,
   users,
+  invoices,
 } from "@/db/schema";
 import { eq, or, sql, desc } from "drizzle-orm";
 import { lookupJar, transitionJarState } from "@/lib/jars";
@@ -209,20 +210,28 @@ export async function POST(req: Request) {
     // If customer is on MONTHLY, daily deliveries accumulate on their ledger and are billed via Month-End Consolidated Invoice!
     if (cust.billingFrequency === "PER_DELIVERY" || cust.customerType === "EVENT") {
       try {
-        await createAndPostInvoice({
-          customerId: cust.id,
-          orderId,
-          billingType: cust.customerType === "EVENT" ? "EVENT_SETTLEMENT" : "SPOT_DELIVERY",
-          lines: [
-            {
-              description: `20L Drinking Water Jars (${cleanJars.length} Units)`,
-              quantity: cleanJars.length,
-              unitPricePaise,
-            },
-          ],
-          postedBy: driverId,
-          notes: `Doorstep delivery completed by driver ${driverId} for order ${orderNumber}`,
-        });
+        const [existingOrderInv] = await db
+          .select()
+          .from(invoices)
+          .where(eq(invoices.orderId, orderId))
+          .limit(1);
+
+        if (!existingOrderInv) {
+          await createAndPostInvoice({
+            customerId: cust.id,
+            orderId,
+            billingType: cust.customerType === "EVENT" ? "EVENT_SETTLEMENT" : "SPOT_DELIVERY",
+            lines: [
+              {
+                description: `20L Drinking Water Jars (${cleanJars.length} Units)`,
+                quantity: cleanJars.length,
+                unitPricePaise,
+              },
+            ],
+            postedBy: driverId,
+            notes: `Doorstep delivery completed by driver ${driverId} for order ${orderNumber}`,
+          });
+        }
       } catch (e) {
         console.error("Auto-invoice posting in driver delivery failed:", e);
       }

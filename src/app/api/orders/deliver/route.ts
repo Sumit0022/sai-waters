@@ -146,8 +146,6 @@ export async function POST(request: Request) {
         .set({
           subtotalPaise: totalAmountPaise,
           totalAmountPaise,
-          status: Number(cashCollectedPaise) >= totalAmountPaise ? "PAID" : "ISSUED",
-          paidAmountPaise: Math.min(Number(cashCollectedPaise || 0), totalAmountPaise),
         })
         .where(eq(invoices.id, existingInv.id));
 
@@ -169,6 +167,18 @@ export async function POST(request: Request) {
           amountCollectedPaise: Number(cashCollectedPaise),
         });
         receiptNumber = cashRes.receiptNumber;
+      } else {
+        const curPaid = existingInv.paidAmountPaise || 0;
+        const curStatus =
+          curPaid >= totalAmountPaise
+            ? "PAID"
+            : curPaid > 0
+            ? "PARTIALLY_PAID"
+            : "ISSUED";
+        await db
+          .update(invoices)
+          .set({ status: curStatus })
+          .where(eq(invoices.id, existingInv.id));
       }
     }
 

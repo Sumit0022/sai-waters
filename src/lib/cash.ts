@@ -24,12 +24,23 @@ export async function recordFieldCashCollection(params: {
   const receiptNumber = `REC-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
   const todayStr = getTodayIST();
 
+  // Resolve target invoice if invoiceId not directly passed but orderId is present
+  let targetInvoiceId = params.invoiceId || null;
+  if (!targetInvoiceId && params.orderId) {
+    const [invByOrder] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.orderId, params.orderId))
+      .limit(1);
+    if (invByOrder) targetInvoiceId = invByOrder.id;
+  }
+
   // 1. Record Cash Submission
   await db.insert(cashCollectionSubmissions).values({
     id: submissionId,
     driverId: params.driverId,
     orderId: params.orderId || null,
-    invoiceId: params.invoiceId || null,
+    invoiceId: targetInvoiceId,
     amountCollectedPaise: params.amountCollectedPaise,
     clientEventId: params.clientEventId || null,
     collectedAt: new Date(),
@@ -41,7 +52,7 @@ export async function recordFieldCashCollection(params: {
     id: `rec_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     receiptNumber,
     customerId: params.customerId,
-    invoiceId: params.invoiceId || null,
+    invoiceId: targetInvoiceId,
     amountPaise: params.amountCollectedPaise,
     paymentMode: "CASH",
     transactionReference: `Driver Collection Slip #${submissionId.slice(-6)}`,
@@ -77,18 +88,23 @@ export async function recordFieldCashCollection(params: {
   });
 
   // 4. Update Invoice & Customer Balances
-  if (params.invoiceId) {
-    const inv = (await db.select().from(invoices).where(eq(invoices.id, params.invoiceId)).limit(1))[0];
+  if (targetInvoiceId) {
+    const [inv] = await db.select().from(invoices).where(eq(invoices.id, targetInvoiceId)).limit(1);
     if (inv) {
-      const newPaid = inv.paidAmountPaise + params.amountCollectedPaise;
-      const newStatus = newPaid >= inv.totalAmountPaise ? "PAID" : "PARTIALLY_PAID";
+      const newPaid = (inv.paidAmountPaise || 0) + params.amountCollectedPaise;
+      const newStatus =
+        newPaid >= inv.totalAmountPaise
+          ? "PAID"
+          : newPaid > 0
+          ? "PARTIALLY_PAID"
+          : "ISSUED";
       await db
         .update(invoices)
         .set({
           paidAmountPaise: newPaid,
           status: newStatus,
         })
-        .where(eq(invoices.id, params.invoiceId));
+        .where(eq(invoices.id, targetInvoiceId));
     }
   }
 
