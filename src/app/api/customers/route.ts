@@ -89,7 +89,7 @@ export async function GET(request: Request) {
 
     // QR Token for this customer
     const qrToken = `urn:sw:c:${cust.customerCode}`;
-    const pricePerJarPaise = priceAgreement[0]?.pricePerJarPaise ?? 3500;
+    const pricePerJarPaise = priceAgreement[0]?.pricePerJarPaise ?? deliveryOrders[0]?.unitPricePaise ?? 2000;
 
     return NextResponse.json({
       success: true,
@@ -116,11 +116,14 @@ export async function GET(request: Request) {
     .from(customerPriceAgreements)
     .orderBy(desc(customerPriceAgreements.effectiveFrom));
   const allSchedules = await db.select().from(recurringSchedules);
+  const allOrders = await db.select().from(orders).orderBy(desc(orders.createdAt));
 
   const enriched = allCustomers.map((c: any) => {
     const custPrice = allPrices.find((p: any) => p.customerId === c.id);
     const custAgreements = allPrices.filter((p: any) => p.customerId === c.id);
-    const pricePerJarPaise = custPrice?.pricePerJarPaise ?? 3500;
+    const custOrders = allOrders.filter((o: any) => o.customerId === c.id);
+    const latestOrder = custOrders[0];
+    const pricePerJarPaise = custPrice?.pricePerJarPaise ?? latestOrder?.unitPricePaise ?? 2000;
 
     return {
       ...c,

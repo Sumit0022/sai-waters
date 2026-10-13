@@ -145,9 +145,26 @@ export async function POST(request: Request) {
     .orderBy(desc(customerPriceAgreements.effectiveFrom))
     .limit(1);
 
-  const unitPricePaise = body.unitPricePaise || agreements[0]?.pricePerJarPaise || 3500;
+  const unitPricePaise = body.unitPricePaise || agreements[0]?.pricePerJarPaise || 2000;
   const quantityJars = Number(body.quantityJars || 1);
   const totalAmountPaise = quantityJars * unitPricePaise;
+
+  // Ensure customer price agreement is saved so customer ledger reflects exact rate
+  if (customerId && unitPricePaise) {
+    const existingPrice = await db
+      .select()
+      .from(customerPriceAgreements)
+      .where(eq(customerPriceAgreements.customerId, customerId))
+      .limit(1);
+    if (existingPrice.length === 0) {
+      await db.insert(customerPriceAgreements).values({
+        id: `cpa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        customerId,
+        pricePerJarPaise: unitPricePaise,
+        effectiveFrom: body.scheduledDate || getTodayIST(),
+      });
+    }
+  }
 
   // 1. Insert Order Record
   await db.insert(orders).values({
@@ -287,6 +304,28 @@ export async function PUT(request: Request) {
         itemDescription: `20L Drinking Water Jars (${newQty} Units)`,
       })
       .where(eq(orderItems.orderId, orderId));
+
+    // Sync customerPriceAgreements so customer directory & ledger reflects updated rate
+    if (order.customerId && newUnitPricePaise) {
+      const existingAgreements = await db
+        .select()
+        .from(customerPriceAgreements)
+        .where(eq(customerPriceAgreements.customerId, order.customerId))
+        .limit(1);
+      if (existingAgreements.length > 0) {
+        await db
+          .update(customerPriceAgreements)
+          .set({ pricePerJarPaise: newUnitPricePaise })
+          .where(eq(customerPriceAgreements.customerId, order.customerId));
+      } else {
+        await db.insert(customerPriceAgreements).values({
+          id: `cpa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          customerId: order.customerId,
+          pricePerJarPaise: newUnitPricePaise,
+          effectiveFrom: getTodayIST(),
+        });
+      }
+    }
 
     // 3. Update eventOrders if present
     const [evt] = await db.select().from(eventOrders).where(eq(eventOrders.orderId, orderId)).limit(1);

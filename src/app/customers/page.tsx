@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   RotateCcw,
   RefreshCw,
+  Truck,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { formatINR } from "@/lib/utils";
@@ -197,7 +198,7 @@ export default function CustomersPage() {
     setLocality(cust.address?.locality || cust.addresses?.[0]?.locality || "Civil Lines");
     const rateRupees = (cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise)
       ? ((cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise) / 100).toString()
-      : "35";
+      : "20";
     setSpecialPriceRupees(rateRupees);
     setRecurringQuantity((cust.schedule?.quantityJars || 1).toString());
     setEditModalOpen(true);
@@ -394,8 +395,9 @@ export default function CustomersPage() {
         ) : (
           filteredCustomers.map((cust) => {
             const isArchived = cust.isActive === false || cust.isActive === 0;
-            const ratePaise = cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise ?? 3500;
-            const quota = cust.schedule?.quantityJars || 1;
+            const isBulkEvent = cust.customerType === "EVENT" || cust.customerCode?.startsWith("EVT-");
+            const ratePaise = cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise ?? 2000;
+            const quota = cust.schedule?.quantityJars || (isBulkEvent ? (cust.heldJarsCount || 0) : 1);
             const address = cust.address?.streetAddress || cust.addresses?.[0]?.streetAddress || "Bareilly";
             const locality = cust.address?.locality || cust.addresses?.[0]?.locality || "";
 
@@ -403,7 +405,11 @@ export default function CustomersPage() {
               <div
                 key={cust.id}
                 className={`bg-white rounded-2xl border shadow-xs hover:shadow-md transition-all p-5 flex flex-col justify-between ${
-                  isArchived ? "border-amber-200/80 bg-amber-50/20" : "border-slate-200 hover:border-sky-300"
+                  isArchived
+                    ? "border-amber-200/80 bg-amber-50/20"
+                    : isBulkEvent
+                    ? "border-purple-200 hover:border-purple-300"
+                    : "border-slate-200 hover:border-sky-300"
                 }`}
               >
                 <div>
@@ -411,7 +417,13 @@ export default function CustomersPage() {
                   <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                            isBulkEvent
+                              ? "text-purple-800 bg-purple-50 border-purple-200"
+                              : "text-sky-700 bg-sky-50 border-sky-200"
+                          }`}
+                        >
                           {cust.customerCode}
                         </span>
                         {isArchived && (
@@ -428,9 +440,16 @@ export default function CustomersPage() {
                         {cust.fullName}
                       </h3>
                     </div>
-                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
-                      Daily {quota} Jars
-                    </span>
+                    {isBulkEvent ? (
+                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200 shrink-0 flex items-center gap-1">
+                        <Truck className="w-3 h-3 text-purple-700" />
+                        <span>Bulk / Event Client</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                        Daily {quota} Jars
+                      </span>
+                    )}
                   </div>
 
                   {/* Details */}

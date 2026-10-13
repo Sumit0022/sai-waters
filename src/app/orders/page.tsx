@@ -27,6 +27,7 @@ import {
   Edit3,
   Filter,
   RefreshCw,
+  Eye,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
 import { getTodayIST } from "@/lib/date-utils";
@@ -96,6 +97,10 @@ export default function OrdersPage() {
   const [deleteConfirmationCode, setDeleteConfirmationCode] = useState("");
   const [userInputCode, setUserInputCode] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Inspect Modal State
+  const [inspectModalOpen, setInspectModalOpen] = useState(false);
+  const [inspectingOrder, setInspectingOrder] = useState<any>(null);
 
   // Load Only Bulk & Event Orders (Excluding Daily Recurring Runs)
   const loadData = () => {
@@ -390,6 +395,12 @@ export default function OrdersPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // Open Inspect Order Modal
+  const handleOpenInspect = (ord: any) => {
+    setInspectingOrder(ord);
+    setInspectModalOpen(true);
   };
 
   // Available months from orders for month filter
@@ -748,28 +759,47 @@ export default function OrdersPage() {
                   )}
 
                   {isDelivered && (
-                    <div className="w-full py-2 text-center text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200">
-                      ✓ Successfully Delivered & Invoiced
+                    <div className="w-full py-2 px-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs font-bold text-emerald-800">
+                      <span className="flex items-center gap-1.5">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Delivered & Invoiced</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenInspect(ord)}
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black rounded-lg text-[11px] shadow-xs cursor-pointer flex items-center gap-1 transition-all"
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>Inspect Order</span>
+                      </button>
                     </div>
                   )}
 
-                  {/* Secondary Management Buttons: Edit & Delete */}
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* Secondary Management Buttons: Inspect, Edit & Delete */}
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenInspect(ord)}
+                      className="py-1.5 px-2 rounded-xl border border-sky-200 bg-sky-50/70 hover:bg-sky-100 text-sky-800 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Inspect</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(ord)}
-                      className="py-1.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="py-1.5 px-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     >
                       <Edit3 className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Edit Order</span>
+                      <span>Edit</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenDelete(ord)}
-                      className="py-1.5 px-3 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100/80 text-rose-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="py-1.5 px-2 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100/80 text-rose-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                      <span>Delete Order</span>
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>
@@ -1634,6 +1664,271 @@ export default function OrdersPage() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: INSPECT ORDER AUDIT & DETAILS MODAL */}
+      {/* ========================================================================= */}
+      {inspectModalOpen && inspectingOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto border border-slate-200">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-sky-50 text-sky-700 rounded-2xl border border-sky-100">
+                  <Eye className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-slate-900 text-amber-400">
+                      {inspectingOrder.orderNumber}
+                    </span>
+                    <span
+                      className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                        inspectingOrder.status === "DELIVERED"
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          : inspectingOrder.status === "IN_TRANSIT"
+                          ? "bg-purple-100 text-purple-800 border border-purple-200 animate-pulse"
+                          : "bg-amber-100 text-amber-800 border border-amber-200"
+                      }`}
+                    >
+                      {inspectingOrder.status === "IN_TRANSIT" ? "IN TRANSIT (ON TRUCK)" : inspectingOrder.status}
+                    </span>
+                  </div>
+                  <h3 className="font-black text-slate-900 text-base mt-1">
+                    {inspectingOrder.eventName || inspectingOrder.customerName}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid 1: Customer & Venue */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-1.5 text-xs">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  Customer & Contact
+                </span>
+                <p className="font-black text-slate-900 text-sm">{inspectingOrder.customerName}</p>
+                <p className="text-slate-600 font-mono flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <a href={`tel:${inspectingOrder.customerPhone}`} className="text-sky-700 hover:underline font-bold">
+                    {inspectingOrder.customerPhone}
+                  </a>
+                </p>
+                {inspectingOrder.venueContactPerson && (
+                  <p className="text-slate-500 text-[11px]">
+                    Contact Person: <strong>{inspectingOrder.venueContactPerson}</strong>
+                  </p>
+                )}
+              </div>
+
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-1.5 text-xs">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  Delivery Venue & Schedule
+                </span>
+                <p className="font-bold text-slate-800 flex items-start gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                  <span>{inspectingOrder.streetAddress}, {inspectingOrder.locality}</span>
+                </p>
+                <p className="text-slate-600 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>Scheduled Date: <strong>{inspectingOrder.scheduledDate}</strong></span>
+                </p>
+              </div>
+            </div>
+
+            {/* Grid 2: Quantity & Financials */}
+            <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3">
+              <span className="text-[10px] font-black text-amber-400 uppercase tracking-wider block">
+                Order Billing & Commercials
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                <div className="p-2.5 bg-slate-800 rounded-xl">
+                  <span className="text-[10px] text-slate-400 block font-bold">Booked Jars</span>
+                  <span className="text-base font-black text-white">{inspectingOrder.quantityJars} Units</span>
+                </div>
+                <div className="p-2.5 bg-slate-800 rounded-xl">
+                  <span className="text-[10px] text-slate-400 block font-bold">Agreed Rate</span>
+                  <span className="text-base font-black text-emerald-400">
+                    ₹{Math.round((inspectingOrder.unitPricePaise || 2000) / 100)} / jar
+                  </span>
+                </div>
+                <div className="p-2.5 bg-slate-800 rounded-xl">
+                  <span className="text-[10px] text-slate-400 block font-bold">Delivered Jars</span>
+                  <span className="text-base font-black text-sky-400">
+                    {inspectingOrder.deliveredCount ?? inspectingOrder.quantityJars} Units
+                  </span>
+                </div>
+                <div className="p-2.5 bg-slate-800 rounded-xl">
+                  <span className="text-[10px] text-slate-400 block font-bold">Total Bill</span>
+                  <span className="text-base font-black text-emerald-400">
+                    {formatINR(inspectingOrder.totalAmountPaise)}
+                  </span>
+                </div>
+              </div>
+
+              {inspectingOrder.depositAmountPaise > 0 && (
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Advance Security Deposit:</span>
+                  <span className="font-black text-amber-400">
+                    {formatINR(inspectingOrder.depositAmountPaise)} ({inspectingOrder.depositStatus || "PAID"})
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Section 3: Logistics & Jars Audit */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-indigo-600" />
+                  <span>Logistics & Scanned Jars Audit</span>
+                </span>
+                {inspectingOrder.assignedDriverName && (
+                  <span className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-lg border border-slate-200">
+                    Driver: {inspectingOrder.assignedDriverName} ({inspectingOrder.vehicleNumber || "UP 25 SW 1001"})
+                  </span>
+                )}
+              </div>
+
+              {/* Dispatched Jars Badges */}
+              {inspectingOrder.dispatchedJars?.length > 0 ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                    <span>Scanned Truck Jars ({inspectingOrder.dispatchedJars.length}):</span>
+                    <span>Delivered: {inspectingOrder.deliveredCount ?? inspectingOrder.dispatchedJars.length} Jars</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto p-2 bg-white rounded-xl border border-slate-200">
+                    {inspectingOrder.dispatchedJars.map((code: string, idx: number) => {
+                      const isRejected = inspectingOrder.undeliveredJars?.includes(code);
+                      return (
+                        <span
+                          key={idx}
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                            isRejected
+                              ? "bg-rose-50 text-rose-700 border-rose-200 line-through"
+                              : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                          }`}
+                        >
+                          {code}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 italic bg-white p-2.5 rounded-xl border border-slate-200">
+                  {inspectingOrder.status === "CONFIRMED"
+                    ? "Order is pending dispatch. Jars will be recorded when owner dispatches order."
+                    : `${inspectingOrder.quantityJars} bulk units assigned without individual barcodes.`}
+                </p>
+              )}
+
+              {/* Undelivered / Rejected Jars */}
+              {inspectingOrder.undeliveredJars?.length > 0 && (
+                <div className="p-2.5 bg-rose-50 rounded-xl border border-rose-200 text-xs space-y-1">
+                  <span className="font-bold text-rose-800 text-[11px] flex items-center gap-1">
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Rejected / Returned Jars ({inspectingOrder.undeliveredJars.length}):</span>
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {inspectingOrder.undeliveredJars.map((code: string, idx: number) => (
+                      <span key={idx} className="font-mono text-[10px] px-1.5 py-0.5 bg-white text-rose-800 rounded border border-rose-200 font-bold">
+                        {code}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notes / Special Instructions */}
+            {inspectingOrder.deliveryNotes && (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Notes:</span>
+                <p className="text-slate-700 font-medium">
+                  {typeof inspectingOrder.deliveryNotes === "string" && !inspectingOrder.deliveryNotes.startsWith("{")
+                    ? inspectingOrder.deliveryNotes
+                    : "Order processed with digital verification & custody tracking."}
+                </p>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInspectModalOpen(false);
+                    handleOpenEdit(inspectingOrder);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Edit Order</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInspectModalOpen(false);
+                    handleOpenDelete(inspectingOrder);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100/80 text-rose-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {inspectingOrder.status === "CONFIRMED" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInspectModalOpen(false);
+                      handleOpenDispatch(inspectingOrder);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Truck className="w-4 h-4" />
+                    <span>Dispatch Now</span>
+                  </button>
+                )}
+
+                {inspectingOrder.status === "IN_TRANSIT" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInspectModalOpen(false);
+                      handleOpenSettle(inspectingOrder);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <CheckCheck className="w-4 h-4" />
+                    <span>Settle Delivery</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setInspectModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
