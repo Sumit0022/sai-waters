@@ -1,0 +1,16 @@
+{
+  "name": "Sai Waters ERP",
+  "short_name": "Sai Waters",
+  "description": "20L Water Jar Distribution, QR Tracking, Billing & Accounting ERP",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
