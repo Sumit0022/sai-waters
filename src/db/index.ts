@@ -17,7 +17,12 @@ export function getRawClient() {
   if (_rawClient) return _rawClient;
   const databaseUrl = process.env.DATABASE_URL;
   if (databaseUrl) {
-    _rawClient = new Pool({ connectionString: databaseUrl });
+    _rawClient = new Pool({
+      connectionString: databaseUrl,
+      ssl: databaseUrl.includes("sslmode=require") || databaseUrl.includes("neon.tech") || databaseUrl.includes("supabase.co")
+        ? { rejectUnauthorized: false }
+        : undefined,
+    });
   } else {
     const dataDir = path.join(process.cwd(), "data", "pglite");
     const fs = require("fs");
