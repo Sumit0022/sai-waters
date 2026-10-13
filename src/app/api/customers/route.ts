@@ -50,6 +50,7 @@ export async function GET(request: Request) {
       .select()
       .from(customerPriceAgreements)
       .where(eq(customerPriceAgreements.customerId, cust.id))
+      .orderBy(desc(customerPriceAgreements.effectiveFrom))
       .limit(1);
     const schedule = await db
       .select()
@@ -80,6 +81,7 @@ export async function GET(request: Request) {
 
     // QR Token for this customer
     const qrToken = `urn:sw:c:${cust.customerCode}`;
+    const pricePerJarPaise = priceAgreement[0]?.pricePerJarPaise ?? 3500;
 
     return NextResponse.json({
       success: true,
@@ -88,6 +90,8 @@ export async function GET(request: Request) {
         qrToken,
         address: addresses[0] || null,
         customPrice: priceAgreement[0] || null,
+        priceAgreements: priceAgreement,
+        pricePerJarPaise,
         schedule: schedule[0] || null,
       },
       deliveries: deliveryOrders,
@@ -99,17 +103,28 @@ export async function GET(request: Request) {
   // Otherwise return all recurring customers list
   const allCustomers = await db.select().from(customers).orderBy(desc(customers.createdAt));
   const allAddresses = await db.select().from(customerAddresses);
-  const allPrices = await db.select().from(customerPriceAgreements);
+  const allPrices = await db
+    .select()
+    .from(customerPriceAgreements)
+    .orderBy(desc(customerPriceAgreements.effectiveFrom));
   const allSchedules = await db.select().from(recurringSchedules);
 
-  const enriched = allCustomers.map((c: any) => ({
-    ...c,
-    qrToken: `urn:sw:c:${c.customerCode}`,
-    address: allAddresses.find((a: any) => a.customerId === c.id) || null,
-    addresses: allAddresses.filter((a: any) => a.customerId === c.id),
-    customPrice: allPrices.find((p: any) => p.customerId === c.id),
-    schedule: allSchedules.find((s: any) => s.customerId === c.id),
-  }));
+  const enriched = allCustomers.map((c: any) => {
+    const custPrice = allPrices.find((p: any) => p.customerId === c.id);
+    const custAgreements = allPrices.filter((p: any) => p.customerId === c.id);
+    const pricePerJarPaise = custPrice?.pricePerJarPaise ?? 3500;
+
+    return {
+      ...c,
+      qrToken: `urn:sw:c:${c.customerCode}`,
+      address: allAddresses.find((a: any) => a.customerId === c.id) || null,
+      addresses: allAddresses.filter((a: any) => a.customerId === c.id),
+      customPrice: custPrice || null,
+      priceAgreements: custAgreements,
+      pricePerJarPaise,
+      schedule: allSchedules.find((s: any) => s.customerId === c.id),
+    };
+  });
 
   return NextResponse.json({ customers: enriched });
 }
@@ -152,8 +167,13 @@ export async function POST(request: Request) {
     isDefault: true,
   });
 
-  // 3. Optional Special Price Agreement (defaults to ₹35/jar if omitted)
-  const pricePaise = body.specialPricePerJarPaise ? Number(body.specialPricePerJarPaise) : 3500;
+  // 3. Customer Price Agreement (allotted jar delivery rate)
+  const pricePaise =
+    body.specialPricePerJarPaise !== undefined &&
+    body.specialPricePerJarPaise !== null &&
+    !isNaN(Number(body.specialPricePerJarPaise))
+      ? Number(body.specialPricePerJarPaise)
+      : 3500;
   await db.insert(customerPriceAgreements).values({
     id: `cpa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     customerId,
@@ -215,7 +235,11 @@ export async function PUT(request: Request) {
 
   // 3. Update Price Agreement
   if (body.specialPricePerJarPaise !== undefined) {
-    const existingPrice = await db.select().from(customerPriceAgreements).where(eq(customerPriceAgreements.customerId, customerId));
+    const existingPrice = await db
+      .select()
+      .from(customerPriceAgreements)
+      .where(eq(customerPriceAgreements.customerId, customerId))
+      .orderBy(desc(customerPriceAgreements.effectiveFrom));
     const pricePaise = Number(body.specialPricePerJarPaise);
     if (existingPrice.length > 0) {
       await db

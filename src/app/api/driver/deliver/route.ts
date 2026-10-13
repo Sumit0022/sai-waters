@@ -11,7 +11,7 @@ import {
   cashCollectionSubmissions,
   users,
 } from "@/db/schema";
-import { eq, or, sql } from "drizzle-orm";
+import { eq, or, sql, desc } from "drizzle-orm";
 import { transitionJarState } from "@/lib/jars";
 import { recordFieldCashCollection } from "@/lib/cash";
 import { createAndPostInvoice } from "@/lib/billing";
@@ -80,13 +80,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Fetch Customer Price Agreement (default ₹35/jar)
+    // 3. Fetch Customer Price Agreement (allotted rate)
     const [priceRow] = await db
       .select()
       .from(customerPriceAgreements)
       .where(eq(customerPriceAgreements.customerId, cust.id))
+      .orderBy(desc(customerPriceAgreements.effectiveFrom))
       .limit(1);
-    const unitPricePaise = priceRow ? priceRow.pricePerJarPaise : 3500;
+    const unitPricePaise = priceRow
+      ? priceRow.pricePerJarPaise
+      : (body.unitPricePaise ? Number(body.unitPricePaise) : 3500);
     const totalAmountPaise = unitPricePaise * cleanJars.length;
 
     // 4. Fetch Customer Address

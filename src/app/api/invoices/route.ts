@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { invoices, invoiceLines, customers, orders } from "@/db/schema";
+import { invoices, invoiceLines, customers, orders, customerPriceAgreements } from "@/db/schema";
 import { createAndPostInvoice, generateUpiLink, generateWhatsAppShareLink } from "@/lib/billing";
 import { eq, desc } from "drizzle-orm";
 
@@ -63,7 +63,23 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const db = getDb();
     const body = await request.json();
+
+    let defaultUnitPricePaise = body.unitPricePaise ? Number(body.unitPricePaise) : null;
+    if (!defaultUnitPricePaise && body.customerId) {
+      const [priceRow] = await db
+        .select()
+        .from(customerPriceAgreements)
+        .where(eq(customerPriceAgreements.customerId, body.customerId))
+        .orderBy(desc(customerPriceAgreements.effectiveFrom))
+        .limit(1);
+      if (priceRow) {
+        defaultUnitPricePaise = priceRow.pricePerJarPaise;
+      }
+    }
+    const finalUnitPricePaise = defaultUnitPricePaise || 3500;
+
     const result = await createAndPostInvoice({
       customerId: body.customerId,
       orderId: body.orderId,
@@ -72,7 +88,7 @@ export async function POST(request: Request) {
         {
           description: body.description || "20-Litre Water Jar Delivery",
           quantity: Number(body.quantity || 1),
-          unitPricePaise: Number(body.unitPricePaise || 3500),
+          unitPricePaise: finalUnitPricePaise,
         },
       ],
       postedBy: body.postedBy || "usr_owner_01",

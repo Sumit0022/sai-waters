@@ -109,8 +109,8 @@ export default function CustomersPage() {
     setPhone(cust.phone || "");
     setStreetAddress(cust.address?.streetAddress || cust.addresses?.[0]?.streetAddress || "");
     setLocality(cust.address?.locality || cust.addresses?.[0]?.locality || "Civil Lines");
-    const rateRupees = cust.customPrice?.pricePerJarPaise
-      ? (cust.customPrice.pricePerJarPaise / 100).toString()
+    const rateRupees = (cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise)
+      ? ((cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise) / 100).toString()
       : "35";
     setSpecialPriceRupees(rateRupees);
     setRecurringQuantity((cust.schedule?.quantityJars || 1).toString());
@@ -245,7 +245,7 @@ export default function CustomersPage() {
       {/* Customers Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredCustomers.map((cust) => {
-          const ratePaise = cust.customPrice?.pricePerJarPaise || 3500;
+          const ratePaise = cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise ?? 3500;
           const quota = cust.schedule?.quantityJars || 1;
           const address = cust.address?.streetAddress || cust.addresses?.[0]?.streetAddress || "Bareilly";
           const locality = cust.address?.locality || cust.addresses?.[0]?.locality || "";
@@ -347,7 +347,7 @@ export default function CustomersPage() {
                     <h3 className="text-lg font-black text-slate-900">{activeCustomer.fullName}</h3>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Allotted Rate: <strong>{formatINR(activeCustomer.customPrice?.pricePerJarPaise || 3500)} / Jar</strong> • Phone: {activeCustomer.phone}
+                    Allotted Rate: <strong>{formatINR(activeCustomer.pricePerJarPaise ?? activeCustomer.customPrice?.pricePerJarPaise ?? 3500)} / Jar</strong> • Phone: {activeCustomer.phone}
                   </p>
                 </div>
                 <button

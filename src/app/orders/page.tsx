@@ -37,7 +37,10 @@ export default function OrdersPage() {
         setOrders(ordData.orders || []);
         setCustomers(custData.customers || []);
         if (custData.customers?.length > 0 && !selectedCustomerId) {
-          setSelectedCustomerId(custData.customers[0].id);
+          const first = custData.customers[0];
+          setSelectedCustomerId(first.id);
+          const rate = Math.round((first.pricePerJarPaise ?? first.customPrice?.pricePerJarPaise ?? 3500) / 100);
+          setRatePerJarRupees(rate.toString());
         }
         setLoading(false);
       })
@@ -239,7 +242,17 @@ export default function OrdersPage() {
                 <input
                   type="checkbox"
                   checked={useExistingCustomer}
-                  onChange={(e) => setUseExistingCustomer(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setUseExistingCustomer(checked);
+                    if (checked && selectedCustomerId) {
+                      const cust = customers.find((c) => c.id === selectedCustomerId);
+                      if (cust) {
+                        const rate = Math.round((cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise ?? 3500) / 100);
+                        setRatePerJarRupees(rate.toString());
+                      }
+                    }
+                  }}
                   className="w-4 h-4 rounded text-amber-600 cursor-pointer"
                 />
               </div>
@@ -294,7 +307,15 @@ export default function OrdersPage() {
                   <label className="text-xs font-bold text-slate-700 block mb-1">Choose Customer:</label>
                   <select
                     value={selectedCustomerId}
-                    onChange={(e) => setSelectedCustomerId(e.target.value)}
+                    onChange={(e) => {
+                      const newId = e.target.value;
+                      setSelectedCustomerId(newId);
+                      const cust = customers.find((c) => c.id === newId);
+                      if (cust) {
+                        const rate = Math.round((cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise ?? 3500) / 100);
+                        setRatePerJarRupees(rate.toString());
+                      }
+                    }}
                     className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold"
                   >
                     {customers.map((c) => (

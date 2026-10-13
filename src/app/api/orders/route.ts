@@ -88,6 +88,7 @@ export async function POST(request: Request) {
     .select()
     .from(customerPriceAgreements)
     .where(eq(customerPriceAgreements.customerId, customerId))
+    .orderBy(desc(customerPriceAgreements.effectiveFrom))
     .limit(1);
 
   const unitPricePaise = body.unitPricePaise || agreements[0]?.pricePerJarPaise || 3500;

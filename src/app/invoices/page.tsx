@@ -74,7 +74,10 @@ export default function InvoicesPage() {
           setBatchSummary(batchData);
         }
         if (custData.customers?.length > 0 && !selectedCustomerId) {
-          setSelectedCustomerId(custData.customers[0].id);
+          const first = custData.customers[0];
+          setSelectedCustomerId(first.id);
+          const rate = Math.round((first.pricePerJarPaise ?? first.customPrice?.pricePerJarPaise ?? 3500) / 100);
+          setUnitPriceRupees(rate.toString());
         }
         setLoading(false);
       })
@@ -596,7 +599,15 @@ export default function InvoicesPage() {
                 <label className="text-xs font-bold text-slate-700 block mb-1">Customer</label>
                 <select
                   value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setSelectedCustomerId(newId);
+                    const cust = customers.find((c) => c.id === newId);
+                    if (cust) {
+                      const rate = Math.round((cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise ?? 3500) / 100);
+                      setUnitPriceRupees(rate.toString());
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold"
                   required
                 >

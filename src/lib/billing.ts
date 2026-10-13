@@ -158,6 +158,7 @@ export async function getUnbilledMonthlySummary(billingMonth?: string) {
       .select()
       .from(customerPriceAgreements)
       .where(eq(customerPriceAgreements.customerId, cust.id))
+      .orderBy(desc(customerPriceAgreements.effectiveFrom))
       .limit(1);
 
     const unitPricePaise = priceRow?.pricePerJarPaise || deliveredOrders[0]?.unitPricePaise || 3500;
@@ -257,6 +258,7 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
       .select()
       .from(customerPriceAgreements)
       .where(eq(customerPriceAgreements.customerId, cust.id))
+      .orderBy(desc(customerPriceAgreements.effectiveFrom))
       .limit(1);
 
     const unitPricePaise = priceRow?.pricePerJarPaise || deliveredOrders[0]?.unitPricePaise || 3500;

@@ -210,6 +210,7 @@ export default function DriverAppPage() {
           driverId: driverUser.id,
           customerIdentifier: customerInfo.id,
           jarCodes: scannedJars,
+          unitPricePaise: currentRateRupees * 100,
           cashCollectedPaise: cashPaise,
         }),
       });
@@ -221,9 +222,9 @@ export default function DriverAppPage() {
           jarsCount: scannedJars.length,
           jarCodes: scannedJars,
           orderNumber: data.orderNumber,
-          totalAmountPaise: data.totalAmountPaise,
+          totalAmountPaise: data.totalAmountPaise || currentTotalRupees * 100,
           cashCollectedPaise: cashPaise,
-          receiptNumber: data.receiptNumber,
+          receiptNumber: data.cashReceiptNumber || data.receiptNumber,
         });
 
         // Reset for next delivery
@@ -243,7 +244,10 @@ export default function DriverAppPage() {
   };
 
   const currentRateRupees = Math.round(
-    (customerInfo?.priceAgreements?.[0]?.pricePerJarPaise || 3500) / 100
+    (customerInfo?.pricePerJarPaise ??
+      customerInfo?.customPrice?.pricePerJarPaise ??
+      customerInfo?.priceAgreements?.[0]?.pricePerJarPaise ??
+      3500) / 100
   );
   const currentTotalRupees = scannedJars.length * currentRateRupees;
 
@@ -463,7 +467,12 @@ export default function DriverAppPage() {
                 {/* Customer Banner */}
                 <div className="p-3.5 bg-sky-50 rounded-xl border border-sky-200 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] font-black uppercase text-sky-700">Customer Verified</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase text-sky-700">Customer Verified</span>
+                      <span className="text-[10px] font-black bg-sky-200/80 text-sky-900 px-2 py-0.5 rounded-md">
+                        Allotted Rate: ₹{currentRateRupees}/Jar
+                      </span>
+                    </div>
                     <h3 className="text-sm font-black text-slate-900">{customerInfo.fullName}</h3>
                     <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
                       <MapPin className="w-3 h-3 text-sky-600 shrink-0" />

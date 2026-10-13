@@ -18,7 +18,10 @@ export async function seedSampleOperationalData() {
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO customer_price_agreements (id, customer_id, price_per_jar_paise, notes) VALUES
-      ('cpa_001', 'cust_002', 3200, 'Negotiated commercial bulk daily rate ₹32/jar')
+      ('cpa_001', 'cust_001', 3500, 'Standard residential rate ₹35/jar'),
+      ('cpa_002', 'cust_002', 3200, 'Negotiated commercial bulk daily rate ₹32/jar'),
+      ('cpa_003', 'cust_003', 3500, 'Commercial clinic rate ₹35/jar'),
+      ('cpa_004', 'cust_004', 3000, 'Event banquet bulk rate ₹30/jar')
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO recurring_schedules (id, customer_id, address_id, days_of_week, quantity_jars, is_paused) VALUES
