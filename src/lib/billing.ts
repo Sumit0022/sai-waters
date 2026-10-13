@@ -33,8 +33,14 @@ export async function createAndPostInvoice(params: CreateInvoiceParams) {
 
   // Serial sequential invoice number: SW/26-27/INV-00001
   const countRes = await db.select({ count: sql<number>`count(*)` }).from(invoices);
-  const nextNum = (countRes[0]?.count || 0) + 1;
-  const invoiceNumber = `SW/${yearSuffix}-${nextYearSuffix}/INV-${String(nextNum).padStart(5, "0")}`;
+  const allInvoices = await db.select({ num: invoices.invoiceNumber }).from(invoices);
+  const existingSet = new Set(allInvoices.map((i: any) => i.num));
+  let nextNum = (countRes[0]?.count || 0) + 1;
+  let invoiceNumber = `SW/${yearSuffix}-${nextYearSuffix}/INV-${String(nextNum).padStart(5, "0")}`;
+  while (existingSet.has(invoiceNumber)) {
+    nextNum++;
+    invoiceNumber = `SW/${yearSuffix}-${nextYearSuffix}/INV-${String(nextNum).padStart(5, "0")}`;
+  }
   const invoiceId = `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   const totalPaise = params.lines.reduce((s, l) => s + l.quantity * l.unitPricePaise, 0);

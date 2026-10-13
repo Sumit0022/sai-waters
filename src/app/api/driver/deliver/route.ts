@@ -233,6 +233,7 @@ export async function POST(req: Request) {
     if (cashCollectedPaise && cashCollectedPaise > 0) {
       const rec = await recordFieldCashCollection({
         driverId,
+        orderId,
         customerId: cust.id,
         amountCollectedPaise: cashCollectedPaise,
         clientEventId: `cash_${Date.now()}`,

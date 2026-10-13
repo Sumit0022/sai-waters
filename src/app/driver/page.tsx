@@ -147,7 +147,16 @@ export default function DriverAppPage() {
     const unitPricePaise = order.unitPricePaise ?? order.orderLines?.[0]?.unitPricePaise ?? 2000;
     const unitRate = Math.round(unitPricePaise / 100);
     const dispatched = order.dispatchedJars?.length || order.quantityJars || 0;
-    setBulkCashCollected((dispatched * unitRate).toString());
+    const fullBill = dispatched * unitRate;
+    const advancePaid = Math.round((order.advanceReceivedPaise || 0) / 100);
+
+    if (order.paymentType === "PREPAID") {
+      setBulkCashCollected("0");
+    } else if (order.paymentType === "PARTIAL_ADVANCE") {
+      setBulkCashCollected(Math.max(0, fullBill - advancePaid).toString());
+    } else {
+      setBulkCashCollected(fullBill.toString());
+    }
   };
 
   const handleAddUndeliveredBulkJar = (code: string) => {
@@ -860,9 +869,24 @@ export default function DriverAppPage() {
                         >
                           <div className="flex items-start justify-between">
                             <div>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-800 border border-amber-200">
-                                🚚 In-Transit
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-800 border border-amber-200">
+                                  🚚 In-Transit
+                                </span>
+                                {order.paymentType === "PREPAID" ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    💳 100% PREPAID
+                                  </span>
+                                ) : order.paymentType === "PARTIAL_ADVANCE" ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                                    Advance: ₹{Math.round((order.advanceReceivedPaise || 0) / 100)} • Due: ₹{Math.round((order.balanceDuePaise || 0) / 100)}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-800 border border-sky-200">
+                                    💵 Pay on Delivery
+                                  </span>
+                                )}
+                              </div>
                               <h3 className="font-black text-slate-900 text-sm mt-1">
                                 {order.eventOrder?.eventName || order.customer?.name}
                               </h3>
@@ -1044,6 +1068,9 @@ export default function DriverAppPage() {
                   const accepted = Math.max(0, dispatched - rejected);
                   const unitRate = Math.round((selectedBulkOrder.unitPricePaise ?? selectedBulkOrder.orderLines?.[0]?.unitPricePaise ?? 2000) / 100);
                   const finalBillRupees = accepted * unitRate;
+                  const advancePaidRupees = Math.round((selectedBulkOrder.advanceReceivedPaise || 0) / 100);
+                  const isPrepaid = selectedBulkOrder.paymentType === "PREPAID";
+                  const dueBalanceRupees = isPrepaid ? 0 : Math.max(0, finalBillRupees - advancePaidRupees);
 
                   return (
                     <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-md space-y-3">
@@ -1062,9 +1089,34 @@ export default function DriverAppPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Final Bill Amount ({accepted} × ₹{unitRate}):</span>
-                        <span className="text-base font-black text-emerald-400">₹{finalBillRupees}</span>
+                      {/* Payment Status Breakdown */}
+                      <div className="space-y-1.5 text-xs bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Total Delivery Bill ({accepted} × ₹{unitRate}):</span>
+                          <span className="font-bold text-slate-200">₹{finalBillRupees}</span>
+                        </div>
+                        {isPrepaid ? (
+                          <div className="flex items-center justify-between text-emerald-400 font-bold">
+                            <span>Payment Status:</span>
+                            <span>💳 100% PREPAID (Collect ₹0)</span>
+                          </div>
+                        ) : advancePaidRupees > 0 ? (
+                          <>
+                            <div className="flex items-center justify-between text-amber-400 font-semibold">
+                              <span>Advance Received:</span>
+                              <span>- ₹{advancePaidRupees}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sky-400 font-black border-t border-slate-700/60 pt-1">
+                              <span>Due Balance to Collect:</span>
+                              <span className="text-sm">₹{dueBalanceRupees}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-between text-sky-400 font-black border-t border-slate-700/60 pt-1">
+                            <span>Due Balance (Pay on Delivery):</span>
+                            <span className="text-sm">₹{finalBillRupees}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Cash Collection Input */}
@@ -1076,10 +1128,10 @@ export default function DriverAppPage() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => setBulkCashCollected(finalBillRupees.toString())}
-                            className="text-[10px] text-sky-400 hover:underline cursor-pointer"
+                            onClick={() => setBulkCashCollected(dueBalanceRupees.toString())}
+                            className="text-[10px] text-sky-400 hover:underline cursor-pointer font-bold"
                           >
-                            Set Full ₹{finalBillRupees}
+                            Set Due ₹{dueBalanceRupees}
                           </button>
                         </label>
                         <input

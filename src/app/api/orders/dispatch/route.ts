@@ -87,6 +87,12 @@ export async function GET(request: Request) {
         assignedDriverName: dispatchMeta?.driverName || null,
         vehicleNumber: dispatchMeta?.vehicleNumber || null,
         dispatchedAt: dispatchMeta?.dispatchedAt || null,
+        paymentType: dispatchMeta?.paymentType || "PAY_ON_DELIVERY",
+        advanceReceivedPaise: dispatchMeta?.advanceReceivedPaise || 0,
+        balanceDuePaise:
+          dispatchMeta?.balanceDuePaise !== undefined
+            ? dispatchMeta.balanceDuePaise
+            : Math.max(0, r.totalAmountPaise - (dispatchMeta?.advanceReceivedPaise || 0)),
       };
     });
 
@@ -205,7 +211,17 @@ export async function POST(request: Request) {
       .where(eq(users.id, targetDriverId))
       .limit(1);
 
+    let existingMeta: any = {};
+    if (order.deliveryNotes) {
+      try {
+        existingMeta = JSON.parse(order.deliveryNotes);
+      } catch (e) {
+        existingMeta = { originalNotes: order.deliveryNotes };
+      }
+    }
+
     const dispatchMeta = {
+      ...existingMeta,
       dispatchedJars: cleanJars,
       driverId: targetDriverId,
       driverName: driverUser?.fullName || "Vikram Singh",

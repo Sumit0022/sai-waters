@@ -53,6 +53,8 @@ export default function OrdersPage() {
   const [ratePerJarRupees, setRatePerJarRupees] = useState("20");
   const [depositAmountRupees, setDepositAmountRupees] = useState("1000");
   const [scheduledDate, setScheduledDate] = useState(getTodayIST());
+  const [paymentType, setPaymentType] = useState<"PAY_ON_DELIVERY" | "PARTIAL_ADVANCE" | "PREPAID">("PAY_ON_DELIVERY");
+  const [advanceReceivedRupees, setAdvanceReceivedRupees] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Dispatch Modal State (Owner Warehouse Dispatch)
@@ -89,6 +91,8 @@ export default function OrdersPage() {
   const [editContactPerson, setEditContactPerson] = useState("");
   const [editContactPhone, setEditContactPhone] = useState("");
   const [editDeliveryNotes, setEditDeliveryNotes] = useState("");
+  const [editPaymentType, setEditPaymentType] = useState<"PAY_ON_DELIVERY" | "PARTIAL_ADVANCE" | "PREPAID">("PAY_ON_DELIVERY");
+  const [editAdvanceReceivedRupees, setEditAdvanceReceivedRupees] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
   // Delete Modal State (with random verification code)
@@ -137,6 +141,14 @@ export default function OrdersPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const totalBillRupees = Number(quantityJars || 0) * Number(ratePerJarRupees || 0);
+      let advancePaise = 0;
+      if (paymentType === "PREPAID") {
+        advancePaise = totalBillRupees * 100;
+      } else if (paymentType === "PARTIAL_ADVANCE") {
+        advancePaise = Math.round(Number(advanceReceivedRupees || 0) * 100);
+      }
+
       const payload: any = {
         orderType: "ONE_TIME_EVENT",
         quantityJars: Number(quantityJars),
@@ -144,6 +156,8 @@ export default function OrdersPage() {
         scheduledDate,
         eventName: eventName || "Bulk Event Order",
         depositAmountPaise: Math.round(Number(depositAmountRupees || 0) * 100),
+        paymentType,
+        advanceReceivedPaise: advancePaise,
       };
 
       if (useExistingCustomer) {
@@ -162,16 +176,22 @@ export default function OrdersPage() {
         body: JSON.stringify(payload),
       });
 
+      const data = await res.json();
       if (res.ok) {
         setAddModalOpen(false);
         setCustomCustomerName("");
         setCustomCustomerPhone("");
         setVenueAddress("");
         setEventName("");
+        setPaymentType("PAY_ON_DELIVERY");
+        setAdvanceReceivedRupees("");
         loadData();
+      } else {
+        alert(data.error || "Event order create nahi ho saka. Kripya details check karein.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to create order:", err);
+      alert(err.message || "Network error booking order");
     } finally {
       setIsSubmitting(false);
     }
@@ -321,6 +341,10 @@ export default function OrdersPage() {
     setEditDeliveryNotes(
       typeof ord.deliveryNotes === "string" && !ord.deliveryNotes.startsWith("{") ? ord.deliveryNotes : ""
     );
+    setEditPaymentType(ord.paymentType || "PAY_ON_DELIVERY");
+    setEditAdvanceReceivedRupees(
+      ord.advanceReceivedPaise ? Math.round(ord.advanceReceivedPaise / 100).toString() : ""
+    );
     setEditModalOpen(true);
   };
 
@@ -330,6 +354,14 @@ export default function OrdersPage() {
     if (!editingOrder) return;
     setIsEditing(true);
     try {
+      const editTotalRupees = Number(editQuantityJars || 0) * Number(editRatePerJarRupees || 0);
+      let editAdvancePaise = 0;
+      if (editPaymentType === "PREPAID") {
+        editAdvancePaise = editTotalRupees * 100;
+      } else if (editPaymentType === "PARTIAL_ADVANCE") {
+        editAdvancePaise = Math.round(Number(editAdvanceReceivedRupees || 0) * 100);
+      }
+
       const res = await fetch("/api/orders", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -344,6 +376,8 @@ export default function OrdersPage() {
           venueContactPerson: editContactPerson,
           venueContactPhone: editContactPhone,
           deliveryNotes: editDeliveryNotes,
+          paymentType: editPaymentType,
+          advanceReceivedPaise: editAdvancePaise,
         }),
       });
       const data = await res.json();
@@ -724,6 +758,19 @@ export default function OrdersPage() {
                     <div className="text-right">
                       <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Amount</span>
                       <span className="text-sm font-black text-slate-900">{formatINR(ord.totalAmountPaise)}</span>
+                      {ord.paymentType === "PREPAID" ? (
+                        <span className="text-[10px] font-black text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded block mt-0.5">
+                          💳 100% Prepaid (Collect ₹0)
+                        </span>
+                      ) : ord.paymentType === "PARTIAL_ADVANCE" ? (
+                        <span className="text-[10px] font-black text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded block mt-0.5">
+                          Adv: ₹{Math.round((ord.advanceReceivedPaise || 0) / 100)} • Due: ₹{Math.round((ord.balanceDuePaise || 0) / 100)}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-500 block mt-0.5">
+                          💵 Pay on Delivery
+                        </span>
+                      )}
                       {ord.depositAmountPaise > 0 && (
                         <span className="text-[10px] text-amber-700 font-bold block mt-0.5">
                           Deposit: {formatINR(ord.depositAmountPaise)}
@@ -955,6 +1002,121 @@ export default function OrdersPage() {
                     required
                   />
                 </div>
+              </div>
+
+              {/* Payment Type Selection */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+                <label className="text-xs font-bold text-slate-800 block">Payment Terms / Settlement *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <label
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center cursor-pointer transition-all ${
+                      paymentType === "PAY_ON_DELIVERY"
+                        ? "bg-sky-50 border-sky-400 text-sky-950 font-black shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-600 font-semibold hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="PAY_ON_DELIVERY"
+                      checked={paymentType === "PAY_ON_DELIVERY"}
+                      onChange={() => setPaymentType("PAY_ON_DELIVERY")}
+                      className="sr-only"
+                    />
+                    <span className="text-xs">💵 Pay on Delivery</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Full Driver Collection</span>
+                  </label>
+
+                  <label
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center cursor-pointer transition-all ${
+                      paymentType === "PARTIAL_ADVANCE"
+                        ? "bg-purple-50 border-purple-400 text-purple-950 font-black shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-600 font-semibold hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="PARTIAL_ADVANCE"
+                      checked={paymentType === "PARTIAL_ADVANCE"}
+                      onChange={() => setPaymentType("PARTIAL_ADVANCE")}
+                      className="sr-only"
+                    />
+                    <span className="text-xs">🟡 Advance Received</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Partial Paid Upfront</span>
+                  </label>
+
+                  <label
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center cursor-pointer transition-all ${
+                      paymentType === "PREPAID"
+                        ? "bg-emerald-50 border-emerald-400 text-emerald-950 font-black shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-600 font-semibold hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="PREPAID"
+                      checked={paymentType === "PREPAID"}
+                      onChange={() => setPaymentType("PREPAID")}
+                      className="sr-only"
+                    />
+                    <span className="text-xs">💳 100% Prepaid</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Collect ₹0 Cash</span>
+                  </label>
+                </div>
+
+                {/* Advance Amount Input if Partial */}
+                {paymentType === "PARTIAL_ADVANCE" && (
+                  <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                    <label className="text-[11px] font-bold text-purple-900 block">
+                      Advance Amount Received from Customer (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max={Number(quantityJars || 0) * Number(ratePerJarRupees || 0)}
+                      placeholder="e.g. 200"
+                      value={advanceReceivedRupees}
+                      onChange={(e) => setAdvanceReceivedRupees(e.target.value)}
+                      className="w-full p-2 rounded-xl border border-purple-300 bg-white text-xs font-black text-purple-950 focus:outline-hidden focus:ring-2 focus:ring-purple-400"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Live Financial Breakdown Summary */}
+                {(() => {
+                  const billTotal = Number(quantityJars || 0) * Number(ratePerJarRupees || 0);
+                  const adv =
+                    paymentType === "PREPAID"
+                      ? billTotal
+                      : paymentType === "PARTIAL_ADVANCE"
+                      ? Number(advanceReceivedRupees || 0)
+                      : 0;
+                  const driverDue = Math.max(0, billTotal - adv);
+
+                  return (
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between text-slate-600 font-medium">
+                        <span>Total Water Bill:</span>
+                        <span className="font-bold text-slate-900">₹{billTotal}</span>
+                      </div>
+                      {adv > 0 && (
+                        <div className="flex items-center justify-between text-purple-700 font-medium">
+                          <span>Advance Received Upfront:</span>
+                          <span className="font-bold">- ₹{adv}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 font-black">
+                        <span className="text-slate-700">Driver Doorstep Due:</span>
+                        <span className={driverDue > 0 ? "text-sky-700 text-sm" : "text-emerald-700 text-sm"}>
+                          {driverDue > 0 ? `₹${driverDue}` : "₹0 (Already Paid)"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1492,6 +1654,119 @@ export default function OrdersPage() {
                 </span>
               </div>
 
+              {/* Payment Type Selection in Edit */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+                <label className="text-xs font-bold text-slate-800 block">Payment Terms / Settlement *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <label
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center cursor-pointer transition-all ${
+                      editPaymentType === "PAY_ON_DELIVERY"
+                        ? "bg-sky-50 border-sky-400 text-sky-950 font-black shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-600 font-semibold hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="editPaymentType"
+                      value="PAY_ON_DELIVERY"
+                      checked={editPaymentType === "PAY_ON_DELIVERY"}
+                      onChange={() => setEditPaymentType("PAY_ON_DELIVERY")}
+                      className="sr-only"
+                    />
+                    <span className="text-xs">💵 Pay on Delivery</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Driver Collects Full</span>
+                  </label>
+
+                  <label
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center cursor-pointer transition-all ${
+                      editPaymentType === "PARTIAL_ADVANCE"
+                        ? "bg-purple-50 border-purple-400 text-purple-950 font-black shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-600 font-semibold hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="editPaymentType"
+                      value="PARTIAL_ADVANCE"
+                      checked={editPaymentType === "PARTIAL_ADVANCE"}
+                      onChange={() => setEditPaymentType("PARTIAL_ADVANCE")}
+                      className="sr-only"
+                    />
+                    <span className="text-xs">🟡 Advance Received</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Partial Paid</span>
+                  </label>
+
+                  <label
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center cursor-pointer transition-all ${
+                      editPaymentType === "PREPAID"
+                        ? "bg-emerald-50 border-emerald-400 text-emerald-950 font-black shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-600 font-semibold hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="editPaymentType"
+                      value="PREPAID"
+                      checked={editPaymentType === "PREPAID"}
+                      onChange={() => setEditPaymentType("PREPAID")}
+                      className="sr-only"
+                    />
+                    <span className="text-xs">💳 100% Prepaid</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Collect ₹0 Cash</span>
+                  </label>
+                </div>
+
+                {editPaymentType === "PARTIAL_ADVANCE" && (
+                  <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                    <label className="text-[11px] font-bold text-purple-900 block">
+                      Advance Amount Received from Customer (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max={Number(editQuantityJars || 0) * Number(editRatePerJarRupees || 0)}
+                      placeholder="e.g. 200"
+                      value={editAdvanceReceivedRupees}
+                      onChange={(e) => setEditAdvanceReceivedRupees(e.target.value)}
+                      className="w-full p-2 rounded-xl border border-purple-300 bg-white text-xs font-black text-purple-950 focus:outline-hidden focus:ring-2 focus:ring-purple-400"
+                      required
+                    />
+                  </div>
+                )}
+
+                {(() => {
+                  const billTotal = Number(editQuantityJars || 0) * Number(editRatePerJarRupees || 0);
+                  const adv =
+                    editPaymentType === "PREPAID"
+                      ? billTotal
+                      : editPaymentType === "PARTIAL_ADVANCE"
+                      ? Number(editAdvanceReceivedRupees || 0)
+                      : 0;
+                  const driverDue = Math.max(0, billTotal - adv);
+
+                  return (
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between text-slate-600 font-medium">
+                        <span>Total Water Bill:</span>
+                        <span className="font-bold text-slate-900">₹{billTotal}</span>
+                      </div>
+                      {adv > 0 && (
+                        <div className="flex items-center justify-between text-purple-700 font-medium">
+                          <span>Advance Received Upfront:</span>
+                          <span className="font-bold">- ₹{adv}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 font-black">
+                        <span className="text-slate-700">Driver Doorstep Due:</span>
+                        <span className={driverDue > 0 ? "text-sky-700 text-sm" : "text-emerald-700 text-sm"}>
+                          {driverDue > 0 ? `₹${driverDue}` : "₹0 (Already Paid)"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Scheduled Date</label>
                 <input
@@ -1775,6 +2050,49 @@ export default function OrdersPage() {
                     {formatINR(inspectingOrder.totalAmountPaise)}
                   </span>
                 </div>
+              </div>
+
+              {/* Payment Terms & Collection Audit */}
+              <div className="pt-2 border-t border-slate-800 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Payment Terms:</span>
+                  {inspectingOrder.paymentType === "PREPAID" ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      💳 100% PREPAID (Collect ₹0)
+                    </span>
+                  ) : inspectingOrder.paymentType === "PARTIAL_ADVANCE" ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      🟡 Partial Advance Received
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                      💵 Pay on Delivery
+                    </span>
+                  )}
+                </div>
+
+                {inspectingOrder.advanceReceivedPaise > 0 && (
+                  <div className="flex items-center justify-between text-purple-300">
+                    <span>Advance Received Upfront:</span>
+                    <span className="font-bold">
+                      {formatINR(inspectingOrder.advanceReceivedPaise)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-slate-300">
+                  <span>Balance Allotted for Driver Collection:</span>
+                  <span className="font-bold">
+                    {formatINR(inspectingOrder.balanceDuePaise || 0)}
+                  </span>
+                </div>
+
+                {inspectingOrder.cashCollectedPaise > 0 && (
+                  <div className="flex items-center justify-between text-emerald-400 font-bold border-t border-slate-800/80 pt-1">
+                    <span>Actual Cash Collected by Driver:</span>
+                    <span>{formatINR(inspectingOrder.cashCollectedPaise)}</span>
+                  </div>
+                )}
               </div>
 
               {inspectingOrder.depositAmountPaise > 0 && (

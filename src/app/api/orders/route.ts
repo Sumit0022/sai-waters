@@ -14,6 +14,7 @@ import {
   journalLines,
   jarMovementEvents,
   damageLossCases,
+  receipts,
 } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { createAndPostInvoice } from "@/lib/billing";
@@ -79,6 +80,12 @@ export async function GET(request: Request) {
         meta = JSON.parse(o.deliveryNotes);
       } catch (e) {}
     }
+    const advanceReceivedPaise = meta?.advanceReceivedPaise || 0;
+    const balanceDuePaise =
+      meta?.balanceDuePaise !== undefined
+        ? meta.balanceDuePaise
+        : Math.max(0, o.totalAmountPaise - advanceReceivedPaise);
+
     return {
       ...o,
       dispatchedJars: meta?.dispatchedJars || [],
@@ -88,6 +95,10 @@ export async function GET(request: Request) {
       undeliveredJars: meta?.undeliveredJars || [],
       deliveredCount: meta?.deliveredCount ?? o.quantityJars,
       settledAt: meta?.settledAt || null,
+      paymentType: meta?.paymentType || "PAY_ON_DELIVERY",
+      advanceReceivedPaise,
+      balanceDuePaise,
+      cashCollectedPaise: meta?.cashCollectedPaise || 0,
     };
   });
 
@@ -95,169 +106,256 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const db = getDb();
-  const body = await request.json();
+  try {
+    await ensureDatabaseReady();
+    const db = getDb();
+    const body = await request.json();
 
-  let customerId = body.customerId;
-  let addressId = body.addressId;
+    let customerId = body.customerId;
+    let addressId = body.addressId;
 
-  // By Default: Custom Customer (Ad-hoc Event / Bulk Customer)
-  if (!customerId && body.customCustomerName) {
-    customerId = `cust_evt_${Date.now()}`;
-    const custCount = await db.select().from(customers);
-    const custCode = `EVT-${String(custCount.length + 1).padStart(3, "0")}`;
+    // Handle Custom Customer (Ad-hoc Event / Bulk Customer)
+    if (!customerId && body.customCustomerName) {
+      const cleanPhone = (body.customCustomerPhone || "").trim();
+      let existingCust: any = null;
 
-    await db.insert(customers).values({
-      id: customerId,
-      customerCode: custCode,
-      fullName: body.customCustomerName,
-      phone: body.customCustomerPhone || "9876543210",
-      customerType: "EVENT",
-      billingFrequency: "PER_DELIVERY",
-      heldJarsCount: 0,
-      currentBalancePaise: 0,
-      isActive: true,
-    });
+      if (cleanPhone) {
+        const found = await db.select().from(customers).where(eq(customers.phone, cleanPhone)).limit(1);
+        if (found.length > 0) {
+          existingCust = found[0];
+        }
+      }
 
-    addressId = `addr_evt_${Date.now()}`;
-    await db.insert(customerAddresses).values({
-      id: addressId,
+      if (existingCust) {
+        customerId = existingCust.id;
+        const addrs = await db.select().from(customerAddresses).where(eq(customerAddresses.customerId, customerId)).limit(1);
+        if (addrs.length > 0) {
+          addressId = addrs[0].id;
+        }
+      } else {
+        customerId = `cust_evt_${Date.now()}`;
+        const allCusts = await db.select({ code: customers.customerCode }).from(customers);
+        const existingCodes = new Set(allCusts.map((c: any) => c.code));
+        let seq = allCusts.length + 1;
+        let custCode = `EVT-${String(seq).padStart(3, "0")}`;
+        while (existingCodes.has(custCode)) {
+          seq++;
+          custCode = `EVT-${String(seq).padStart(3, "0")}`;
+        }
+
+        const validPhone = cleanPhone || `98${Date.now().toString().slice(-8)}`;
+
+        await db.insert(customers).values({
+          id: customerId,
+          customerCode: custCode,
+          fullName: body.customCustomerName,
+          phone: validPhone,
+          customerType: "EVENT",
+          billingFrequency: "PER_DELIVERY",
+          heldJarsCount: 0,
+          currentBalancePaise: 0,
+          isActive: true,
+        });
+
+        addressId = `addr_evt_${Date.now()}`;
+        await db.insert(customerAddresses).values({
+          id: addressId,
+          customerId,
+          label: "Event Venue",
+          streetAddress: body.venueAddress || "Event Venue Address",
+          locality: body.locality || "Bareilly",
+          city: "Bareilly",
+          pincode: "243001",
+          isDefault: true,
+        });
+      }
+    }
+
+    // Generate unique collision-proof orderNumber
+    const allOrders = await db.select({ num: orders.orderNumber }).from(orders);
+    const existingOrderNums = new Set(allOrders.map((o: any) => o.num));
+    const todayCompact = getTodayIST().replace(/-/g, "");
+    let orderSeq = 1;
+    let orderNumber = body.orderNumber || `ORD-${todayCompact}-${String(orderSeq).padStart(2, "0")}`;
+    while (existingOrderNums.has(orderNumber)) {
+      orderSeq++;
+      orderNumber = `ORD-${todayCompact}-${String(orderSeq).padStart(2, "0")}`;
+    }
+    const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    const agreements = customerId
+      ? await db
+          .select()
+          .from(customerPriceAgreements)
+          .where(eq(customerPriceAgreements.customerId, customerId))
+          .orderBy(desc(customerPriceAgreements.effectiveFrom))
+          .limit(1)
+      : [];
+
+    const unitPricePaise = body.unitPricePaise || agreements[0]?.pricePerJarPaise || 2000;
+    const quantityJars = Number(body.quantityJars || 1);
+    const totalAmountPaise = quantityJars * unitPricePaise;
+
+    // Ensure customer price agreement is saved so customer ledger reflects exact rate
+    if (customerId && unitPricePaise) {
+      const existingPrice = await db
+        .select()
+        .from(customerPriceAgreements)
+        .where(eq(customerPriceAgreements.customerId, customerId))
+        .limit(1);
+      if (existingPrice.length === 0) {
+        await db.insert(customerPriceAgreements).values({
+          id: `cpa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          customerId,
+          pricePerJarPaise: unitPricePaise,
+          effectiveFrom: new Date(),
+        });
+      }
+    }
+
+    // Payment Type & Advance Logic
+    const paymentType = body.paymentType || "PAY_ON_DELIVERY"; // "PREPAID" | "PARTIAL_ADVANCE" | "PAY_ON_DELIVERY"
+    let advanceReceivedPaise = 0;
+    if (paymentType === "PREPAID") {
+      advanceReceivedPaise = totalAmountPaise;
+    } else if (paymentType === "PARTIAL_ADVANCE") {
+      advanceReceivedPaise = Math.min(totalAmountPaise, Number(body.advanceReceivedPaise || 0));
+    }
+    const balanceDuePaise = Math.max(0, totalAmountPaise - advanceReceivedPaise);
+    const depositAmountPaise = Number(body.depositAmountPaise || 0);
+
+    const initialDeliveryMeta = {
+      paymentType,
+      advanceReceivedPaise,
+      balanceDuePaise,
+      depositAmountPaise,
+      bookedAt: new Date().toISOString(),
+      notes: body.deliveryNotes || null,
+    };
+
+    // 1. Insert Order Record
+    await db.insert(orders).values({
+      id: orderId,
+      orderNumber,
       customerId,
-      label: "Event Venue",
-      streetAddress: body.venueAddress || "Event Venue Address",
-      locality: body.locality || "Bareilly",
-      city: "Bareilly",
-      pincode: "243001",
-      isDefault: true,
+      addressId: addressId || "addr_default",
+      orderType: body.orderType || "ONE_TIME_EVENT",
+      scheduledDate: body.scheduledDate || getTodayIST(),
+      quantityJars,
+      unitPricePaise,
+      totalAmountPaise,
+      status: "CONFIRMED",
+      deliveryNotes: JSON.stringify(initialDeliveryMeta),
     });
-  }
 
-  const countRes = await db.select().from(orders);
-  const nextNum = countRes.length + 1;
-  const todayCompact = getTodayIST().replace(/-/g, "");
-  const orderNumber = body.orderNumber || `ORD-${todayCompact}-${String(nextNum).padStart(2, "0")}`;
-  const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    // 2. Insert Order Item
+    await db.insert(orderItems).values({
+      id: `oit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      orderId,
+      itemDescription: `20L Drinking Water Jars (${quantityJars} Units)`,
+      quantity: quantityJars,
+      unitPricePaise,
+      lineTotalPaise: totalAmountPaise,
+    });
 
-  const agreements = await db
-    .select()
-    .from(customerPriceAgreements)
-    .where(eq(customerPriceAgreements.customerId, customerId))
-    .orderBy(desc(customerPriceAgreements.effectiveFrom))
-    .limit(1);
-
-  const unitPricePaise = body.unitPricePaise || agreements[0]?.pricePerJarPaise || 2000;
-  const quantityJars = Number(body.quantityJars || 1);
-  const totalAmountPaise = quantityJars * unitPricePaise;
-
-  // Ensure customer price agreement is saved so customer ledger reflects exact rate
-  if (customerId && unitPricePaise) {
-    const existingPrice = await db
-      .select()
-      .from(customerPriceAgreements)
-      .where(eq(customerPriceAgreements.customerId, customerId))
-      .limit(1);
-    if (existingPrice.length === 0) {
-      await db.insert(customerPriceAgreements).values({
-        id: `cpa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        customerId,
-        pricePerJarPaise: unitPricePaise,
-        effectiveFrom: body.scheduledDate || getTodayIST(),
+    // 3. If Event Order, insert Event Details
+    if (body.orderType === "ONE_TIME_EVENT" || body.eventName) {
+      await db.insert(eventOrders).values({
+        id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        orderId,
+        eventName: body.eventName || "Bulk Function / Gathering",
+        venueContactPerson: body.venueContactPerson || body.customCustomerName || "Contact Person",
+        venueContactPhone: body.venueContactPhone || body.customCustomerPhone || "0000000000",
+        eventDate: body.scheduledDate || getTodayIST(),
+        depositAmountPaise,
+        depositStatus: depositAmountPaise > 0 ? "PAID" : "PENDING",
       });
     }
-  }
 
-  // 1. Insert Order Record
-  await db.insert(orders).values({
-    id: orderId,
-    orderNumber,
-    customerId,
-    addressId: addressId || "addr_default",
-    orderType: body.orderType || "ONE_TIME_EVENT",
-    scheduledDate: body.scheduledDate || getTodayIST(),
-    quantityJars,
-    unitPricePaise,
-    totalAmountPaise,
-    status: "CONFIRMED",
-    deliveryNotes: body.deliveryNotes || null,
-  });
-
-  // 2. Insert Order Item
-  await db.insert(orderItems).values({
-    id: `oit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    orderId,
-    itemDescription: `20L Drinking Water Jars (${quantityJars} Units)`,
-    quantity: quantityJars,
-    unitPricePaise,
-    lineTotalPaise: totalAmountPaise,
-  });
-
-  // 3. If Event Order, insert Event Details
-  const depositAmountPaise = Number(body.depositAmountPaise || 0);
-  if (body.orderType === "ONE_TIME_EVENT" || body.eventName) {
-    await db.insert(eventOrders).values({
-      id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      orderId,
-      eventName: body.eventName || "Bulk Function / Gathering",
-      venueContactPerson: body.venueContactPerson || body.customCustomerName || "Contact Person",
-      venueContactPhone: body.venueContactPhone || body.customCustomerPhone || "0000000000",
-      eventDate: body.scheduledDate || getTodayIST(),
-      depositAmountPaise,
-      depositStatus: depositAmountPaise > 0 ? "PAID" : "PENDING",
-    });
-  }
-
-  // 4. AUTO JOURNAL ENTRY: Generate Commercial Invoice & Record Sales Revenue in General Ledger
-  let invoiceData = null;
-  try {
-    invoiceData = await createAndPostInvoice({
-      customerId,
-      orderId,
-      billingType: body.orderType === "ONE_TIME_EVENT" ? "EVENT_SETTLEMENT" : "SPOT_DELIVERY",
-      lines: [
-        {
-          description: `20L Drinking Water Jars (${quantityJars} Units)`,
-          quantity: quantityJars,
-          unitPricePaise,
-        },
-      ],
-      postedBy: body.postedBy || "usr_owner_01",
-      notes: `Auto-posted invoice for order ${orderNumber}`,
-    });
-
-    // If advance security deposit collected
-    if (depositAmountPaise > 0) {
-      await postJournalEntry({
-        sourceDocumentType: "RECEIPT",
-        sourceDocumentId: orderId,
-        narration: `Security Deposit for ${quantityJars} jars against ${orderNumber}`,
-        postedBy: body.postedBy || "usr_owner_01",
+    // 4. AUTO JOURNAL ENTRY: Generate Commercial Invoice & Record Sales Revenue
+    let invoiceData: any = null;
+    try {
+      invoiceData = await createAndPostInvoice({
+        customerId,
+        orderId,
+        billingType: body.orderType === "ONE_TIME_EVENT" ? "EVENT_SETTLEMENT" : "SPOT_DELIVERY",
         lines: [
           {
-            accountId: 1110, // Vault Cash
-            debitPaise: depositAmountPaise,
-            creditPaise: 0,
-          },
-          {
-            accountId: 2110, // Customer Jar Deposits
-            debitPaise: 0,
-            creditPaise: depositAmountPaise,
-            subLedgerType: "CUSTOMER",
-            subLedgerId: customerId,
+            description: `20L Drinking Water Jars (${quantityJars} Units)`,
+            quantity: quantityJars,
+            unitPricePaise,
           },
         ],
+        postedBy: body.postedBy || "usr_owner_01",
+        notes: `Auto-posted invoice for order ${orderNumber}`,
       });
-    }
-  } catch (err: any) {
-    console.error("Auto journal entry for order failed:", err);
-  }
 
-  return NextResponse.json({
-    success: true,
-    orderId,
-    orderNumber,
-    totalAmountPaise,
-    invoiceNumber: (invoiceData as any)?.invoiceNumber,
-  });
+      // If advance payment was made at booking
+      if (advanceReceivedPaise > 0 && invoiceData?.invoiceId) {
+        await db
+          .update(invoices)
+          .set({
+            paidAmountPaise: advanceReceivedPaise,
+            status: advanceReceivedPaise >= totalAmountPaise ? "PAID" : "PARTIALLY_PAID",
+          })
+          .where(eq(invoices.id, invoiceData.invoiceId));
+
+        // Create official receipt for advance
+        await db.insert(receipts).values({
+          id: `rec_adv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          receiptNumber: `REC-ADV-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`,
+          customerId,
+          invoiceId: invoiceData.invoiceId,
+          amountPaise: advanceReceivedPaise,
+          paymentMode: paymentType === "PREPAID" ? "UPI_MANUAL" : "CASH",
+          transactionReference: `Advance payment for order ${orderNumber} (${paymentType})`,
+          recordedBy: body.postedBy || "usr_owner_01",
+          receiptDate: body.scheduledDate || getTodayIST(),
+          createdAt: new Date(),
+        });
+      }
+
+      // If advance security deposit collected
+      if (depositAmountPaise > 0) {
+        await postJournalEntry({
+          sourceDocumentType: "RECEIPT",
+          sourceDocumentId: orderId,
+          narration: `Security Deposit for ${quantityJars} jars against ${orderNumber}`,
+          postedBy: body.postedBy || "usr_owner_01",
+          lines: [
+            {
+              accountId: 1110, // Vault Cash
+              debitPaise: depositAmountPaise,
+              creditPaise: 0,
+            },
+            {
+              accountId: 2110, // Customer Jar Deposits
+              debitPaise: 0,
+              creditPaise: depositAmountPaise,
+              subLedgerType: "CUSTOMER",
+              subLedgerId: customerId,
+            },
+          ],
+        });
+      }
+    } catch (err: any) {
+      console.error("Auto journal entry for order failed:", err);
+    }
+
+    return NextResponse.json({
+      success: true,
+      orderId,
+      orderNumber,
+      totalAmountPaise,
+      paymentType,
+      advanceReceivedPaise,
+      balanceDuePaise,
+      invoiceNumber: invoiceData?.invoiceNumber,
+    });
+  } catch (err: any) {
+    console.error("Failed to create order:", err);
+    return NextResponse.json({ error: err.message || "Failed to create order" }, { status: 500 });
+  }
 }
 
 // PUT: Edit order (quantity, rate per jar, event name, address, date, notes)
@@ -281,6 +379,34 @@ export async function PUT(request: Request) {
     const newUnitPricePaise = body.unitPricePaise !== undefined ? Number(body.unitPricePaise) : order.unitPricePaise;
     const newTotalPaise = newQty * newUnitPricePaise;
 
+    let existingMeta: any = {};
+    if (order.deliveryNotes) {
+      try {
+        existingMeta = JSON.parse(order.deliveryNotes);
+      } catch (e) {
+        existingMeta = { notes: order.deliveryNotes };
+      }
+    }
+
+    const updatedPaymentType = body.paymentType || existingMeta.paymentType || "PAY_ON_DELIVERY";
+    let updatedAdvancePaise = existingMeta.advanceReceivedPaise || 0;
+    if (body.paymentType === "PREPAID") {
+      updatedAdvancePaise = newTotalPaise;
+    } else if (body.advanceReceivedPaise !== undefined) {
+      updatedAdvancePaise = Math.min(newTotalPaise, Number(body.advanceReceivedPaise));
+    } else if (updatedPaymentType === "PREPAID") {
+      updatedAdvancePaise = newTotalPaise;
+    }
+    const updatedBalanceDuePaise = Math.max(0, newTotalPaise - updatedAdvancePaise);
+
+    const updatedMeta = {
+      ...existingMeta,
+      paymentType: updatedPaymentType,
+      advanceReceivedPaise: updatedAdvancePaise,
+      balanceDuePaise: updatedBalanceDuePaise,
+      notes: body.deliveryNotes !== undefined ? body.deliveryNotes : existingMeta.notes,
+    };
+
     // 1. Update order record
     await db
       .update(orders)
@@ -290,7 +416,7 @@ export async function PUT(request: Request) {
         totalAmountPaise: newTotalPaise,
         scheduledDate: body.scheduledDate || order.scheduledDate,
         status: body.status || order.status,
-        deliveryNotes: body.deliveryNotes !== undefined ? body.deliveryNotes : order.deliveryNotes,
+        deliveryNotes: JSON.stringify(updatedMeta),
       })
       .where(eq(orders.id, orderId));
 
@@ -322,7 +448,7 @@ export async function PUT(request: Request) {
           id: `cpa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
           customerId: order.customerId,
           pricePerJarPaise: newUnitPricePaise,
-          effectiveFrom: getTodayIST(),
+          effectiveFrom: new Date(),
         });
       }
     }
@@ -355,7 +481,17 @@ export async function PUT(request: Request) {
     // 5. Update linked invoices & lines if present
     const linkedInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
     for (const inv of linkedInvoices) {
-      await db.update(invoices).set({ totalAmountPaise: newTotalPaise }).where(eq(invoices.id, inv.id));
+      const invStatus =
+        updatedAdvancePaise >= newTotalPaise ? "PAID" : updatedAdvancePaise > 0 ? "PARTIALLY_PAID" : "ISSUED";
+      await db
+        .update(invoices)
+        .set({
+          totalAmountPaise: newTotalPaise,
+          subtotalPaise: newTotalPaise,
+          paidAmountPaise: updatedAdvancePaise,
+          status: invStatus,
+        })
+        .where(eq(invoices.id, inv.id));
       await db
         .update(invoiceLines)
         .set({
