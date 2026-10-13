@@ -21,6 +21,8 @@ import {
   CheckCheck,
   ArrowLeft,
   Phone,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
 import { formatTimeIST, getTodayIST } from "@/lib/date-utils";
@@ -32,6 +34,7 @@ export default function DriverAppPage() {
   const [availableDrivers, setAvailableDrivers] = useState<any[]>([]);
   const [selectedDriverId, setSelectedDriverId] = useState("usr_driver_01");
   const [pinInput, setPinInput] = useState("");
+  const [showPin, setShowPin] = useState(false);
   const [loginError, setLoginError] = useState("");
 
   // Navigation Tab: "DELIVERY" | "BULK_ORDERS" | "TIMELINE"
@@ -470,16 +473,24 @@ export default function DriverAppPage() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Enter Driver PIN:</label>
-              <input
-                type="password"
-                maxLength={4}
-                placeholder="••••"
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                className="w-full p-3 text-center tracking-widest text-2xl font-black rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
-                autoFocus
-              />
+              <label className="text-xs font-bold text-slate-700 block mb-1">Enter Driver PIN / Password:</label>
+              <div className="relative">
+                <input
+                  type={showPin ? "text" : "password"}
+                  placeholder="Enter Allotted PIN / Password"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  className="w-full pl-4 pr-11 py-3 text-center tracking-wider text-lg font-black rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPin(!showPin)}
+                  className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
             {loginError && (

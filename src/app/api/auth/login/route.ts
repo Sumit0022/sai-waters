@@ -11,13 +11,7 @@ export async function POST(request: Request) {
     const cleanUser = (username || "").trim();
     const cleanPass = (password || "").trim();
 
-    const isMatch =
-      cleanUser === admin.username && cleanPass === admin.password;
-    const isDefaultFallback =
-      (cleanUser === "sai" && cleanPass === "sai123") ||
-      (cleanUser === "admin" && cleanPass === "admin123");
-
-    if (!isMatch && !isDefaultFallback) {
+    if (cleanUser !== admin.username || cleanPass !== admin.password) {
       return NextResponse.json(
         { error: "Invalid Username or Password. Please try again." },
         { status: 401 }

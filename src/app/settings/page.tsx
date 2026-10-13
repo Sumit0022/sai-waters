@@ -908,18 +908,17 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Driver Login PIN (4 Digits) *</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Driver Login PIN / Password *</label>
                 <input
                   type="text"
-                  placeholder="e.g. 4321"
-                  maxLength={4}
+                  placeholder="e.g. 1234, 4321, or custom password"
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value)}
                   className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-black tracking-widest text-slate-900"
                   required
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  Driver field delivery app mein sirf issi PIN se login kar sakega.
+                  Driver field delivery app mein iss PIN / Password se login kar sakega.
                 </span>
               </div>
 
@@ -1001,17 +1000,16 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Allocated Login PIN *</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Allocated Login PIN / Password *</label>
                 <input
                   type="text"
-                  maxLength={4}
                   value={editPin}
                   onChange={(e) => setEditPin(e.target.value)}
                   className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-black tracking-widest text-slate-900"
                   required
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  Driver iss PIN se login karega.
+                  Driver iss PIN / Password se login karega.
                 </span>
               </div>
 

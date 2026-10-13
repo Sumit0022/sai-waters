@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, ensureDatabaseReady } from "@/db";
-import { invoices, customers, receipts } from "@/db/schema";
+import { invoices, customers, receipts, cashCollectionSubmissions, orders } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { postJournalEntry } from "@/lib/accounting";
 import { getTodayIST } from "@/lib/date-utils";
@@ -27,7 +27,39 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Customer record nahi mila." }, { status: 404 });
     }
 
-    const currentPaid = inv.paidAmountPaise || 0;
+    // Fetch verified receipts for this invoice
+    const allReceipts = await db.select().from(receipts);
+    const invReceipts = allReceipts.filter(
+      (r: any) => r.invoiceId === inv.id || (inv.orderId && r.transactionReference?.includes(inv.orderId))
+    );
+
+    // Fetch field cash collections
+    const allCashSubs = await db.select().from(cashCollectionSubmissions);
+    const invCashSubs = allCashSubs.filter(
+      (s: any) => s.invoiceId === inv.id || (inv.orderId && s.orderId === inv.orderId)
+    );
+
+    // Fetch order advance payment if linked
+    let advancePaise = 0;
+    if (inv.orderId) {
+      const [ord] = await db.select().from(orders).where(eq(orders.id, inv.orderId)).limit(1);
+      if (ord?.deliveryNotes) {
+        try {
+          const meta = JSON.parse(ord.deliveryNotes);
+          if (meta.advanceReceivedPaise) advancePaise = Number(meta.advanceReceivedPaise);
+        } catch (e) {}
+      }
+    }
+
+    const driverCollectedPaise = invCashSubs.reduce((sum: number, s: any) => sum + (s.amountCollectedPaise || 0), 0);
+    const totalReceiptsPaise = invReceipts.reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
+    const verifiedPaymentsPaise = Math.max(advancePaise + driverCollectedPaise, totalReceiptsPaise);
+
+    // Use verified payments if DB was corrupted by previous delivery double-count, otherwise recorded paidAmountPaise
+    const currentPaid = verifiedPaymentsPaise > 0 
+      ? Math.min(inv.totalAmountPaise, Math.max(verifiedPaymentsPaise, Math.min(inv.paidAmountPaise || 0, verifiedPaymentsPaise)))
+      : Math.min(inv.totalAmountPaise, inv.paidAmountPaise || 0);
+
     const currentOutstanding = Math.max(0, inv.totalAmountPaise - currentPaid);
 
     if (currentOutstanding <= 0) {
@@ -104,7 +136,7 @@ export async function POST(req: Request) {
     });
 
     // 3. Update Invoice Status & Paid Amount
-    const newPaidTotal = currentPaid + settlePaise;
+    const newPaidTotal = Math.min(inv.totalAmountPaise, currentPaid + settlePaise);
     const newStatus = newPaidTotal >= inv.totalAmountPaise ? "PAID" : "PARTIALLY_PAID";
 
     await db

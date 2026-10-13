@@ -62,13 +62,7 @@ export async function getAdminCredentials(): Promise<{ username: string; passwor
 export async function verifyAdminPassword(passwordAttempt: string): Promise<boolean> {
   if (!passwordAttempt) return false;
   const current = await getAdminCredentials();
-  const trimmed = passwordAttempt.trim();
-
-  if (trimmed === current.password) return true;
-  // Allow fallback 'admin123' if default password is 'sai123'
-  if (current.password === "sai123" && trimmed === "admin123") return true;
-
-  return false;
+  return passwordAttempt.trim() === current.password;
 }
 
 /**
