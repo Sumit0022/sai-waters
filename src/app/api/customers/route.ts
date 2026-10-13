@@ -7,9 +7,17 @@ import {
   recurringSchedules,
   orders,
   invoices,
+  invoiceLines,
+  orderItems,
+  eventOrders,
+  dispatchRecords,
   receipts,
+  cashCollectionSubmissions,
+  damageLossCases,
+  jarCustodies,
   jarMovementEvents,
   jarMasters,
+  journalLines,
 } from "@/db/schema";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 
@@ -209,6 +217,16 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Missing customerId" }, { status: 400 });
   }
 
+  // 0. Handle Archive / Unarchive Action
+  if (body.action === "ARCHIVE" || body.isActive === false) {
+    await db.update(customers).set({ isActive: false }).where(eq(customers.id, customerId));
+    return NextResponse.json({ success: true, message: "Customer archived successfully" });
+  }
+  if (body.action === "UNARCHIVE" || body.isActive === true) {
+    await db.update(customers).set({ isActive: true }).where(eq(customers.id, customerId));
+    return NextResponse.json({ success: true, message: "Customer restored successfully" });
+  }
+
   // 1. Update Customer Master
   await db
     .update(customers)
@@ -268,4 +286,119 @@ export async function PUT(request: Request) {
   }
 
   return NextResponse.json({ success: true, message: "Customer updated successfully" });
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await ensureDatabaseReady();
+    const db = getDb();
+    const url = new URL(request.url);
+    let customerId = url.searchParams.get("customerId") || url.searchParams.get("id");
+    if (!customerId) {
+      try {
+        const body = await request.json();
+        customerId = body.customerId || body.id;
+      } catch (e) {}
+    }
+
+    if (!customerId) {
+      return NextResponse.json({ error: "Missing customerId parameter" }, { status: 400 });
+    }
+
+    const [cust] = await db.select().from(customers).where(eq(customers.id, customerId));
+    if (!cust) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+
+    // 1. Relieve jars held in custody by this customer back to PLANT stock as AVAILABLE
+    // First, find jar IDs held by customer to update their status in jarMasters
+    const heldCustodies = await db
+      .select({ jarId: jarCustodies.jarId })
+      .from(jarCustodies)
+      .where(eq(jarCustodies.customerId, customerId));
+
+    if (heldCustodies.length > 0) {
+      const jarIds = heldCustodies.map((c: { jarId: string }) => c.jarId);
+      await db.execute(sql`
+        UPDATE jar_masters 
+        SET current_status = 'AVAILABLE' 
+        WHERE id IN (${sql.join(jarIds, sql`, `)});
+      `);
+    }
+
+    await db
+      .update(jarCustodies)
+      .set({
+        custodyType: "PLANT",
+        customerId: null,
+        holderUserId: null,
+        transferredAt: new Date(),
+      })
+      .where(eq(jarCustodies.customerId, customerId));
+
+    // 2. Fetch customer's orders & invoices
+    const customerOrders = await db.select({ id: orders.id }).from(orders).where(eq(orders.customerId, customerId));
+    const orderIds = customerOrders.map((o: { id: string }) => o.id);
+
+    const customerInvoices = await db.select({ id: invoices.id }).from(invoices).where(eq(invoices.customerId, customerId));
+    const invoiceIds = customerInvoices.map((i: { id: string }) => i.id);
+
+    // 3. Clean up order dependencies & cash collections linked to orders
+    if (orderIds.length > 0) {
+      await db.execute(sql`
+        DELETE FROM cash_collection_submissions WHERE order_id IN (${sql.join(orderIds, sql`, `)});
+      `);
+      await db.execute(sql`
+        UPDATE jar_movement_events SET order_id = NULL WHERE order_id IN (${sql.join(orderIds, sql`, `)});
+      `);
+      await db.execute(sql`
+        DELETE FROM dispatch_records WHERE order_id IN (${sql.join(orderIds, sql`, `)});
+      `);
+      await db.execute(sql`
+        DELETE FROM event_orders WHERE order_id IN (${sql.join(orderIds, sql`, `)});
+      `);
+      await db.execute(sql`
+        DELETE FROM order_items WHERE order_id IN (${sql.join(orderIds, sql`, `)});
+      `);
+    }
+
+    // 4. Delete invoice lines, invoice cash collections & invoices
+    if (invoiceIds.length > 0) {
+      await db.execute(sql`
+        DELETE FROM cash_collection_submissions WHERE invoice_id IN (${sql.join(invoiceIds, sql`, `)});
+      `);
+      await db.execute(sql`
+        DELETE FROM invoice_lines WHERE invoice_id IN (${sql.join(invoiceIds, sql`, `)});
+      `);
+    }
+    await db.delete(invoices).where(eq(invoices.customerId, customerId));
+
+    // 5. Delete receipts
+    await db.delete(receipts).where(eq(receipts.customerId, customerId));
+
+    // 6. Delete orders
+    await db.delete(orders).where(eq(orders.customerId, customerId));
+
+    // 7. Delete damage cases, schedules, price agreements, addresses
+    await db.delete(damageLossCases).where(eq(damageLossCases.customerId, customerId));
+    await db.delete(recurringSchedules).where(eq(recurringSchedules.customerId, customerId));
+    await db.delete(customerPriceAgreements).where(eq(customerPriceAgreements.customerId, customerId));
+    await db.delete(customerAddresses).where(eq(customerAddresses.customerId, customerId));
+
+    // 8. Delete customer subledger journal lines
+    await db.execute(sql`
+      DELETE FROM journal_lines WHERE sub_ledger_type = 'CUSTOMER' AND sub_ledger_id = ${customerId};
+    `);
+
+    // 9. Delete customer master record
+    await db.delete(customers).where(eq(customers.id, customerId));
+
+    return NextResponse.json({
+      success: true,
+      message: `Customer ${cust.fullName} (${cust.customerCode}) and all associated records permanently deleted.`,
+    });
+  } catch (err: any) {
+    console.error("Failed to delete customer:", err);
+    return NextResponse.json({ error: err?.message || "Failed to delete customer" }, { status: 500 });
+  }
 }

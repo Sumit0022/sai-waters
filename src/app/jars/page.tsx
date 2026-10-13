@@ -137,6 +137,12 @@ export default function JarsPage() {
     }
   };
 
+  // Plant Unload Notification Toast
+  const [plantScanNotification, setPlantScanNotification] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
   const handlePlantUnloadScan = async (code: string) => {
     if (!code.trim()) return;
     try {
@@ -153,14 +159,31 @@ export default function JarsPage() {
       const data = await res.json();
       if (res.ok) {
         setPlantUnloadList((prev) => [data.jar, ...prev]);
+        setPlantScanNotification({
+          type: "success",
+          message: `✓ Scanned ${data.jar.permanentJarCode} — Marked AVAILABLE in stock & customer liability relieved!`,
+        });
+        setTimeout(() => setPlantScanNotification(null), 4000);
         loadJars();
       } else {
-        alert(data.error || "Failed to receive jar");
+        setPlantScanNotification({
+          type: "error",
+          message: `❌ ${data.error || "Failed to receive jar"}`,
+        });
+        setTimeout(() => setPlantScanNotification(null), 4000);
       }
     } catch (e: any) {
-      alert(e.message);
+      setPlantScanNotification({
+        type: "error",
+        message: `❌ ${e.message}`,
+      });
+      setTimeout(() => setPlantScanNotification(null), 4000);
     }
     setPlantScanInput("");
+  };
+
+  const handleRemoveFromPlantUnloadList = (idx: number) => {
+    setPlantUnloadList((prev) => prev.filter((_, i) => i !== idx));
   };
 
   // Open QR Sticker View & Download Modal
@@ -1118,14 +1141,37 @@ export default function JarsPage() {
               </button>
             </div>
 
+            {/* Real-time Scan Notification Toast */}
+            {plantScanNotification && (
+              <div
+                className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between mb-3 animate-in fade-in slide-in-from-top-1 ${
+                  plantScanNotification.type === "success"
+                    ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                    : "bg-rose-100 text-rose-900 border border-rose-300"
+                }`}
+              >
+                <span>{plantScanNotification.message}</span>
+                <button
+                  type="button"
+                  onClick={() => setPlantScanNotification(null)}
+                  className="text-slate-500 hover:text-slate-700 ml-2 cursor-pointer p-0.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* Camera Scanner View */}
             {plantScanMode === "CAMERA" ? (
               <div className="mb-3">
                 <QrCameraScanner
+                  embedded={true}
                   onScanSuccess={(code) => handlePlantUnloadScan(code)}
                   onManualSubmit={(code) => handlePlantUnloadScan(code)}
+                  onClose={() => setPlantScanMode("MANUAL")}
+                  title="Empty Jar Live Scanner"
                   placeholderText="Or enter jar code manually..."
-                  helperText="Khali jar ka QR code camera ke aage layein"
+                  helperText="Hold empty jar QR sticker inside frame"
                 />
               </div>
             ) : (
@@ -1157,7 +1203,7 @@ export default function JarsPage() {
             )}
 
             <div className="flex items-center justify-between py-2 border-b border-slate-100 mb-2 text-xs font-bold text-slate-600">
-              <span>Is Batch mein Aaye Khali Jars ({plantUnloadList.length})</span>
+              <span>Scanned in this Session ({plantUnloadList.length} Jars)</span>
               {plantUnloadList.length > 0 && (
                 <button
                   type="button"
@@ -1173,7 +1219,7 @@ export default function JarsPage() {
               {plantUnloadList.length === 0 ? (
                 <div className="h-24 flex flex-col items-center justify-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl">
                   <CheckCircle className="w-6 h-6 text-slate-300 mb-1" />
-                  Khali jars scan hone ke liye ready hain
+                  No jars scanned in this session yet. Scan a jar above.
                 </div>
               ) : (
                 plantUnloadList.map((item, idx) => (
@@ -1190,9 +1236,19 @@ export default function JarsPage() {
                         <span className="text-slate-400 ml-2">({item.qrToken || "Scanned"})</span>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-md bg-cyan-100 text-cyan-800 border border-cyan-200 font-bold text-[10px]">
-                      RETURNED_INSPECT
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10px]">
+                        AVAILABLE (In Stock)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFromPlantUnloadList(idx)}
+                        title="Remove from batch list"
+                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -1201,7 +1257,11 @@ export default function JarsPage() {
             <div className="pt-3 border-t border-slate-100 mt-3 flex justify-end">
               <button
                 type="button"
-                onClick={() => setPlantUnloadOpen(false)}
+                onClick={() => {
+                  setPlantUnloadOpen(false);
+                  setPlantScanMode("MANUAL");
+                  setPlantScanNotification(null);
+                }}
                 className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
                 Done Receiving ({plantUnloadList.length} Jars)

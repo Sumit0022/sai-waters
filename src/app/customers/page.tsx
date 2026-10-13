@@ -18,6 +18,12 @@ import {
   CheckCircle2,
   AlertCircle,
   FileText,
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  AlertTriangle,
+  RotateCcw,
+  RefreshCw,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { formatINR } from "@/lib/utils";
@@ -27,6 +33,16 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Directory Tab Filter
+  const [customerTab, setCustomerTab] = useState<"ACTIVE" | "ARCHIVED" | "ALL">("ACTIVE");
+
+  // Deletion Modal State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<any>(null);
+  const [deleteConfirmationCode, setDeleteConfirmationCode] = useState("");
+  const [userInputCode, setUserInputCode] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -49,6 +65,75 @@ export default function CustomersPage() {
   const [specialPriceRupees, setSpecialPriceRupees] = useState("35");
   const [recurringQuantity, setRecurringQuantity] = useState("1");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const generateConfirmationCode = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let result = "DEL-";
+    for (let i = 0; i < 4; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
+  const handleOpenDelete = (cust: any) => {
+    setCustomerToDelete(cust);
+    setDeleteConfirmationCode(generateConfirmationCode());
+    setUserInputCode("");
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!customerToDelete) return;
+    if (userInputCode.trim().toUpperCase() !== deleteConfirmationCode.toUpperCase()) {
+      alert("Verification code does not match!");
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/customers?customerId=${customerToDelete.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDeleteModalOpen(false);
+        setCustomerToDelete(null);
+        loadCustomers();
+      } else {
+        alert(data.error || "Failed to delete customer");
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleToggleArchive = async (cust: any, shouldArchive: boolean) => {
+    const confirmMsg = shouldArchive
+      ? `Are you sure you want to archive "${cust.fullName}"? They will be hidden from the active customer directory and delivery trips.`
+      : `Restore "${cust.fullName}" back to the active customer directory?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch("/api/customers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: cust.id,
+          action: shouldArchive ? "ARCHIVE" : "UNARCHIVE",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        loadCustomers();
+      } else {
+        alert(data.error || "Failed to update customer archive status");
+      }
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
 
   const loadCustomers = () => {
     setLoading(true);
@@ -181,12 +266,23 @@ export default function CustomersPage() {
     }
   };
 
-  const filteredCustomers = customers.filter(
-    (c) =>
-      c.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.phone?.includes(searchTerm) ||
-      c.customerCode?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const activeCount = customers.filter((c) => c.isActive !== false && c.isActive !== 0).length;
+  const archivedCount = customers.filter((c) => c.isActive === false || c.isActive === 0).length;
+  const totalCount = customers.length;
+
+  const filteredCustomers = customers
+    .filter((c) => {
+      const isArchived = c.isActive === false || c.isActive === 0;
+      if (customerTab === "ACTIVE") return !isArchived;
+      if (customerTab === "ARCHIVED") return isArchived;
+      return true;
+    })
+    .filter(
+      (c) =>
+        c.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.phone?.includes(searchTerm) ||
+        c.customerCode?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   // Compute monthly calculations for active ledger
   const deliveriesList = activeLedger?.deliveries || [];
@@ -229,9 +325,47 @@ export default function CustomersPage() {
         </button>
       </div>
 
-      {/* Search Input */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
-        <div className="relative max-w-md">
+      {/* Directory Filter Tabs & Search Bar */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Status Tabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl overflow-x-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => setCustomerTab("ACTIVE")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              customerTab === "ACTIVE"
+                ? "bg-white text-sky-700 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Active Directory ({activeCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomerTab("ARCHIVED")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              customerTab === "ARCHIVED"
+                ? "bg-amber-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Archived ({archivedCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomerTab("ALL")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              customerTab === "ALL"
+                ? "bg-white text-slate-900 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            All Clients ({totalCount})
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative w-full md:max-w-md">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
@@ -245,90 +379,147 @@ export default function CustomersPage() {
 
       {/* Customers Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredCustomers.map((cust) => {
-          const ratePaise = cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise ?? 3500;
-          const quota = cust.schedule?.quantityJars || 1;
-          const address = cust.address?.streetAddress || cust.addresses?.[0]?.streetAddress || "Bareilly";
-          const locality = cust.address?.locality || cust.addresses?.[0]?.locality || "";
-
-          return (
-            <div
-              key={cust.id}
-              className="bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-sky-300 hover:shadow-md transition-all p-5 flex flex-col justify-between"
-            >
-              <div>
-                {/* Header */}
-                <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div>
-                    <span className="text-[10px] font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
-                      {cust.customerCode}
-                    </span>
-                    <h3 className="font-black text-slate-900 text-base mt-1 leading-tight">
-                      {cust.fullName}
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
-                    Daily {quota} Jars
-                  </span>
-                </div>
-
-                {/* Details */}
-                <div className="py-3 space-y-1.5 text-xs text-slate-600">
-                  <p className="flex items-center gap-1.5 font-medium">
-                    <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>{cust.phone}</span>
-                  </p>
-                  <p className="flex items-start gap-1.5 text-slate-500">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                    <span className="truncate">{address}, {locality}</span>
-                  </p>
-                </div>
-
-                {/* Rates & Custody Summary Box */}
-                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs mb-3">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Allotted Rate</span>
-                    <span className="font-black text-slate-900">{formatINR(ratePaise)} / jar</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Jars in Custody</span>
-                    <span className="font-black text-purple-700">{cust.heldJarsCount || 0} Jars</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions Footer */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleOpenLedger(cust)}
-                  className="flex-1 py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>View Ledger</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenQrSticker(cust)}
-                  title="Print Customer Entrance QR Sticker"
-                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
-                >
-                  <QrCode className="w-4 h-4 text-purple-600" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenEdit(cust)}
-                  title="Edit Customer Details"
-                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
-                >
-                  <Edit className="w-4 h-4 text-slate-600" />
-                </button>
-              </div>
+        {filteredCustomers.length === 0 ? (
+          <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-slate-200 p-6">
+            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+              <Users className="w-6 h-6" />
             </div>
-          );
-        })}
+            <h3 className="font-bold text-slate-700 text-sm">No customers found</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {customerTab === "ARCHIVED"
+                ? "No archived customers found."
+                : "Try adjusting your search criteria or add a new customer."}
+            </p>
+          </div>
+        ) : (
+          filteredCustomers.map((cust) => {
+            const isArchived = cust.isActive === false || cust.isActive === 0;
+            const ratePaise = cust.pricePerJarPaise ?? cust.customPrice?.pricePerJarPaise ?? 3500;
+            const quota = cust.schedule?.quantityJars || 1;
+            const address = cust.address?.streetAddress || cust.addresses?.[0]?.streetAddress || "Bareilly";
+            const locality = cust.address?.locality || cust.addresses?.[0]?.locality || "";
+
+            return (
+              <div
+                key={cust.id}
+                className={`bg-white rounded-2xl border shadow-xs hover:shadow-md transition-all p-5 flex flex-col justify-between ${
+                  isArchived ? "border-amber-200/80 bg-amber-50/20" : "border-slate-200 hover:border-sky-300"
+                }`}
+              >
+                <div>
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
+                          {cust.customerCode}
+                        </span>
+                        {isArchived && (
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+                            <Archive className="w-3 h-3" /> Archived
+                          </span>
+                        )}
+                      </div>
+                      <h3
+                        className={`font-black text-base mt-1 leading-tight ${
+                          isArchived ? "text-slate-500 line-through decoration-slate-300" : "text-slate-900"
+                        }`}
+                      >
+                        {cust.fullName}
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                      Daily {quota} Jars
+                    </span>
+                  </div>
+
+                  {/* Details */}
+                  <div className="py-3 space-y-1.5 text-xs text-slate-600">
+                    <p className="flex items-center gap-1.5 font-medium">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>{cust.phone}</span>
+                    </p>
+                    <p className="flex items-start gap-1.5 text-slate-500">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <span className="truncate">{address}, {locality}</span>
+                    </p>
+                  </div>
+
+                  {/* Rates & Custody Summary Box */}
+                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs mb-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 block uppercase">Allotted Rate</span>
+                      <span className="font-black text-slate-900">{formatINR(ratePaise)} / jar</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 block uppercase">Jars in Custody</span>
+                      <span className="font-black text-purple-700">{cust.heldJarsCount || 0} Jars</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions Footer */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenLedger(cust)}
+                    className="flex-1 py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Ledger</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenQrSticker(cust)}
+                    title="Print Customer Entrance QR Sticker"
+                    className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+                  >
+                    <QrCode className="w-4 h-4 text-purple-600" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(cust)}
+                    title="Edit Customer Details"
+                    className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+                  >
+                    <Edit className="w-4 h-4 text-slate-600" />
+                  </button>
+
+                  {isArchived ? (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleArchive(cust, false)}
+                      title="Restore Customer to Active Directory"
+                      className="p-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleArchive(cust, true)}
+                      title="Archive Customer (Hide from active trips)"
+                      className="p-2 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors cursor-pointer"
+                    >
+                      <Archive className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDelete(cust)}
+                    title="Delete Customer & Cascade All Associated Bills/Orders"
+                    className="p-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -711,6 +902,104 @@ export default function CustomersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: PERMANENT DELETE CUSTOMER CONFIRMATION (CASCADE) */}
+      {/* ========================================================================= */}
+      {deleteModalOpen && customerToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-rose-200 space-y-4">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-rose-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-rose-950">Permanent Cascade Delete</h3>
+                  <p className="text-[11px] font-semibold text-rose-600">Danger: Irreversible Action</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDeleteModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Warning Message */}
+            <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-2xl text-xs space-y-2 text-rose-950">
+              <p className="font-bold">
+                You are about to permanently delete:
+              </p>
+              <div className="p-2.5 bg-white rounded-xl border border-rose-200">
+                <div className="font-black text-slate-900 text-sm">{customerToDelete.fullName}</div>
+                <div className="text-[11px] font-mono text-slate-500">{customerToDelete.customerCode} • {customerToDelete.phone}</div>
+              </div>
+              <ul className="list-disc pl-4 space-y-1 text-[11px] text-rose-800 font-medium">
+                <li>All linked invoices, receipts, and order entries will be deleted.</li>
+                <li>Delivery records and accounting ledger lines will be removed.</li>
+                <li>
+                  Any jars held in custody (<strong className="text-rose-950">{customerToDelete.heldJarsCount || 0} jars</strong>) will be safely released back to Plant stock as <strong>AVAILABLE</strong>.
+                </li>
+              </ul>
+            </div>
+
+            {/* Random Verification Code Box */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block">
+                Type the verification code below to confirm:
+              </label>
+              <div className="flex items-center justify-between p-3 bg-slate-900 rounded-xl text-center">
+                <span className="text-[11px] text-slate-400 font-medium">Confirmation Code:</span>
+                <span className="font-mono text-base font-black tracking-widest text-amber-400 select-all">
+                  {deleteConfirmationCode}
+                </span>
+              </div>
+              <input
+                type="text"
+                value={userInputCode}
+                onChange={(e) => setUserInputCode(e.target.value.toUpperCase())}
+                placeholder={`Type "${deleteConfirmationCode}" here`}
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-mono font-bold uppercase tracking-wider text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={
+                  isDeleting ||
+                  userInputCode.trim().toUpperCase() !== deleteConfirmationCode.toUpperCase()
+                }
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm & Permanently Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

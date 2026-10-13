@@ -22,6 +22,7 @@ interface QrCameraScannerProps {
   subtitle?: string;
   placeholderText?: string;
   helperText?: string;
+  embedded?: boolean;
 }
 
 export default function QrCameraScanner({
@@ -32,10 +33,12 @@ export default function QrCameraScanner({
   subtitle = "Align QR inside frame to scan",
   placeholderText = "Enter QR token or code manually...",
   helperText = "Point camera at Sai Waters QR sticker",
+  embedded = false,
 }: QrCameraScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scanLockedRef = useRef(false);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState("");
@@ -131,8 +134,9 @@ export default function QrCameraScanner({
           targetId,
           videoRef.current,
           (result, error, controls) => {
-            if (result) {
+            if (result && !scanLockedRef.current) {
               const text = result.getText();
+              scanLockedRef.current = true;
               playBeep();
               if (typeof window !== "undefined" && navigator.vibrate) {
                 try {
@@ -140,11 +144,13 @@ export default function QrCameraScanner({
                 } catch (e) {}
               }
               setLastScannedCode(text);
+              onScanSuccess(text);
 
-              // Small delay to show green confirmation tick
+              // 1.5s lock before allowing next scan to prevent rapid-fire duplicate processing
               setTimeout(() => {
-                onScanSuccess(text);
-              }, 400);
+                scanLockedRef.current = false;
+                setLastScannedCode(null);
+              }, 1500);
             }
           }
         );
@@ -231,6 +237,110 @@ export default function QrCameraScanner({
     }
     setManualInput("");
   };
+
+  if (embedded) {
+    return (
+      <div className="relative w-full h-72 sm:h-80 rounded-2xl bg-black flex flex-col justify-between overflow-hidden select-none shadow-md border border-slate-700 animate-in fade-in">
+        {/* Video feed */}
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover"
+          autoPlay
+          playsInline
+          muted
+        />
+
+        {/* Header bar */}
+        <header className="relative z-20 flex items-center justify-between p-3 bg-gradient-to-b from-black/85 via-black/40 to-transparent">
+          <div className="flex items-center gap-2 text-white">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-xs font-black tracking-tight">{title}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {hasTorch && (
+              <button
+                type="button"
+                onClick={toggleTorch}
+                className={`p-2 rounded-xl backdrop-blur-md transition-all cursor-pointer ${
+                  torchOn ? "bg-amber-400 text-slate-950" : "bg-white/20 text-white hover:bg-white/30"
+                }`}
+                title="Flashlight"
+              >
+                {torchOn ? <Zap className="w-4 h-4 fill-current" /> : <ZapOff className="w-4 h-4" />}
+              </button>
+            )}
+            {videoDevices.length > 1 && (
+              <button
+                type="button"
+                onClick={switchCamera}
+                className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white backdrop-blur-md transition-all cursor-pointer"
+                title="Switch Camera"
+              >
+                <SwitchCamera className="w-4 h-4" />
+              </button>
+            )}
+            {onClose && (
+              <button
+                type="button"
+                onClick={() => {
+                  stopCamera();
+                  onClose();
+                }}
+                className="p-2 rounded-xl bg-white/20 hover:bg-rose-600 text-white backdrop-blur-md transition-all cursor-pointer"
+                title="Stop Camera / Close Scanner"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Viewfinder Cutout */}
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
+          <div className="relative w-44 h-44 aspect-square flex items-center justify-center">
+            {/* Outer Dimming Vignette Mask via box-shadow */}
+            <div
+              className="absolute inset-0 rounded-2xl pointer-events-none"
+              style={{
+                boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.55)",
+              }}
+            />
+
+            {/* Corner Brackets */}
+            <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl shadow-[0_0_8px_#34d399]" />
+            <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl shadow-[0_0_8px_#34d399]" />
+            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl shadow-[0_0_8px_#34d399]" />
+            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-xl shadow-[0_0_8px_#34d399]" />
+
+            {/* Laser Line */}
+            {cameraActive && !lastScannedCode && (
+              <div
+                className="absolute inset-x-2 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_10px_#34d399] pointer-events-none transition-all duration-75"
+                style={{ top: `${laserPos}%` }}
+              />
+            )}
+
+            {/* Instant Green Recognition Overlay */}
+            {lastScannedCode && (
+              <div className="absolute inset-0 rounded-2xl bg-emerald-950/90 border-2 border-emerald-400 flex flex-col items-center justify-center p-3 text-center backdrop-blur-xs animate-in zoom-in-95">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 mb-1" />
+                <span className="text-white text-xs font-black uppercase tracking-wider">Scanned!</span>
+                <span className="text-emerald-300 text-[11px] font-mono font-bold truncate max-w-full">
+                  {lastScannedCode}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer Helper */}
+        <footer className="relative z-20 p-2 bg-gradient-to-t from-black/80 to-transparent text-center">
+          <p className="text-[11px] text-white/90 font-medium">{helperText}</p>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between overflow-hidden select-none animate-in fade-in duration-200">
