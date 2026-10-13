@@ -22,8 +22,6 @@ import {
   RotateCcw,
   Trash2,
   CheckCircle,
-  HelpCircle,
-  ArrowRightLeft,
   BookOpen,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
@@ -129,7 +127,7 @@ export default function AccountingPage() {
     const amountPaise = Math.round(Number(jvAmountRupees) * 100);
 
     if (debitAccount === creditAccount) {
-      setJvError("Debit aur Credit accounts alag-alag hone chahiye.");
+      setJvError("Debit and Credit accounts must be distinct.");
       return;
     }
 
@@ -163,7 +161,7 @@ export default function AccountingPage() {
 
   // Reverse Journal Entry
   const handleReverseJv = async (entry: any) => {
-    if (!confirm(`Kya aap voucher ${entry.entryNumber} ko reverse (ulat) karna chahte hain?`)) return;
+    if (!confirm(`Are you sure you want to reverse journal voucher ${entry.entryNumber}?`)) return;
     try {
       const res = await fetch("/api/accounting/journal-entries", {
         method: "POST",
@@ -171,11 +169,11 @@ export default function AccountingPage() {
         body: JSON.stringify({
           action: "REVERSE",
           entryId: entry.id,
-          reason: `Reversal requested by Owner for voucher ${entry.entryNumber}`,
+          reason: `Reversal requested for voucher ${entry.entryNumber}`,
         }),
       });
       if (res.ok) {
-        alert(`Voucher ${entry.entryNumber} safaltapoorvak reverse ho gaya!`);
+        alert(`Journal voucher ${entry.entryNumber} successfully reversed!`);
         loadAll();
       } else {
         const d = await res.json();
@@ -188,13 +186,13 @@ export default function AccountingPage() {
 
   // Delete Manual Journal Entry
   const handleDeleteJv = async (entry: any) => {
-    if (!confirm(`Warning: Kya aap voucher ${entry.entryNumber} ko system se delete karna chahte hain?`)) return;
+    if (!confirm(`Warning: Are you sure you want to permanently delete voucher ${entry.entryNumber}?`)) return;
     try {
       const res = await fetch(`/api/accounting/journal-entries?id=${entry.id}`, {
         method: "DELETE",
       });
       if (res.ok) {
-        alert(`Voucher ${entry.entryNumber} delete ho gaya!`);
+        alert(`Voucher ${entry.entryNumber} deleted.`);
         loadAll();
       } else {
         const d = await res.json();
@@ -226,7 +224,7 @@ export default function AccountingPage() {
         setNewAccountCode("");
         loadAll();
       } else {
-        setCreateAccountError(data.error || "Khata banane mein asafal");
+        setCreateAccountError(data.error || "Failed to create account");
       }
     } catch (err: any) {
       setCreateAccountError(err.message);
@@ -239,7 +237,7 @@ export default function AccountingPage() {
     setExpenseError("");
     const amountRupeesNum = Number(expenseAmountRupees);
     if (!amountRupeesNum || amountRupeesNum <= 0) {
-      setExpenseError("Kripya sahi raqam dalein.");
+      setExpenseError("Please enter a valid expense amount.");
       return;
     }
 
@@ -262,7 +260,7 @@ export default function AccountingPage() {
         setExpenseNarration("");
         loadAll();
       } else {
-        setExpenseError(data.error || "Kharcha record karne mein asafal");
+        setExpenseError(data.error || "Failed to record expense");
       }
     } catch (err: any) {
       setExpenseError(err.message);
@@ -279,11 +277,10 @@ export default function AccountingPage() {
           action: "TOGGLE_MATCH",
           journalLineId: lineId,
           clearedDate: new Date().toISOString().split("T")[0],
-          externalReference: "Passbook Verified",
+          externalReference: "Bank Statement Verified",
         }),
       });
       if (res.ok) {
-        // Refresh BRS
         fetch("/api/accounting/reconciliation")
           .then((r) => r.json())
           .then((data) => setBrsData(data));
@@ -353,7 +350,7 @@ export default function AccountingPage() {
       const data = await res.json();
       if (res.ok) {
         setDepActionMsg(
-          `Voucher ${data.entryNumber} post ho gaya! Total Jar Depreciation: ${formatINR(
+          `Voucher ${data.entryNumber} posted. Total Jar Depreciation: ${formatINR(
             data.totalDepreciationPaise
           )}`
         );
@@ -383,7 +380,6 @@ export default function AccountingPage() {
     const lines = entry.lines || [];
     for (const l of lines) {
       if (l.accountId === selectedLedgerAccountId) {
-        // Find other opposite account for Particulars
         const oppositeLine = lines.find((other: any) => other.accountId !== selectedLedgerAccountId);
         const oppName = oppositeLine?.display?.simpleTitle || oppositeLine?.accountName || entry.narration;
 
@@ -424,10 +420,10 @@ export default function AccountingPage() {
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
             <Scale className="w-7 h-7 text-sky-600" />
-            Sai Waters — Hisab Kitab (Accounting & Ledger)
+            Accounting & General Ledger
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-medium">
-            Khata Bahi (T-Accounts), Roznamcha (Journals), Bank Reconciliation (BRS), aur Munafa-Nuksan
+            Double-Entry General Ledger, T-Account View, General Journal, Bank Reconciliation (BRS), and P&L
           </p>
         </div>
 
@@ -438,7 +434,7 @@ export default function AccountingPage() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
           >
             <Receipt className="w-4 h-4" />
-            <span>Kharcha Settle Karein</span>
+            <span>Record Expense</span>
           </button>
 
           {/* New Custom Account Button */}
@@ -447,7 +443,7 @@ export default function AccountingPage() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Naya Khata Banayein</span>
+            <span>Add Account</span>
           </button>
 
           {/* Manual Journal Entry */}
@@ -462,7 +458,7 @@ export default function AccountingPage() {
           {/* Refresh Ledger */}
           <button
             onClick={loadAll}
-            title="Refresh Karein"
+            title="Refresh Ledger"
             className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 shadow-xs cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />
@@ -487,13 +483,13 @@ export default function AccountingPage() {
           <div>
             <h4 className="font-extrabold text-xs">
               {tbData?.isBalanced
-                ? "Double-Entry Santulan: Khata Bahi Bilkul Balanced Hai (Debits == Credits)"
-                : "Khata Bahi mein Discrepancy payi gayi!"}
+                ? "Double-Entry Invariant Satisfied: General Ledger is Perfectly Balanced"
+                : "Double-Entry Invariant Discrepancy Detected!"}
             </h4>
             <p className="text-[11px] opacity-80 mt-0.5">
-              Kul Jama/Debit: <strong>{formatINR(tbData?.grandTotalDebitPaise || 0)}</strong> • Kul
-              Naame/Credit: <strong>{formatINR(tbData?.grandTotalCreditPaise || 0)}</strong>
-              {!tbData?.isBalanced && ` • Farak: ${formatINR(tbData?.variancePaise || 0)}`}
+              Total Debits: <strong>{formatINR(tbData?.grandTotalDebitPaise || 0)}</strong> • Total
+              Credits: <strong>{formatINR(tbData?.grandTotalCreditPaise || 0)}</strong>
+              {!tbData?.isBalanced && ` • Variance: ${formatINR(tbData?.variancePaise || 0)}`}
             </p>
           </div>
         </div>
@@ -503,18 +499,18 @@ export default function AccountingPage() {
         </span>
       </div>
 
-      {/* Navigation Tabs (Basic & Clean Titles) */}
+      {/* Navigation Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold border-b border-slate-200">
         {[
-          { id: "TB", label: "Khata Bahi (Trial Balance)", icon: Scale },
-          { id: "TL", label: "T-Shape Khata (Ledger)", icon: BookOpen },
-          { id: "JV", label: "Roznamcha (General Journal)", icon: FileSpreadsheet },
-          { id: "BRS", label: "Bank Reconcile (BRS)", icon: Landmark },
-          { id: "EXP", label: "Kharcha List (Expenses)", icon: Receipt },
-          { id: "PNL", label: "Munafa & Nuksan (P&L)", icon: TrendingUp },
+          { id: "TB", label: "Trial Balance", icon: Scale },
+          { id: "TL", label: "T-Account Ledger", icon: BookOpen },
+          { id: "JV", label: "General Journal", icon: FileSpreadsheet },
+          { id: "BRS", label: "Bank Reconciliation (BRS)", icon: Landmark },
+          { id: "EXP", label: "Expenses", icon: Receipt },
+          { id: "PNL", label: "Profit & Loss (P&L)", icon: TrendingUp },
           { id: "BS", label: "Balance Sheet", icon: Building2 },
-          { id: "CASH_REC", label: "Driver Cash", icon: Coins },
-          { id: "DEP", label: "Jar Ghisawat", icon: Sparkles },
+          { id: "CASH_REC", label: "Driver Cash Clearing", icon: Coins },
+          { id: "DEP", label: "Jar Depreciation", icon: Sparkles },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -535,17 +531,17 @@ export default function AccountingPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* TAB 1: TRIAL BALANCE (KHATA BAHI SUMMARY) */}
+      {/* TAB 1: TRIAL BALANCE */}
       {/* ========================================================================= */}
       {activeTab === "TB" && (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm">
-                Sabhi Khaton ka Kul Balance (Trial Balance)
+                General Ledger Trial Balance
               </h3>
               <p className="text-[11px] text-slate-400 font-medium">
-                Har khate ka antim debit ya credit hisab
+                Summary of all active ledger account balances
               </p>
             </div>
             <button
@@ -562,10 +558,10 @@ export default function AccountingPage() {
               <thead className="bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Code</th>
-                  <th className="py-3 px-4">Khata Vivaran (Account Title)</th>
-                  <th className="py-3 px-4">Prakar (Type)</th>
-                  <th className="py-3 px-4 text-right">Debit / Jama (₹)</th>
-                  <th className="py-3 px-4 text-right">Credit / Naame (₹)</th>
+                  <th className="py-3 px-4">Account Title</th>
+                  <th className="py-3 px-4">Type</th>
+                  <th className="py-3 px-4 text-right">Debit (₹)</th>
+                  <th className="py-3 px-4 text-right">Credit (₹)</th>
                   <th className="py-3 px-4 text-center print:hidden">Ledger</th>
                 </tr>
               </thead>
@@ -580,7 +576,7 @@ export default function AccountingPage() {
                           {disp.simpleTitle || acc.name}
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {disp.hindiSubtitle || acc.name}
+                          {disp.subtitle || acc.name}
                         </div>
                       </td>
                       <td className="py-2.5 px-4">
@@ -602,7 +598,7 @@ export default function AccountingPage() {
                           }}
                           className="px-2 py-1 rounded-md text-[10px] font-bold bg-sky-50 text-sky-700 hover:bg-sky-100 cursor-pointer"
                         >
-                          T-Khata →
+                          T-Account →
                         </button>
                       </td>
                     </tr>
@@ -612,7 +608,7 @@ export default function AccountingPage() {
               <tfoot className="bg-slate-100 font-black text-slate-900 text-xs border-t-2 border-slate-300">
                 <tr>
                   <td colSpan={3} className="py-3 px-4 uppercase tracking-wider">
-                    Total Santulan (Grand Total)
+                    Total Trial Balance
                   </td>
                   <td className="py-3 px-4 text-right text-emerald-700">
                     {formatINR(tbData?.grandTotalDebitPaise || 0)}
@@ -629,7 +625,7 @@ export default function AccountingPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: T-SHAPE ACCOUNTS (KHATA BAHI / T-ACCOUNT LEDGER) */}
+      {/* TAB 2: T-ACCOUNT LEDGER */}
       {/* ========================================================================= */}
       {activeTab === "TL" && (
         <div className="space-y-4">
@@ -637,7 +633,7 @@ export default function AccountingPage() {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-sky-600" />
-              <label className="text-xs font-black text-slate-900">Khata Chunein (Select Account):</label>
+              <label className="text-xs font-black text-slate-900">Select Ledger Account:</label>
               <select
                 value={selectedLedgerAccountId}
                 onChange={(e) => setSelectedLedgerAccountId(Number(e.target.value))}
@@ -654,12 +650,12 @@ export default function AccountingPage() {
             {/* Quick account pills */}
             <div className="flex flex-wrap items-center gap-1.5">
               {[
-                { id: 1130, label: "Bank Khata" },
-                { id: 1110, label: "Gullak Cash" },
+                { id: 1130, label: "Bank Account" },
+                { id: 1110, label: "Cash-in-Hand" },
                 { id: 1120, label: "Driver Cash" },
-                { id: 1150, label: "Grahak Udhar" },
-                { id: 4110, label: "Jar Bikri" },
-                { id: 6210, label: "Diesel" },
+                { id: 1150, label: "Accounts Receivable" },
+                { id: 4110, label: "Water Sales" },
+                { id: 6210, label: "Vehicle Fuel" },
               ].map((p) => (
                 <button
                   key={p.id}
@@ -682,18 +678,18 @@ export default function AccountingPage() {
             <div className="bg-slate-900 text-white p-4 text-center border-b-2 border-slate-300">
               <div className="flex justify-between items-center text-xs font-black px-2">
                 <span className="text-emerald-400 uppercase tracking-widest text-sm font-black">
-                  Dr. (Debit / Naame)
+                  Dr. (Debit)
                 </span>
                 <div>
                   <h2 className="text-base font-black tracking-wide uppercase">
                     {activeTAccount.accountCode} — {activeTAccount.display?.simpleTitle || activeTAccount.accountName}
                   </h2>
                   <p className="text-[11px] text-slate-300 font-medium">
-                    {activeTAccount.display?.hindiSubtitle || activeTAccount.accountType}
+                    {activeTAccount.display?.subtitle || activeTAccount.accountType}
                   </p>
                 </div>
                 <span className="text-sky-400 uppercase tracking-widest text-sm font-black">
-                  Cr. (Credit / Jama)
+                  Cr. (Credit)
                 </span>
               </div>
             </div>
@@ -704,14 +700,14 @@ export default function AccountingPage() {
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="bg-emerald-50/70 border-b border-slate-200 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-emerald-900 flex justify-between">
-                    <span>Date • Particulars (Vivaran)</span>
+                    <span>Date • Particulars</span>
                     <span>Amount (₹)</span>
                   </div>
 
                   <div className="divide-y divide-slate-100 min-h-48 text-xs">
                     {tAccountDebitLines.length === 0 && !isDebitBalance && (
                       <div className="p-8 text-center text-slate-400 text-xs italic">
-                        Is khate mein koi Debit entry nahi hai
+                        No debit entries recorded in this account
                       </div>
                     )}
 
@@ -733,8 +729,8 @@ export default function AccountingPage() {
                     {!isDebitBalance && closingBalancePaise > 0 && (
                       <div className="p-2.5 bg-amber-50/50 flex items-center justify-between font-bold text-amber-900 border-t border-dashed border-amber-200">
                         <div>
-                          <span>To Balance c/d (Baki Closing)</span>
-                          <span className="text-[10px] text-amber-600 block">Credit Adhik hone par</span>
+                          <span>To Balance c/d (Closing Balance)</span>
+                          <span className="text-[10px] text-amber-600 block">Credit Balance Carrydown</span>
                         </div>
                         <span className="font-black">{formatINR(closingBalancePaise)}</span>
                       </div>
@@ -744,7 +740,7 @@ export default function AccountingPage() {
 
                 {/* Left Side Total Bar */}
                 <div className="bg-slate-100 border-t-2 border-slate-300 p-3 flex justify-between items-center font-black text-xs text-slate-900">
-                  <span>Kul Debit (Dr. Total)</span>
+                  <span>Total Debit (Dr.)</span>
                   <span className="text-sm font-black border-b-2 border-double border-slate-900 pb-0.5">
                     {formatINR(tGrandTotalPaise)}
                   </span>
@@ -755,14 +751,14 @@ export default function AccountingPage() {
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="bg-sky-50/70 border-b border-slate-200 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-sky-900 flex justify-between">
-                    <span>Date • Particulars (Vivaran)</span>
+                    <span>Date • Particulars</span>
                     <span>Amount (₹)</span>
                   </div>
 
                   <div className="divide-y divide-slate-100 min-h-48 text-xs">
                     {tAccountCreditLines.length === 0 && isDebitBalance && (
                       <div className="p-8 text-center text-slate-400 text-xs italic">
-                        Is khate mein koi Credit entry nahi hai
+                        No credit entries recorded in this account
                       </div>
                     )}
 
@@ -784,8 +780,8 @@ export default function AccountingPage() {
                     {isDebitBalance && closingBalancePaise > 0 && (
                       <div className="p-2.5 bg-emerald-50/60 flex items-center justify-between font-bold text-emerald-950 border-t border-dashed border-emerald-300">
                         <div>
-                          <span>By Balance c/d (Antim Baki)</span>
-                          <span className="text-[10px] text-emerald-700 block">Current Closing Balance</span>
+                          <span>By Balance c/d (Closing Balance)</span>
+                          <span className="text-[10px] text-emerald-700 block">Debit Balance Carrydown</span>
                         </div>
                         <span className="font-black">{formatINR(closingBalancePaise)}</span>
                       </div>
@@ -795,7 +791,7 @@ export default function AccountingPage() {
 
                 {/* Right Side Total Bar */}
                 <div className="bg-slate-100 border-t-2 border-slate-300 p-3 flex justify-between items-center font-black text-xs text-slate-900">
-                  <span>Kul Credit (Cr. Total)</span>
+                  <span>Total Credit (Cr.)</span>
                   <span className="text-sm font-black border-b-2 border-double border-slate-900 pb-0.5">
                     {formatINR(tGrandTotalPaise)}
                   </span>
@@ -806,9 +802,9 @@ export default function AccountingPage() {
             {/* Bottom Summary Callout */}
             <div className="bg-slate-50 p-3.5 border-t border-slate-200 flex items-center justify-between text-xs">
               <span className="font-bold text-slate-600">
-                Antim Khata Status:{" "}
+                Net Account Position:{" "}
                 <strong className="text-slate-900">
-                  {isDebitBalance ? "Debit / Jama Baki" : "Credit / Naame Baki"}
+                  {isDebitBalance ? "Debit Balance" : "Credit Balance"}
                 </strong>
               </span>
               <span className="text-sm font-black text-sky-800">
@@ -820,18 +816,17 @@ export default function AccountingPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: ROZNAMCHA (STANDARD GENERAL JOURNAL FORMAT) */}
-      {/* Date | Particulars (Account Dr, To Account, Narration) | L.F. | Dr | Cr */}
+      {/* TAB 3: GENERAL JOURNAL */}
       {/* ========================================================================= */}
       {activeTab === "JV" && (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs space-y-0">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm">
-                Roznamcha (General Journal Book)
+                General Journal (Book of Original Entry)
               </h3>
               <p className="text-[11px] text-slate-400 font-medium">
-                Standard format: Tariq, Khata Vivaran (Debit / To Credit), L.F. aur Raqam
+                Chronological record of double-entry transactions (Date, Particulars, L.F., Dr, Cr)
               </p>
             </div>
             <button
@@ -848,18 +843,18 @@ export default function AccountingPage() {
               <thead className="bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-600 border-b-2 border-slate-300">
                 <tr>
                   <th className="py-3 px-3 w-24">Date</th>
-                  <th className="py-3 px-4">Particulars (Khata Vivaran & Narration)</th>
+                  <th className="py-3 px-4">Particulars & Narration</th>
                   <th className="py-3 px-3 w-16 text-center">L.F.</th>
                   <th className="py-3 px-4 text-right w-28">Debit (₹)</th>
                   <th className="py-3 px-4 text-right w-28">Credit (₹)</th>
-                  <th className="py-3 px-3 text-center w-24 print:hidden">Action</th>
+                  <th className="py-3 px-3 text-center w-24 print:hidden">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-slate-200">
                 {jvData.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="text-center py-10 text-slate-400">
-                      Koi Journal Voucher record nahi mila.
+                      No journal entries recorded.
                     </td>
                   </tr>
                 ) : (
@@ -908,7 +903,7 @@ export default function AccountingPage() {
                               {entry.sourceDocumentType}
                             </span>
                             <span className="text-[10px] text-slate-400">
-                              By: {entry.postedBy || "Owner"}
+                              Posted By: {entry.postedBy || "Owner"}
                             </span>
                           </div>
                         </td>
@@ -952,7 +947,7 @@ export default function AccountingPage() {
                           <button
                             type="button"
                             onClick={() => handleReverseJv(entry)}
-                            title="Reverse (Ulat) voucher entry"
+                            title="Reverse voucher entry"
                             className="p-1 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 text-[10px] font-bold flex items-center justify-center gap-1 w-full cursor-pointer"
                           >
                             <RotateCcw className="w-3 h-3" />
@@ -988,56 +983,56 @@ export default function AccountingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
-                1. Bank Balance as per Books (GL 1130)
+                1. Book Balance (GL 1130)
               </span>
               <span className="text-xl font-black text-slate-900 mt-1 block">
                 {formatINR(brsData?.bookBalancePaise || 0)}
               </span>
-              <span className="text-[10px] text-slate-400">System khate ka balance</span>
+              <span className="text-[10px] text-slate-400">Balance as per company ledger</span>
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-amber-200 bg-amber-50/30 shadow-xs">
               <span className="text-[10px] font-black uppercase text-amber-700 block tracking-wider">
-                2. Less: Cheques / UPI Pending in Bank
+                2. Less: Uncredited Deposits / Cheques
               </span>
               <span className="text-xl font-black text-amber-900 mt-1 block">
                 {formatINR(brsData?.unclearedDepositsPaise || 0)}
               </span>
-              <span className="text-[10px] text-amber-600">Books mein jama, par bank mein baki</span>
+              <span className="text-[10px] text-amber-600">Recorded in books, pending in bank</span>
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-sky-200 bg-sky-50/30 shadow-xs">
               <span className="text-[10px] font-black uppercase text-sky-700 block tracking-wider">
-                3. Add: Unpresented Payments
+                3. Add: Unpresented Payments / Cheques
               </span>
               <span className="text-xl font-black text-sky-900 mt-1 block">
                 {formatINR(brsData?.unclearedWithdrawalsPaise || 0)}
               </span>
-              <span className="text-[10px] text-sky-600">Books mein cut chuka, bank se debited nahi</span>
+              <span className="text-[10px] text-sky-600">Issued in books, not yet debited by bank</span>
             </div>
 
             <div className="bg-white p-4 rounded-2xl border-2 border-emerald-400 bg-emerald-50/50 shadow-xs">
               <span className="text-[10px] font-black uppercase text-emerald-800 block tracking-wider">
-                4. Reconciled Passbook Balance
+                4. Reconciled Statement Balance
               </span>
               <span className="text-xl font-black text-emerald-950 mt-1 block">
                 {formatINR(brsData?.bankStatementBalancePaise || 0)}
               </span>
               <span className="text-[10px] text-emerald-700 font-semibold">
-                Passbook se milne yogya balance
+                Expected physical bank statement balance
               </span>
             </div>
           </div>
 
-          {/* Passbook Live Matcher Box */}
+          {/* Statement Balance Matcher Box */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                 <Landmark className="w-4 h-4 text-sky-600" />
-                Passbook Milan Check (Bank App Balance Matcher)
+                Bank Statement Matcher
               </h3>
               <p className="text-xs text-slate-500">
-                Apne bank app ya passbook ka live balance yahan daal kar check karein ki zero variance hai ya nahi.
+                Enter balance from your online NetBanking app or physical passbook to verify zero variance.
               </p>
             </div>
 
@@ -1046,7 +1041,7 @@ export default function AccountingPage() {
                 <span className="absolute left-3 top-2.5 text-xs font-black text-slate-400">₹</span>
                 <input
                   type="number"
-                  placeholder="Passbook Balance (e.g. 50000)"
+                  placeholder="Statement Balance"
                   value={passbookInputRupees}
                   onChange={(e) => setPassbookInputRupees(e.target.value)}
                   className="pl-7 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-black text-slate-900 w-48 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
@@ -1063,7 +1058,7 @@ export default function AccountingPage() {
             </div>
           </div>
 
-          {/* Live Matcher Result Indicator */}
+          {/* Statement Matcher Result Indicator */}
           {passbookInputRupees && (
             <div
               className={`p-4 rounded-2xl border flex items-center justify-between ${
@@ -1078,11 +1073,11 @@ export default function AccountingPage() {
                   <h4 className="font-black text-xs">
                     {Math.round(Number(passbookInputRupees) * 100) ===
                     (brsData?.bankStatementBalancePaise || 0)
-                      ? "Badhai! Bank Passbook aur System Khata 100% Reconcile ho gaya! (Zero Variance)"
-                      : "Difference Detected: Bank Passbook aur System mein farak hai"}
+                      ? "Reconciled! Bank statement and books match perfectly (Zero Variance)."
+                      : "Variance Detected: Statement balance differs from ledger books"}
                   </h4>
                   <p className="text-[11px] opacity-80">
-                    Entered Passbook Balance: {formatINR(Math.round(Number(passbookInputRupees) * 100))} •
+                    Entered Statement Balance: {formatINR(Math.round(Number(passbookInputRupees) * 100))} •
                     Calculated Bank Balance: {formatINR(brsData?.bankStatementBalancePaise || 0)}
                   </p>
                 </div>
@@ -1095,10 +1090,10 @@ export default function AccountingPage() {
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div>
                 <h4 className="font-extrabold text-slate-900 text-xs">
-                  Bank Transactions List & Clearance Marking
+                  Bank Account Transactions & Clearance Status
                 </h4>
                 <p className="text-[10px] text-slate-400">
-                  Jo transaction bank statement / passbook mein aa chuki hai, use &apos;Cleared&apos; mark karein
+                  Mark items as cleared when they appear in your official bank statement
                 </p>
               </div>
               <span className="text-[11px] font-bold text-slate-500">
@@ -1111,10 +1106,10 @@ export default function AccountingPage() {
                 <thead className="bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Vivaran / Narration</th>
-                    <th className="py-3 px-4 text-right">Inflow / Jama (Dr ₹)</th>
-                    <th className="py-3 px-4 text-right">Outflow / Nikasi (Cr ₹)</th>
-                    <th className="py-3 px-4 text-center">Bank Clearance Status</th>
+                    <th className="py-3 px-4">Description & Reference</th>
+                    <th className="py-3 px-4 text-right">Deposit (Dr ₹)</th>
+                    <th className="py-3 px-4 text-right">Withdrawal (Cr ₹)</th>
+                    <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-right print:hidden">Action</th>
                   </tr>
                 </thead>
@@ -1122,7 +1117,7 @@ export default function AccountingPage() {
                   {brsData?.transactions?.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="text-center py-8 text-slate-400">
-                        Is bank khate mein abhi koi transaction nahi hai.
+                        No transactions recorded for this bank account.
                       </td>
                     </tr>
                   ) : (
@@ -1177,17 +1172,17 @@ export default function AccountingPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 5: KHARCHA LIST & SETTLEMENT */}
+      {/* TAB 5: EXPENSES */}
       {/* ========================================================================= */}
       {activeTab === "EXP" && (
         <div className="space-y-4">
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex justify-between items-center">
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm">
-                Business Ke Daily Kharche (Operational Expenses)
+                Business Operational Expenses
               </h3>
               <p className="text-[11px] text-slate-400">
-                Diesel, gaadi repair, bijli, godown kiraya aur workers ka chai-nashta
+                Vehicle fuel, fleet maintenance, factory electricity, godown rent, and staff provisions
               </p>
             </div>
 
@@ -1196,7 +1191,7 @@ export default function AccountingPage() {
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Naya Kharcha Note Karein</span>
+              <span>Record Expense</span>
             </button>
           </div>
 
@@ -1205,18 +1200,18 @@ export default function AccountingPage() {
               <table className="w-full text-left text-xs text-slate-600">
                 <thead className="bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
                   <tr>
-                    <th className="py-3 px-4">Tariq (Date)</th>
-                    <th className="py-3 px-4">Kharcha Category</th>
-                    <th className="py-3 px-4">Vivaran / Notes</th>
-                    <th className="py-3 px-4">Kahan se Diya (Payment Mode)</th>
-                    <th className="py-3 px-4 text-right">Raqam (₹)</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Expense Category</th>
+                    <th className="py-3 px-4">Notes / Narration</th>
+                    <th className="py-3 px-4">Paid Via</th>
+                    <th className="py-3 px-4 text-right">Amount (₹)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {expensesData.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="text-center py-8 text-slate-400">
-                        Abhi tak koi kharcha record nahi hua hai. &apos;Naya Kharcha Note Karein&apos; par click karein.
+                        No operational expenses recorded yet. Click &apos;Record Expense&apos; to add.
                       </td>
                     </tr>
                   ) : (
@@ -1234,11 +1229,11 @@ export default function AccountingPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4 font-medium text-slate-700">
-                          {exp.notes || "Kharcha settlement"}
+                          {exp.notes || "Operational expense"}
                         </td>
                         <td className="py-3 px-4">
                           <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-800">
-                            {exp.paidViaDisplay?.simpleTitle || "Cash in Hand"}
+                            {exp.paidViaDisplay?.simpleTitle || "Cash-in-Hand"}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right font-black text-rose-700 text-sm">
@@ -1262,9 +1257,9 @@ export default function AccountingPage() {
           <div className="flex justify-between items-center border-b pb-3">
             <div>
               <h3 className="font-black text-slate-900 text-base">
-                Munafa aur Nuksan Vivaran (Profit & Loss)
+                Profit & Loss Statement (Income Statement)
               </h3>
-              <p className="text-[11px] text-slate-400 font-medium">Kul Aamdani - Kharche = Net Munafa</p>
+              <p className="text-[11px] text-slate-400 font-medium">Revenues - Cost of Goods Sold - Expenses = Net Profit</p>
             </div>
             <button
               onClick={() => window.print()}
@@ -1279,7 +1274,7 @@ export default function AccountingPage() {
             {/* Revenue */}
             <div>
               <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider mb-2">
-                1. Kul Bikri & Aamdani (Revenues)
+                1. Operating Revenues
               </h4>
               <div className="space-y-1.5 pl-2">
                 {pnlData.revenues.map((r: any) => (
@@ -1293,7 +1288,7 @@ export default function AccountingPage() {
                   </div>
                 ))}
                 <div className="flex justify-between pt-1 font-black text-emerald-800">
-                  <span>Kul Aamdani (Total Revenue):</span>
+                  <span>Total Revenues:</span>
                   <span>{formatINR(pnlData.totalRevenuePaise)}</span>
                 </div>
               </div>
@@ -1302,7 +1297,7 @@ export default function AccountingPage() {
             {/* COGS */}
             <div>
               <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider mb-2">
-                2. Direct Utpadan Lagat (Cost of Production / COGS)
+                2. Cost of Goods Sold (COGS)
               </h4>
               <div className="space-y-1.5 pl-2">
                 {pnlData.cogs.map((c: any) => (
@@ -1316,7 +1311,7 @@ export default function AccountingPage() {
                   </div>
                 ))}
                 <div className="flex justify-between pt-1 font-black text-slate-900">
-                  <span>Kul Utpadan Kharcha:</span>
+                  <span>Total Direct Production Cost:</span>
                   <span>{formatINR(pnlData.totalCogsPaise)}</span>
                 </div>
               </div>
@@ -1324,14 +1319,14 @@ export default function AccountingPage() {
 
             {/* Gross Profit */}
             <div className="p-3 bg-sky-50 rounded-xl flex justify-between font-black text-sky-950 text-sm">
-              <span>Gross Profit (Mool Munafa):</span>
+              <span>Gross Profit:</span>
               <span>{formatINR(pnlData.grossProfitPaise)}</span>
             </div>
 
             {/* Operating Expenses */}
             <div>
               <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider mb-2">
-                3. Vyaparik Kharche (Operating Expenses)
+                3. Operating Expenses
               </h4>
               <div className="space-y-1.5 pl-2">
                 {pnlData.expenses.map((e: any) => (
@@ -1345,7 +1340,7 @@ export default function AccountingPage() {
                   </div>
                 ))}
                 <div className="flex justify-between pt-1 font-black text-rose-800">
-                  <span>Kul Vyaparik Kharcha:</span>
+                  <span>Total Operating Expenses:</span>
                   <span>{formatINR(pnlData.totalExpensesPaise)}</span>
                 </div>
               </div>
@@ -1359,7 +1354,7 @@ export default function AccountingPage() {
                   : "bg-rose-600 text-white"
               }`}
             >
-              <span>Net Shuddh Munafa (Net Profit):</span>
+              <span>Net Profit:</span>
               <span>{formatINR(pnlData.netProfitPaise)}</span>
             </div>
           </div>
@@ -1374,10 +1369,10 @@ export default function AccountingPage() {
           <div className="flex justify-between items-center border-b pb-3">
             <div>
               <h3 className="font-black text-slate-900 text-base">
-                Balance Sheet (Sampatti aur Denadari)
+                Balance Sheet (Statement of Financial Position)
               </h3>
               <p className="text-[11px] text-slate-400 font-medium">
-                Assets = Liabilities + Owner Equity + Net Profit
+                Assets = Liabilities + Owner Equity + Current Period Net Profit
               </p>
             </div>
             <button
@@ -1393,7 +1388,7 @@ export default function AccountingPage() {
             {/* Assets */}
             <div className="space-y-3">
               <h4 className="font-black text-emerald-800 text-xs uppercase tracking-wider border-b pb-1">
-                Sampatti (Assets)
+                Assets
               </h4>
               <div className="space-y-1.5">
                 {bsData.assets.map((a: any) => (
@@ -1408,7 +1403,7 @@ export default function AccountingPage() {
                 ))}
               </div>
               <div className="p-3 bg-emerald-50 rounded-xl flex justify-between font-black text-emerald-950">
-                <span>Kul Sampatti (Total Assets):</span>
+                <span>Total Assets:</span>
                 <span>{formatINR(bsData.totalAssetsPaise)}</span>
               </div>
             </div>
@@ -1416,7 +1411,7 @@ export default function AccountingPage() {
             {/* Liabilities & Equity */}
             <div className="space-y-3">
               <h4 className="font-black text-sky-800 text-xs uppercase tracking-wider border-b pb-1">
-                Denadari & Poonji (Liabilities & Equity)
+                Liabilities & Equity
               </h4>
               <div className="space-y-1.5">
                 {bsData.liabilities.map((l: any) => (
@@ -1440,12 +1435,12 @@ export default function AccountingPage() {
                   </div>
                 ))}
                 <div className="flex justify-between py-1 border-b border-slate-100 font-bold text-emerald-800">
-                  <span>Is Avadhi ka Shuddh Munafa:</span>
+                  <span>Current Period Net Profit:</span>
                   <span>{formatINR(bsData.currentPeriodNetProfitPaise)}</span>
                 </div>
               </div>
               <div className="p-3 bg-sky-50 rounded-xl flex justify-between font-black text-sky-950">
-                <span>Kul Denadari & Poonji:</span>
+                <span>Total Liabilities & Equity:</span>
                 <span>{formatINR(bsData.totalLiabilitiesPaise + bsData.totalEquityWithProfitPaise)}</span>
               </div>
             </div>
@@ -1464,7 +1459,7 @@ export default function AccountingPage() {
                 Driver Cash Handover & Central Vault Verification
               </h3>
               <p className="text-[11px] text-amber-800 mt-0.5">
-                Driver dwara delivery route se collect kiya gaya cash jab galle mein jama hota hai tab verify karein.
+                Cash collected on delivery routes verified by cashier and deposited into central cash vault.
               </p>
             </div>
             <span className="text-xs font-black text-amber-950 bg-white px-3 py-1.5 rounded-xl border border-amber-300">
@@ -1513,20 +1508,20 @@ export default function AccountingPage() {
           </div>
 
           <p className="text-xs text-slate-500 leading-relaxed">
-            Reusable 20L jars ko Account 1210 mein Fixed Asset maana gaya hai aur har mahine 24-month Straight-Line Method (SLM) se ghisawat calculate hoti hai.
+            Reusable 20L polycarbonate containers are recorded as Fixed Assets in Account 1210 and depreciated over a 24-month lifespan using the Straight-Line Method (SLM).
           </p>
 
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
             <div className="flex justify-between">
-              <span className="text-slate-500">Asset Khata:</span>
-              <strong className="text-slate-900">1210 Reusable 20L Water Jars Stock</strong>
+              <span className="text-slate-500">Asset Account:</span>
+              <strong className="text-slate-900">1210 Reusable 20L Water Jars</strong>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Ghisawat Khata:</span>
+              <span className="text-slate-500">Contra Asset Account:</span>
               <strong className="text-slate-900">1220 Accumulated Depreciation — Jars</strong>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Kharcha Khata:</span>
+              <span className="text-slate-500">Expense Account:</span>
               <strong className="text-slate-900">6510 Depreciation Expense — Jars</strong>
             </div>
           </div>
@@ -1548,7 +1543,7 @@ export default function AccountingPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 1: NAYA KHATA BANAYEIN (ADD CUSTOM ACCOUNT) */}
+      {/* MODAL 1: ADD ACCOUNT */}
       {/* ========================================================================= */}
       {createAccountModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1559,8 +1554,8 @@ export default function AccountingPage() {
                   <Plus className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">Naya Khata Banayein (Add Account)</h3>
-                  <p className="text-[10px] text-slate-400">Chart of Accounts mein naya khata jodein</p>
+                  <h3 className="text-sm font-black text-slate-900">Add New Account</h3>
+                  <p className="text-[10px] text-slate-400">Add new ledger account to Chart of Accounts</p>
                 </div>
               </div>
               <button
@@ -1574,14 +1569,14 @@ export default function AccountingPage() {
             {/* Quick Presets */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                Quick Preset Select Karein:
+                Quick Category Presets:
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {[
-                  { name: "Gaadi Diesel & Petrol", type: "EXPENSE", icon: Fuel },
-                  { name: "Gaadi Repair & Maintenance", type: "EXPENSE", icon: Wrench },
-                  { name: "Plant & Godown Kiraya (Rent)", type: "EXPENSE", icon: Building2 },
-                  { name: "Workers Chai-Nashta & Snacks", type: "EXPENSE", icon: Coffee },
+                  { name: "Vehicle Fuel & Diesel", type: "EXPENSE", icon: Fuel },
+                  { name: "Vehicle Repair & Maintenance", type: "EXPENSE", icon: Wrench },
+                  { name: "Plant & Godown Rent", type: "EXPENSE", icon: Building2 },
+                  { name: "Staff Welfare & Refreshments", type: "EXPENSE", icon: Coffee },
                   { name: "RO Chemicals & Filter Spares", type: "COGS", icon: Sparkles },
                 ].map((pre) => (
                   <button
@@ -1603,11 +1598,11 @@ export default function AccountingPage() {
             <form onSubmit={handleCreateAccount} className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Khate ka Naam (Account Name)
+                  Account Name
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Tempo Diesel Kharcha, Chai-Pani, Electricity"
+                  placeholder="e.g. Vehicle Fuel, Office Supplies, Electricity"
                   value={newAccountName}
                   onChange={(e) => setNewAccountName(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -1618,18 +1613,18 @@ export default function AccountingPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Khate ka Prakar (Category)
+                    Account Category
                   </label>
                   <select
                     value={newAccountType}
                     onChange={(e) => setNewAccountType(e.target.value as any)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold bg-white"
                   >
-                    <option value="EXPENSE">Vyaparik Kharcha (Expense)</option>
-                    <option value="COGS">Utpadan Lagat (COGS)</option>
-                    <option value="ASSET">Sampatti (Asset / Bank)</option>
-                    <option value="LIABILITY">Denadari (Liability / Udhar)</option>
-                    <option value="REVENUE">Aamdani (Revenue / Sales)</option>
+                    <option value="EXPENSE">Operating Expense</option>
+                    <option value="COGS">Direct Cost of Goods (COGS)</option>
+                    <option value="ASSET">Asset (Bank / Cash / Asset)</option>
+                    <option value="LIABILITY">Liability (Payable / Loan)</option>
+                    <option value="REVENUE">Revenue (Sales / Income)</option>
                   </select>
                 </div>
 
@@ -1639,7 +1634,7 @@ export default function AccountingPage() {
                   </label>
                   <input
                     type="text"
-                    placeholder="Auto-generated"
+                    placeholder="Auto-assigned"
                     value={newAccountCode}
                     onChange={(e) => setNewAccountCode(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono"
@@ -1665,7 +1660,7 @@ export default function AccountingPage() {
                   type="submit"
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
                 >
-                  Khata Banayein
+                  Create Account
                 </button>
               </div>
             </form>
@@ -1674,7 +1669,7 @@ export default function AccountingPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: KHARCHA SETTLE KAREIN (QUICK EXPENSE VOUCHER) */}
+      {/* MODAL 2: RECORD BUSINESS EXPENSE */}
       {/* ========================================================================= */}
       {expenseModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1685,8 +1680,8 @@ export default function AccountingPage() {
                   <Receipt className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">Kharcha Note Karein (Expense Voucher)</h3>
-                  <p className="text-[10px] text-slate-400">Diesel, Chai, Kiraya, Servicing turant settle karein</p>
+                  <h3 className="text-sm font-black text-slate-900">Record Business Expense</h3>
+                  <p className="text-[10px] text-slate-400">Post balanced voucher for vehicle fuel, repairs, rent, etc.</p>
                 </div>
               </div>
               <button
@@ -1700,7 +1695,7 @@ export default function AccountingPage() {
             <form onSubmit={handleSettleExpense} className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Kiski Madad se Kharcha hua (Expense Account)
+                  Expense Account
                 </label>
                 <select
                   value={expenseAccountId}
@@ -1721,7 +1716,7 @@ export default function AccountingPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Kharcha Raqam (₹)
+                    Amount (₹)
                   </label>
                   <input
                     type="number"
@@ -1735,7 +1730,7 @@ export default function AccountingPage() {
 
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Tariq (Date)
+                    Date
                   </label>
                   <input
                     type="date"
@@ -1749,7 +1744,7 @@ export default function AccountingPage() {
 
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Kahan se Diya (Payment Source)
+                  Paid From (Payment Account)
                 </label>
                 <select
                   value={expensePaidViaId}
@@ -1757,19 +1752,19 @@ export default function AccountingPage() {
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white"
                   required
                 >
-                  <option value="1110">1110 — Gullak / Central Cash Vault (Galle ka Cash)</option>
-                  <option value="1130">1130 — Bank Khata (Online / UPI / Cheque)</option>
-                  <option value="1120">1120 — Driver Route Cash</option>
+                  <option value="1110">1110 — Cash-in-Hand (Central Vault)</option>
+                  <option value="1130">1130 — Bank Account (Online / Cheque / UPI)</option>
+                  <option value="1120">1120 — Driver Cash in Transit</option>
                 </select>
               </div>
 
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Vivaran / Notes (Narration)
+                  Description / Narration
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Tempo 5L diesel, Factory samosa lunch"
+                  placeholder="e.g. Delivery van 10L diesel, factory snacks"
                   value={expenseNarration}
                   onChange={(e) => setExpenseNarration(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"
@@ -1795,7 +1790,7 @@ export default function AccountingPage() {
                   type="submit"
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
                 >
-                  Settle & Voucher Post Karein
+                  Post Expense Voucher
                 </button>
               </div>
             </form>
@@ -1810,7 +1805,7 @@ export default function AccountingPage() {
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-black text-slate-900">Roznamcha Voucher (Manual Journal)</h3>
+              <h3 className="text-sm font-black text-slate-900">Post Manual Journal Entry</h3>
               <button
                 onClick={() => setManualJvModalOpen(false)}
                 className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
@@ -1821,7 +1816,7 @@ export default function AccountingPage() {
 
             <form onSubmit={handlePostManualJv} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Vivaran (Narration)</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Narration / Description</label>
                 <input
                   type="text"
                   placeholder="e.g. Purchase of water filter consumables"
@@ -1833,7 +1828,7 @@ export default function AccountingPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Debit Khata (Dr.)</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Debit Account (Dr.)</label>
                 <select
                   value={debitAccount}
                   onChange={(e) => setDebitAccount(e.target.value)}
@@ -1848,7 +1843,7 @@ export default function AccountingPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Credit Khata (Cr.)</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Credit Account (Cr.)</label>
                 <select
                   value={creditAccount}
                   onChange={(e) => setCreditAccount(e.target.value)}
@@ -1864,7 +1859,7 @@ export default function AccountingPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Raqam (₹)</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Amount (₹)</label>
                   <input
                     type="number"
                     value={jvAmountRupees}
@@ -1874,7 +1869,7 @@ export default function AccountingPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Tariq (Date)</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Date</label>
                   <input
                     type="date"
                     value={jvDate}
@@ -1903,7 +1898,7 @@ export default function AccountingPage() {
                   type="submit"
                   className="px-5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
                 >
-                  Post Journal Voucher
+                  Commit Journal Entry
                 </button>
               </div>
             </form>
@@ -1918,7 +1913,7 @@ export default function AccountingPage() {
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-black text-slate-900">Bank Entry (Fee / Interest)</h3>
+              <h3 className="text-sm font-black text-slate-900">Record Bank Entry</h3>
               <button
                 onClick={() => setDirectBankModalOpen(false)}
                 className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
@@ -1929,7 +1924,7 @@ export default function AccountingPage() {
 
             <form onSubmit={handleDirectBankEntry} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Entry Type</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Transaction Type</label>
                 <select
                   value={directBankType}
                   onChange={(e) => {
@@ -1941,13 +1936,13 @@ export default function AccountingPage() {
                   }}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white"
                 >
-                  <option value="BANK_CHARGE">Bank Charge / SMS / Penalty Fee (Dr. Charges, Cr. Bank)</option>
-                  <option value="BANK_INTEREST">Bank Byaj / Interest Received (Dr. Bank, Cr. Income)</option>
+                  <option value="BANK_CHARGE">Bank Charge / Fee (Dr. Charges, Cr. Bank)</option>
+                  <option value="BANK_INTEREST">Bank Interest Received (Dr. Bank, Cr. Income)</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Raqam (₹)</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Amount (₹)</label>
                 <input
                   type="number"
                   placeholder="e.g. 150"
@@ -1959,7 +1954,7 @@ export default function AccountingPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Vivaran / Narration</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Narration / Description</label>
                 <input
                   type="text"
                   value={directBankNarration}
@@ -2008,13 +2003,13 @@ export default function AccountingPage() {
             </div>
 
             <p className="text-xs text-slate-500">
-              Cashier currency notes ginkar galle (A/C 1110 Central Vault) mein verify karein.
+              Cashier counts physical currency notes and verifies them into central vault (A/C 1110).
             </p>
 
             <form onSubmit={handleVerifyHandover} className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Galle mein Jama Raqam (₹)
+                  Verified Deposit Amount (₹)
                 </label>
                 <input
                   type="number"
