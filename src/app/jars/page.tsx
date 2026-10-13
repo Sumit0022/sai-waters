@@ -18,7 +18,11 @@ import {
   Sparkles,
   TrendingDown,
   Layers,
+  Download,
+  Printer,
+  Eye,
 } from "lucide-react";
+import QRCode from "qrcode";
 import { formatINR } from "@/lib/utils";
 import QrCameraScanner from "@/components/QrCameraScanner";
 
@@ -35,6 +39,9 @@ export default function JarsPage() {
   const [lossOpen, setLossOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [plantUnloadOpen, setPlantUnloadOpen] = useState(false);
+  const [qrViewModalOpen, setQrViewModalOpen] = useState(false);
+  const [viewingJar, setViewingJar] = useState<any>(null);
+  const [viewingJarQrUrl, setViewingJarQrUrl] = useState<string>("");
   const [plantScanMode, setPlantScanMode] = useState<"MANUAL" | "CAMERA">("CAMERA");
   const [plantUnloadList, setPlantUnloadList] = useState<any[]>([]);
   const [plantScanInput, setPlantScanInput] = useState("");
@@ -155,6 +162,23 @@ export default function JarsPage() {
     setPlantScanInput("");
   };
 
+  // Open QR Sticker View & Download Modal
+  const handleOpenQrView = async (jar: any) => {
+    setViewingJar(jar);
+    setQrViewModalOpen(true);
+    try {
+      const token = jar.qrToken || `urn:sw:j:${jar.permanentJarCode}`;
+      const url = await QRCode.toDataURL(token, {
+        width: 380,
+        margin: 2,
+        color: { dark: "#0F172A", light: "#FFFFFF" },
+      });
+      setViewingJarQrUrl(url);
+    } catch (e) {
+      console.error("Failed to generate jar QR:", e);
+    }
+  };
+
   // Register New Jar
   const handleRegisterJar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,10 +194,14 @@ export default function JarsPage() {
         }),
       });
       if (res.ok) {
+        const data = await res.json();
         setRegisterOpen(false);
         setNewJarCode("");
         setNewJarNotes("");
         loadJars();
+        if (data?.jar) {
+          handleOpenQrView(data.jar);
+        }
       }
     } catch (err) {
       console.error("Register failed:", err);
@@ -242,6 +270,7 @@ export default function JarsPage() {
   const handleRelabelJar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeJar || !relabelNewToken) return;
+    const updatedJar = { ...activeJar, qrToken: relabelNewToken };
     try {
       const res = await fetch("/api/jars/relabel", {
         method: "POST",
@@ -257,6 +286,7 @@ export default function JarsPage() {
         setActiveJar(null);
         setRelabelNewToken("");
         loadJars();
+        handleOpenQrView(updatedJar);
       }
     } catch (err) {
       console.error("Relabel failed:", err);
@@ -460,13 +490,23 @@ export default function JarsPage() {
                   return (
                     <tr key={`${jar.id}-${jar.qrToken || idx}`} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4">
-                        <div className="font-extrabold text-slate-900 flex items-center gap-2">
-                          <QrCode className="w-4 h-4 text-sky-600 shrink-0" />
-                          {jar.permanentJarCode}
-                        </div>
-                        <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate max-w-xs">
-                          {jar.qrToken || "No QR Token"}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenQrView(jar)}
+                          className="text-left group cursor-pointer block"
+                          title="Click karein QR sticker dekhne aur download karne ke liye"
+                        >
+                          <div className="font-extrabold text-slate-900 flex items-center gap-2 group-hover:text-sky-600 transition-colors">
+                            <QrCode className="w-4 h-4 text-sky-600 shrink-0" />
+                            <span>{jar.permanentJarCode}</span>
+                            <span className="text-[10px] font-bold text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity bg-sky-50 px-1.5 py-0.5 rounded-md">
+                              View QR
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate max-w-xs group-hover:text-slate-600">
+                            {jar.qrToken || "No QR Token"}
+                          </div>
+                        </button>
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -519,11 +559,23 @@ export default function JarsPage() {
 
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* View QR Code */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenQrView(jar)}
+                            title="Current QR sticker dekhein & download karein"
+                            className="p-1.5 rounded-lg border border-sky-200 bg-sky-50/70 hover:bg-sky-100 text-sky-700 transition-colors text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            <span>QR</span>
+                          </button>
+
                           {/* Edit Jar */}
                           <button
+                            type="button"
                             onClick={() => openEditModal(jar)}
                             title="Jar details edit karein"
-                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors text-xs font-semibold flex items-center gap-1"
+                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors text-xs font-semibold flex items-center gap-1 cursor-pointer"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                             Edit
@@ -531,6 +583,7 @@ export default function JarsPage() {
 
                           {/* Re-Label QR */}
                           <button
+                            type="button"
                             onClick={() => {
                               setActiveJar(jar);
                               setRelabelOpen(true);
@@ -539,7 +592,7 @@ export default function JarsPage() {
                               );
                             }}
                             title="Naya QR sticker lagayein"
-                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors text-xs font-semibold flex items-center gap-1"
+                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors text-xs font-semibold flex items-center gap-1 cursor-pointer"
                           >
                             <RotateCw className="w-3.5 h-3.5" />
                             Re-QR
@@ -547,9 +600,10 @@ export default function JarsPage() {
 
                           {/* Retire / Delete Jar */}
                           <button
+                            type="button"
                             onClick={() => handleDeleteJar(jar)}
                             title="Jar ko retire karein"
-                            className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 transition-colors text-xs font-semibold"
+                            className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 transition-colors text-xs font-semibold cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1150,6 +1204,137 @@ export default function JarsPage() {
                 className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
                 Done Receiving ({plantUnloadList.length} Jars)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: VIEW & DOWNLOAD / PRINT CURRENT JAR QR STICKER */}
+      {/* ========================================================================= */}
+      {qrViewModalOpen && viewingJar && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4">
+            {/* Header */}
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
+                  <QrCode className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                    Jar QR Sticker Label
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Permanent Code: {viewingJar.permanentJarCode}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setQrViewModalOpen(false);
+                  setViewingJar(null);
+                  setViewingJarQrUrl("");
+                }}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Printable Physical Sticker Box */}
+            <div className="p-4 bg-slate-50 border-2 border-dashed border-sky-300 rounded-2xl text-center space-y-2.5">
+              <div className="flex items-center justify-between text-[10px] font-black tracking-wider text-slate-500 uppercase px-1">
+                <span>SAI WATERS</span>
+                <span className="text-sky-700 font-bold">20L WATER CONTAINER</span>
+              </div>
+
+              <div className="bg-slate-900 text-white py-1.5 px-3 rounded-lg font-black text-sm tracking-wider inline-block shadow-xs">
+                {viewingJar.permanentJarCode}
+              </div>
+
+              {viewingJarQrUrl ? (
+                <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs inline-block">
+                  <img
+                    src={viewingJarQrUrl}
+                    alt={`QR Code for ${viewingJar.permanentJarCode}`}
+                    className="w-48 h-48 mx-auto rounded-xl"
+                  />
+                </div>
+              ) : (
+                <div className="w-48 h-48 mx-auto flex items-center justify-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">
+                  Generating QR Code...
+                </div>
+              )}
+
+              <div className="space-y-0.5">
+                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  Active QR Token
+                </div>
+                <div className="text-[11px] font-mono text-slate-700 bg-white px-2 py-1 rounded-md border border-slate-200 truncate select-all">
+                  {viewingJar.qrToken || `urn:sw:j:${viewingJar.permanentJarCode}`}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px] text-left">
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-slate-400 block font-semibold">Status:</span>
+                  <span className="font-extrabold text-slate-800 truncate block">
+                    {getFriendlyStatus(viewingJar.currentStatus)}
+                  </span>
+                </div>
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-slate-400 block font-semibold">Total Cycles:</span>
+                  <span className="font-extrabold text-sky-700 block">
+                    {viewingJar.totalUsageCycles || 0} Cycles
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[9.5px] text-slate-400 font-medium px-1 leading-tight">
+                Sticker placement: Neck / shoulder of jar. Scan with driver camera on doorstep delivery & return.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-1">
+              <div className="flex gap-2">
+                {viewingJarQrUrl && (
+                  <a
+                    href={viewingJarQrUrl}
+                    download={`sai-waters-jar-${viewingJar.permanentJarCode}-qr.png`}
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-all"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download PNG</span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-all"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print Sticker</span>
+                </button>
+              </div>
+
+              {/* Quick shortcut to Re-label if sticker is worn/damaged */}
+              <button
+                type="button"
+                onClick={() => {
+                  const j = viewingJar;
+                  setQrViewModalOpen(false);
+                  setActiveJar(j);
+                  setRelabelNewToken(`urn:sw:j:q8x9f2m1-${Math.random().toString(36).substring(2, 8)}`);
+                  setRelabelOpen(true);
+                }}
+                className="w-full py-2 text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <RotateCw className="w-3 h-3 text-slate-400" />
+                <span>Damaged or unreadable sticker? Replace / Re-QR</span>
               </button>
             </div>
           </div>
