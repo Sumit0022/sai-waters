@@ -217,19 +217,16 @@ export default function DriverAppPage() {
     e.preventDefault();
     setLoginError("");
 
-    const driverList =
-      availableDrivers.length > 0
-        ? availableDrivers
-        : [
-            { id: "usr_driver_01", fullName: "Vikram Singh", pin: "1234", phone: "9876543211" },
-            { id: "usr_driver_02", fullName: "Ramesh Kumar", pin: "1234", phone: "9876543214" },
-          ];
+    if (availableDrivers.length === 0) {
+      setLoginError("Koi active driver system mein maujood nahi hai. Admin se sampark karein.");
+      return;
+    }
 
-    const matchedDriver = driverList.find((d) => d.id === selectedDriverId) || driverList[0];
-    const expectedPin = (matchedDriver.pin || matchedDriver.passwordHash || "1234").trim();
+    const matchedDriver = availableDrivers.find((d) => d.id === selectedDriverId) || availableDrivers[0];
+    const expectedPin = (matchedDriver.pin || matchedDriver.passwordHash || "").trim();
 
-    if (pinInput.trim() !== expectedPin && pinInput.trim() !== "1234") {
-      setLoginError("Galat Driver PIN. Sahi PIN enter karein ya Admin Settings se check karein.");
+    if (!pinInput.trim() || pinInput.trim() !== expectedPin) {
+      setLoginError("Galat Driver PIN. Sahi PIN enter karein jo Admin ne allot kiya hai.");
       return;
     }
 
@@ -466,28 +463,23 @@ export default function DriverAppPage() {
                   ))}
                 </select>
               ) : (
-                <select
-                  value={selectedDriverId}
-                  onChange={(e) => setSelectedDriverId(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white"
-                >
-                  <option value="usr_driver_01">Vikram Singh (UP 25 SW 1001)</option>
-                </select>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 font-semibold text-center">
+                  Driver profile load ho rahi hai...
+                </div>
               )}
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">Enter Driver PIN:</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Enter Driver PIN:</label>
               <input
                 type="password"
                 maxLength={4}
-                placeholder="Default: 1234"
+                placeholder="••••"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                className="w-full p-3 text-center tracking-widest text-xl font-black rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+                className="w-full p-3 text-center tracking-widest text-2xl font-black rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
                 autoFocus
               />
-              <span className="text-[11px] text-slate-400 block text-center mt-1">Default Driver PIN: 1234</span>
             </div>
 
             {loginError && (

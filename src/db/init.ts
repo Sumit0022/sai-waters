@@ -531,8 +531,7 @@ export async function initializeDatabase() {
       ('usr_owner_01', 'Sai Waters Owner', '9876543210', 'owner@saiwaters.in', 'hashed_pass_admin_123', 'OWNER'),
       ('usr_ops_01', 'Vikas Sharma (Ops Mgr)', '9876543212', 'vikas@saiwaters.in', 'hashed_pass_ops_123', 'OPERATIONS_MANAGER'),
       ('usr_acc_01', 'Anita Agarwal (Accountant)', '9876543213', 'anita@saiwaters.in', 'hashed_pass_acc_123', 'ACCOUNTANT'),
-      ('usr_driver_01', 'Ramesh Kumar (Driver 1)', '9876543211', 'ramesh@saiwaters.in', 'hashed_pass_driver_123', 'DELIVERY_STAFF'),
-      ('usr_driver_02', 'Suresh Patel (Driver 2)', '9876543214', 'suresh@saiwaters.in', 'hashed_pass_driver_123', 'DELIVERY_STAFF')
+      ('usr_driver_01', 'Ramesh Kumar (Driver 1)', '9876543211', 'ramesh@saiwaters.in', 'hashed_pass_driver_123', 'DELIVERY_STAFF')
     ON CONFLICT (id) DO NOTHING;
 
     -- Seed System Configurations

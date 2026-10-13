@@ -38,6 +38,9 @@ export default function InvoicesPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "DUE" | "PARTIALLY_PAID" | "PAID" | "UNPAID">("ALL");
+  const [businessUpiId, setBusinessUpiId] = useState("saiwaters@upi");
+  const [businessPayeeName, setBusinessPayeeName] = useState("Sai Waters");
 
   // Modals
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -46,6 +49,15 @@ export default function InvoicesPage() {
   const [upiModalOpen, setUpiModalOpen] = useState(false);
   const [upiQrDataUrl, setUpiQrDataUrl] = useState("");
   const [printModalOpen, setPrintModalOpen] = useState(false);
+
+  // Due Settle State
+  const [settleModalOpen, setSettleModalOpen] = useState(false);
+  const [settleAmountRupees, setSettleAmountRupees] = useState("");
+  const [settlePaymentMode, setSettlePaymentMode] = useState<"CASH" | "BANK" | "UPI">("CASH");
+  const [settleReference, setSettleReference] = useState("");
+  const [settleDate, setSettleDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [isSettling, setIsSettling] = useState(false);
+  const [settleSuccessMsg, setSettleSuccessMsg] = useState("");
 
   // Month-End Auto-Billing State
   const [monthEndModalOpen, setMonthEndModalOpen] = useState(false);
@@ -77,6 +89,10 @@ export default function InvoicesPage() {
     ])
       .then(([invData, custData, batchData]) => {
         setInvoices(invData.invoices || []);
+        if (invData.businessInfo?.upi_id) {
+          setBusinessUpiId(invData.businessInfo.upi_id);
+          setBusinessPayeeName(invData.businessInfo.payee_name || "Sai Waters");
+        }
         setCustomers(custData.customers || []);
         if (batchData.success) {
           setBatchSummary(batchData);
@@ -177,12 +193,86 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleOpenSettle = (inv: any) => {
+    setActiveInvoice(inv);
+    setSettleAmountRupees((Math.max(0, inv.outstandingPaise || 0) / 100).toString());
+    setSettlePaymentMode("CASH");
+    setSettleReference("");
+    setSettleDate(new Date().toISOString().split("T")[0]);
+    setSettleSuccessMsg("");
+    setSettleModalOpen(true);
+  };
+
+  const handleSettleDue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeInvoice) return;
+    const amountVal = parseFloat(settleAmountRupees);
+    if (isNaN(amountVal) || amountVal <= 0) {
+      alert("Kripya valid payment amount darj karein.");
+      return;
+    }
+
+    setIsSettling(true);
+    try {
+      const res = await fetch("/api/invoices/settle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceId: activeInvoice.id,
+          amountPaise: Math.round(amountVal * 100),
+          paymentMode: settlePaymentMode,
+          reference: settleReference.trim(),
+          receiptDate: settleDate,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSettleSuccessMsg(data.message);
+        loadData();
+        setActiveInvoice((prev: any) => ({
+          ...prev,
+          paidAmountPaise: data.paidAmountPaise,
+          outstandingPaise: data.outstandingPaise,
+          status: data.status,
+          receipts: [
+            ...(prev.receipts || []),
+            {
+              receiptNumber: data.receiptNumber,
+              amountPaise: Math.round(amountVal * 100),
+              paymentMode: settlePaymentMode === "CASH" ? "CASH" : settlePaymentMode === "UPI" ? "UPI_MANUAL" : "BANK_NEFT",
+              receiptDate: settleDate,
+              transactionReference: settleReference.trim() || `Settled via ${settlePaymentMode}`,
+            },
+          ],
+        }));
+        setTimeout(() => {
+          setSettleModalOpen(false);
+        }, 1500);
+      } else {
+        alert(data.error || "Payment settle nahi ho saka");
+      }
+    } catch (err: any) {
+      alert(err.message || "Network error");
+    } finally {
+      setIsSettling(false);
+    }
+  };
+
   const filteredInvoices = invoices.filter((i) => {
-    return (
-      i.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.customerPhone?.includes(searchTerm)
-    );
+    if (statusFilter === "DUE" && (i.outstandingPaise || 0) <= 0) return false;
+    if (statusFilter === "PARTIALLY_PAID" && i.status !== "PARTIALLY_PAID") return false;
+    if (statusFilter === "PAID" && i.status !== "PAID") return false;
+    if (statusFilter === "UNPAID" && (i.paidAmountPaise || 0) > 0) return false;
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return (
+        i.invoiceNumber?.toLowerCase().includes(term) ||
+        i.customerName?.toLowerCase().includes(term) ||
+        i.customerPhone?.includes(term)
+      );
+    }
+    return true;
   });
 
   const getStatusBadge = (status: string) => {
@@ -316,22 +406,40 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-        <div className="relative w-full max-w-md">
+      {/* Search Bar & Status Filters */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-4 justify-between items-center">
+        <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
           <input
             type="text"
             placeholder="Search Invoice #, Customer Name, Mobile..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-sky-500/20"
+            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-sky-500/20"
           />
         </div>
 
-        <span className="text-xs font-bold text-slate-500">
-          Showing {filteredInvoices.length} Invoices
-        </span>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold w-full md:w-auto">
+          {[
+            { id: "ALL", label: `All (${invoices.length})` },
+            { id: "DUE", label: `Due / Pending (${invoices.filter((i) => (i.outstandingPaise || 0) > 0).length})` },
+            { id: "PARTIALLY_PAID", label: `Partially Paid (${invoices.filter((i) => i.status === "PARTIALLY_PAID").length})` },
+            { id: "PAID", label: `Fully Paid (${invoices.filter((i) => i.status === "PAID").length})` },
+            { id: "UNPAID", label: `Unpaid (${invoices.filter((i) => (i.paidAmountPaise || 0) === 0).length})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id as any)}
+              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                statusFilter === tab.id
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Invoices List */}
@@ -882,7 +990,7 @@ export default function InvoicesPage() {
                 <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px] block mb-1">
                   Payment Remittance:
                 </span>
-                <strong className="text-slate-900 block">UPI: saiwaters@upi</strong>
+                <strong className="text-slate-900 block">UPI: {activeInvoice.businessUpiId || businessUpiId || "saiwaters@upi"}</strong>
                 <span className="text-slate-600 block">Bank: State Bank of India</span>
                 <span className="text-slate-600 block">A/C: 10023456789 (IFSC: SBIN0001234)</span>
               </div>
@@ -1274,6 +1382,15 @@ export default function InvoicesPage() {
                   <>
                     <button
                       type="button"
+                      onClick={() => handleOpenSettle(activeInvoice)}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Clear / Settle Due ({formatINR(activeInvoice.outstandingPaise)})</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => {
                         setInspectModalOpen(false);
                         setUpiModalOpen(true);
@@ -1305,6 +1422,163 @@ export default function InvoicesPage() {
                 Close Inspection
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: SETTLE INVOICE OUTSTANDING BALANCE */}
+      {/* ========================================================================= */}
+      {settleModalOpen && activeInvoice && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                  Accounting Settlement
+                </span>
+                <h3 className="text-base font-black text-slate-900">
+                  Clear Invoice Due Balance
+                </h3>
+              </div>
+              <button
+                onClick={() => setSettleModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-slate-400 font-semibold block text-[11px]">Customer & Invoice</span>
+                <strong className="text-slate-900 text-sm block">{activeInvoice.customerName}</strong>
+                <span className="text-slate-500 font-mono text-[11px]">{activeInvoice.invoiceNumber}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-slate-400 font-semibold block text-[11px]">Current Due</span>
+                <strong className="text-rose-600 text-base font-black">
+                  {formatINR(activeInvoice.outstandingPaise || 0)}
+                </strong>
+              </div>
+            </div>
+
+            <form onSubmit={handleSettleDue} className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-700">Settlement Amount (₹) *</label>
+                  <button
+                    type="button"
+                    onClick={() => setSettleAmountRupees(((activeInvoice.outstandingPaise || 0) / 100).toString())}
+                    className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                  >
+                    Full Balance (₹{((activeInvoice.outstandingPaise || 0) / 100).toFixed(2)})
+                  </button>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-slate-400 font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    max={((activeInvoice.outstandingPaise || 0) / 100).toString()}
+                    value={settleAmountRupees}
+                    onChange={(e) => setSettleAmountRupees(e.target.value)}
+                    className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm font-black text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Mode of Payment (Debit General Ledger Account) *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSettlePaymentMode("CASH")}
+                    className={`p-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                      settlePaymentMode === "CASH"
+                        ? "bg-amber-500 text-white border-amber-600 shadow-md shadow-amber-500/20"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-black">
+                      <Wallet className="w-4 h-4" />
+                      <span>CASH</span>
+                    </div>
+                    <span className="text-[10px] opacity-80">Dr. Cash-in-Hand (1110)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettlePaymentMode("BANK")}
+                    className={`p-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                      settlePaymentMode === "BANK"
+                        ? "bg-sky-600 text-white border-sky-700 shadow-md shadow-sky-600/20"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-black">
+                      <Building2 className="w-4 h-4" />
+                      <span>BANK / UPI</span>
+                    </div>
+                    <span className="text-[10px] opacity-80">Dr. Bank Account (1130)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Payment Reference / Remarks
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Counter Cash, GPay Ref 402910..."
+                  value={settleReference}
+                  onChange={(e) => setSettleReference(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Receipt Settlement Date
+                </label>
+                <input
+                  type="date"
+                  value={settleDate}
+                  onChange={(e) => setSettleDate(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold"
+                />
+              </div>
+
+              {settleSuccessMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-xl text-center flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{settleSuccessMsg}</span>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSettleModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSettling}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isSettling ? "Settling..." : "Confirm & Clear Balance"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

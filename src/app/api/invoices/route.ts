@@ -4,10 +4,12 @@ import { invoices, invoiceLines, customers, orders, eventOrders, receipts, cashC
 import { createAndPostInvoice, generateUpiLink, generateWhatsAppShareLink } from "@/lib/billing";
 import { eq, desc } from "drizzle-orm";
 import { formatTimeIST, formatDateTimeIST } from "@/lib/date-utils";
+import { getBusinessInfo } from "@/lib/settings";
 
 export async function GET(request: Request) {
   await ensureDatabaseReady();
   const db = getDb();
+  const businessInfo = await getBusinessInfo();
   const url = new URL(request.url);
   const customerId = url.searchParams.get("customerId");
 
@@ -118,6 +120,8 @@ export async function GET(request: Request) {
     const evt = inv.orderId ? eventMap.get(inv.orderId) : null;
 
     const upiLink = generateUpiLink({
+      upiId: businessInfo.upi_id,
+      businessName: businessInfo.payee_name,
       amountPaise: outstandingPaise,
       invoiceNumber: inv.invoiceNumber,
     });
@@ -144,12 +148,14 @@ export async function GET(request: Request) {
       eventName: evt?.eventName || null,
       venueContactPerson: evt?.venueContactPerson || null,
       venueContactPhone: evt?.venueContactPhone || null,
+      businessUpiId: businessInfo.upi_id,
+      businessPayeeName: businessInfo.payee_name,
       upiLink,
       whatsAppShareUrl: waLink,
     };
   });
 
-  return NextResponse.json({ invoices: enriched });
+  return NextResponse.json({ invoices: enriched, businessInfo });
 }
 
 export async function POST(request: Request) {

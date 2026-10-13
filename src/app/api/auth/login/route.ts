@@ -1,20 +1,23 @@
 import { NextResponse } from "next/server";
 import { ensureDatabaseReady } from "@/db";
+import { getAdminCredentials } from "@/lib/settings";
 
 export async function POST(request: Request) {
   try {
     await ensureDatabaseReady();
     const { username, password } = await request.json();
 
-    const expectedUser = process.env.OWNER_USERNAME || "sai";
-    const expectedPass = process.env.OWNER_PASSWORD || "sai123";
+    const admin = await getAdminCredentials();
+    const cleanUser = (username || "").trim();
+    const cleanPass = (password || "").trim();
 
-    // Also allow 'admin' / 'admin123' as fallback
-    const isOwner =
-      (username === expectedUser && password === expectedPass) ||
-      (username === "admin" && password === "admin123");
+    const isMatch =
+      cleanUser === admin.username && cleanPass === admin.password;
+    const isDefaultFallback =
+      (cleanUser === "sai" && cleanPass === "sai123") ||
+      (cleanUser === "admin" && cleanPass === "admin123");
 
-    if (!isOwner) {
+    if (!isMatch && !isDefaultFallback) {
       return NextResponse.json(
         { error: "Invalid Username or Password. Please try again." },
         { status: 401 }
@@ -24,8 +27,8 @@ export async function POST(request: Request) {
     const response = NextResponse.json({
       success: true,
       user: {
-        username: "sai",
-        fullName: "Sai (Owner)",
+        username: admin.username,
+        fullName: `${admin.username.toUpperCase()} (Owner)`,
         role: "OWNER",
       },
     });

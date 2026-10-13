@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDb, ensureDatabaseReady } from "@/db";
-import { users, cashCollectionSubmissions } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { users, cashCollectionSubmissions, deliveryAssignments } from "@/db/schema";
+import { eq, desc, and, ne } from "drizzle-orm";
+import { verifyAdminPassword } from "@/lib/settings";
 
 export async function GET(req: Request) {
   try {
@@ -10,6 +11,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const activeOnly = url.searchParams.get("activeOnly") === "true";
 
+    // Strictly exclude any legacy usr_driver_02
     const allDrivers = await db
       .select({
         id: users.id,
@@ -22,7 +24,7 @@ export async function GET(req: Request) {
         createdAt: users.createdAt,
       })
       .from(users)
-      .where(eq(users.role, "DELIVERY_STAFF"))
+      .where(and(eq(users.role, "DELIVERY_STAFF"), ne(users.id, "usr_driver_02")))
       .orderBy(desc(users.createdAt));
 
     // Fetch cash submissions to compute un-cleared cash balance in transit (A/C 1120)
@@ -66,7 +68,22 @@ export async function POST(req: Request) {
     const db = getDb();
     const body = await req.json();
 
-    const { fullName, phone, pin, password } = body;
+    const { fullName, phone, pin, password, adminPassword } = body;
+
+    // Requirement 2: Admin Password required to add driver
+    if (!adminPassword || !adminPassword.trim()) {
+      return NextResponse.json(
+        { error: "Naya driver add karne ke liye Admin Password anivarya hai." },
+        { status: 400 }
+      );
+    }
+    const isValid = await verifyAdminPassword(adminPassword);
+    if (!isValid) {
+      return NextResponse.json(
+        { error: "Galat Admin Password! Driver add nahi kiya ja sakta." },
+        { status: 401 }
+      );
+    }
 
     if (!fullName || !fullName.trim()) {
       return NextResponse.json({ error: "Driver ka pura naam anivarya hai" }, { status: 400 });
@@ -118,10 +135,25 @@ export async function PATCH(req: Request) {
     const db = getDb();
     const body = await req.json();
 
-    const { id, fullName, phone, pin, password, isActive } = body;
+    const { id, fullName, phone, pin, password, isActive, adminPassword } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Driver ID is required" }, { status: 400 });
+    }
+
+    // Requirement 2: Admin Password required to edit or change status of driver
+    if (!adminPassword || !adminPassword.trim()) {
+      return NextResponse.json(
+        { error: "Driver details update karne ke liye Admin Password anivarya hai." },
+        { status: 400 }
+      );
+    }
+    const isValid = await verifyAdminPassword(adminPassword);
+    if (!isValid) {
+      return NextResponse.json(
+        { error: "Galat Admin Password! Driver update nahi kiya ja sakta." },
+        { status: 401 }
+      );
     }
 
     const updates: any = {};
@@ -147,12 +179,40 @@ export async function DELETE(req: Request) {
     const db = getDb();
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
+    const permanent = url.searchParams.get("permanent") === "true";
+    const adminPassword = url.searchParams.get("adminPassword");
 
     if (!id) {
       return NextResponse.json({ error: "Driver ID is required" }, { status: 400 });
     }
 
-    // Soft delete (Archive) to preserve all historical ledger and delivery records
+    if (!adminPassword || !adminPassword.trim()) {
+      return NextResponse.json(
+        { error: "Driver delete / archive karne ke liye Admin Password anivarya hai." },
+        { status: 400 }
+      );
+    }
+    const isValid = await verifyAdminPassword(adminPassword);
+    if (!isValid) {
+      return NextResponse.json(
+        { error: "Galat Admin Password! Action unauthorized." },
+        { status: 401 }
+      );
+    }
+
+    if (permanent) {
+      // Reassign any foreign keys before hard deletion
+      await db.update(deliveryAssignments).set({ driverId: "usr_driver_01" }).where(eq(deliveryAssignments.driverId, id));
+      await db.update(cashCollectionSubmissions).set({ driverId: "usr_driver_01" }).where(eq(cashCollectionSubmissions.driverId, id));
+      await db.delete(users).where(eq(users.id, id));
+
+      return NextResponse.json({
+        success: true,
+        message: "Driver ko system se permanently delete kar diya gaya hai.",
+      });
+    }
+
+    // Soft delete (Archive)
     await db.update(users).set({ isActive: false }).where(eq(users.id, id));
 
     return NextResponse.json({
@@ -160,6 +220,6 @@ export async function DELETE(req: Request) {
       message: "Driver ko safaltapoorvak archive kar diya gaya hai. Sabhi purane delivery records surakshit hain.",
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to archive driver" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Failed to remove driver" }, { status: 500 });
   }
 }

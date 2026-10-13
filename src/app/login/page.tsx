@@ -68,7 +68,7 @@ export default function LoginPage() {
               <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
                 type="text"
-                placeholder="sai"
+                placeholder="Enter admin username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
@@ -99,9 +99,6 @@ export default function LoginPage() {
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
-            </div>
-            <div className="flex justify-between items-center text-[11px] text-slate-400 mt-1">
-              <span>Default: <strong>sai</strong> / <strong>sai123</strong></span>
             </div>
           </div>
 
