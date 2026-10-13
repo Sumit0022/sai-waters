@@ -175,24 +175,28 @@ export async function POST(req: Request) {
       })
       .where(eq(customers.id, cust.id));
 
-    // 7. Auto-issue Commercial Bill of Supply & Post Sales Revenue to General Ledger
-    try {
-      await createAndPostInvoice({
-        customerId: cust.id,
-        orderId,
-        billingType: "SPOT_DELIVERY",
-        lines: [
-          {
-            description: `20L Drinking Water Jars (${jarCodes.length} Units)`,
-            quantity: jarCodes.length,
-            unitPricePaise,
-          },
-        ],
-        postedBy: driverId,
-        notes: `Doorstep delivery completed by driver ${driverId} for order ${orderNumber}`,
-      });
-    } catch (e) {
-      console.error("Auto-invoice posting in driver delivery failed:", e);
+    // 7. Commercial Invoicing Policy:
+    // If customer is on SPOT / PER_DELIVERY or EVENT, issue invoice immediately.
+    // If customer is on MONTHLY, daily deliveries accumulate on their ledger and are billed via Month-End Consolidated Invoice!
+    if (cust.billingFrequency === "PER_DELIVERY" || cust.customerType === "EVENT") {
+      try {
+        await createAndPostInvoice({
+          customerId: cust.id,
+          orderId,
+          billingType: cust.customerType === "EVENT" ? "EVENT_SETTLEMENT" : "SPOT_DELIVERY",
+          lines: [
+            {
+              description: `20L Drinking Water Jars (${cleanJars.length} Units)`,
+              quantity: cleanJars.length,
+              unitPricePaise,
+            },
+          ],
+          postedBy: driverId,
+          notes: `Doorstep delivery completed by driver ${driverId} for order ${orderNumber}`,
+        });
+      } catch (e) {
+        console.error("Auto-invoice posting in driver delivery failed:", e);
+      }
     }
 
     // 8. If cash was collected, log field collection into Driver Clearing (1120) and credit customer

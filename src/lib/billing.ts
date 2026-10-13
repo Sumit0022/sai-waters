@@ -1,6 +1,6 @@
 import { getDb } from "@/db";
-import { invoices, invoiceLines, orders, customers, customerAddresses } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { invoices, invoiceLines, orders, customers, customerAddresses, customerPriceAgreements } from "@/db/schema";
+import { eq, sql, and, desc } from "drizzle-orm";
 import { postJournalEntry } from "./accounting";
 
 export interface CreateInvoiceParams {
@@ -105,6 +105,215 @@ export async function createAndPostInvoice(params: CreateInvoiceParams) {
     invoiceNumber,
     totalAmountPaise: totalPaise,
     customer,
+  };
+}
+
+/**
+ * Scans regular customers for unbilled deliveries in a given month.
+ */
+export async function getUnbilledMonthlySummary(billingMonth?: string) {
+  const db = getDb();
+  const now = new Date();
+  const targetMonth = billingMonth || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  const regularCustomers = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.billingFrequency, "MONTHLY"));
+
+  const pendingSummary: any[] = [];
+
+  for (const cust of regularCustomers) {
+    // Check if already billed for targetMonth with MONTHLY_CONSOLIDATED
+    const existingInvoices = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.customerId, cust.id),
+          eq(invoices.billingType, "MONTHLY_CONSOLIDATED")
+        )
+      );
+
+    const alreadyBilled = existingInvoices.some((inv: any) =>
+      inv.invoiceDate.startsWith(targetMonth) ||
+      (inv.notes && inv.notes.includes(targetMonth))
+    );
+
+    // Get delivered orders for this customer in targetMonth
+    const deliveredOrders = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.customerId, cust.id),
+          eq(orders.status, "DELIVERED"),
+          sql`${orders.scheduledDate} LIKE ${targetMonth + '%'}`
+        )
+      );
+
+    const totalJars = deliveredOrders.reduce((s: number, o: any) => s + (o.quantityJars || 1), 0);
+
+    const [priceRow] = await db
+      .select()
+      .from(customerPriceAgreements)
+      .where(eq(customerPriceAgreements.customerId, cust.id))
+      .limit(1);
+
+    const unitPricePaise = priceRow?.pricePerJarPaise || deliveredOrders[0]?.unitPricePaise || 3500;
+
+    pendingSummary.push({
+      customerId: cust.id,
+      customerName: cust.fullName,
+      customerCode: cust.customerCode,
+      phone: cust.phone,
+      totalJars,
+      deliveryTrips: deliveredOrders.length,
+      unitPricePaise,
+      estimatedAmountPaise: totalJars * unitPricePaise,
+      isBilled: alreadyBilled,
+      existingInvoiceNumber: alreadyBilled ? existingInvoices[0]?.invoiceNumber : null,
+    });
+  }
+
+  return {
+    targetMonth,
+    summary: pendingSummary,
+    unbilledCount: pendingSummary.filter((p) => !p.isBilled && p.totalJars > 0).length,
+    billedCount: pendingSummary.filter((p) => p.isBilled).length,
+  };
+}
+
+/**
+ * Automates Month-End Consolidated Invoice Generation for all Regular Customers
+ * Idempotent: Skips customers who have already been billed for the target month.
+ */
+export async function generateMonthlyConsolidatedInvoices(options?: {
+  billingMonth?: string;
+  postedBy?: string;
+  customerId?: string;
+  forceAll?: boolean;
+}) {
+  const db = getDb();
+  const postedBy = options?.postedBy || "usr_owner_01";
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const targetMonth = options?.billingMonth || currentMonthStr;
+
+  const [year, month] = targetMonth.split("-");
+  const monthDate = new Date(Number(year), Number(month) - 1, 1);
+  const monthName = monthDate.toLocaleString("en-IN", { month: "long", year: "numeric" });
+
+  const regularCustomers = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.billingFrequency, "MONTHLY"));
+
+  const filteredCustomers = options?.customerId
+    ? regularCustomers.filter((c: any) => c.id === options.customerId)
+    : regularCustomers;
+
+  const generatedInvoices: any[] = [];
+
+  for (const cust of filteredCustomers) {
+    // Check if already billed
+    const existingInvoices = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.customerId, cust.id),
+          eq(invoices.billingType, "MONTHLY_CONSOLIDATED")
+        )
+      );
+
+    const alreadyBilled = existingInvoices.some((inv: any) =>
+      inv.invoiceDate.startsWith(targetMonth) ||
+      (inv.notes && inv.notes.includes(targetMonth))
+    );
+
+    if (alreadyBilled && !options?.forceAll) {
+      continue;
+    }
+
+    // Get delivered recurring orders
+    const deliveredOrders = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.customerId, cust.id),
+          eq(orders.status, "DELIVERED"),
+          sql`${orders.scheduledDate} LIKE ${targetMonth + '%'}`
+        )
+      );
+
+    const totalJars = deliveredOrders.reduce((s: number, o: any) => s + (o.quantityJars || 1), 0);
+    if (totalJars === 0 && !options?.forceAll) {
+      continue; // No jars delivered, skip
+    }
+
+    const [priceRow] = await db
+      .select()
+      .from(customerPriceAgreements)
+      .where(eq(customerPriceAgreements.customerId, cust.id))
+      .limit(1);
+
+    const unitPricePaise = priceRow?.pricePerJarPaise || deliveredOrders[0]?.unitPricePaise || 3500;
+    const totalAmountPaise = totalJars * unitPricePaise;
+
+    const inv = await createAndPostInvoice({
+      customerId: cust.id,
+      billingType: "MONTHLY_CONSOLIDATED",
+      lines: [
+        {
+          description: `Monthly Drinking Water Supply — ${monthName} (${totalJars} Jars @ ₹${(unitPricePaise / 100).toFixed(2)})`,
+          quantity: totalJars,
+          unitPricePaise,
+        },
+      ],
+      postedBy,
+      notes: `Consolidated Monthly Invoice for ${monthName} (${targetMonth}). Total ${deliveredOrders.length} doorstep deliveries.`,
+    });
+
+    const upiLink = generateUpiLink({
+      amountPaise: totalAmountPaise,
+      invoiceNumber: inv.invoiceNumber,
+    });
+
+    const waLink = generateWhatsAppShareLink({
+      customerPhone: cust.phone,
+      customerName: cust.fullName,
+      invoiceNumber: inv.invoiceNumber,
+      amountPaise: totalAmountPaise,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      upiLink,
+    });
+
+    generatedInvoices.push({
+      customerId: cust.id,
+      customerName: cust.fullName,
+      customerCode: cust.customerCode,
+      phone: cust.phone,
+      invoiceId: inv.invoiceId,
+      invoiceNumber: inv.invoiceNumber,
+      totalJars,
+      deliveryTrips: deliveredOrders.length,
+      unitPricePaise,
+      totalAmountPaise,
+      billingMonth: targetMonth,
+      monthName,
+      upiLink,
+      whatsAppShareUrl: waLink,
+    });
+  }
+
+  return {
+    success: true,
+    targetMonth,
+    monthName,
+    generatedCount: generatedInvoices.length,
+    invoices: generatedInvoices,
   };
 }
 

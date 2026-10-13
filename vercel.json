@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/invoices/monthly-batch",
+      "schedule": "0 0 1 * *"
+    }
+  ]
+}
