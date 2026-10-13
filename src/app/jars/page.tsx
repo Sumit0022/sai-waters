@@ -146,8 +146,8 @@ export default function JarsPage() {
         body: JSON.stringify({
           query: code.trim(),
           action: "TRANSITION",
-          toStatus: "RETURNED_INSPECT",
-          notes: "Unloaded empty jar at plant from delivery vehicle",
+          toStatus: "AVAILABLE",
+          notes: "Unloaded empty jar at plant - sanitized and ready in stock",
         }),
       });
       const data = await res.json();
@@ -528,7 +528,7 @@ export default function JarsPage() {
                           </div>
                         ) : (
                           <span className="text-slate-500 font-medium italic">
-                            {jar.custodyType === "IN_VEHICLE" ? "🚚 Delivery Truck par" : "🏭 Factory / Warehouse Stock"}
+                            {jar.custodyType === "IN_VEHICLE" ? "🚚 Delivery Vehicle" : "🏭 Plant / Warehouse Stock"}
                           </span>
                         )}
                       </td>
@@ -536,10 +536,10 @@ export default function JarsPage() {
                       <td className="py-3.5 px-4 text-xs">
                         <div className="flex items-center gap-1.5 font-bold text-slate-800">
                           <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{lc.elapsedMonths !== undefined ? `${lc.elapsedMonths} Mahine Old` : "N/A"}</span>
+                          <span>{lc.elapsedMonths !== undefined ? `${lc.elapsedMonths} Months Old` : "N/A"}</span>
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5">
-                          Kharid: {jar.acquisitionDate || "Purana Stock"} • {jar.totalUsageCycles || 0} cycles
+                          Acquired: {jar.acquisitionDate || "Legacy Stock"} • {jar.totalUsageCycles || 0} cycles
                         </div>
                         <div className="w-24 bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
                           <div
@@ -554,7 +554,7 @@ export default function JarsPage() {
                           Net Value: {formatINR(lc.netBookValuePaise || jar.acquisitionCostPaise || 18000)}
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5">
-                          Mool Daam: {formatINR(jar.acquisitionCostPaise || 18000)} • Dep: {formatINR(lc.accumulatedDepreciationPaise || 0)}
+                          Original Cost: {formatINR(jar.acquisitionCostPaise || 18000)} • Dep: {formatINR(lc.accumulatedDepreciationPaise || 0)}
                         </div>
                       </td>
 
@@ -744,10 +744,10 @@ export default function JarsPage() {
 
                     {scannedJarResult.currentStatus === "DELIVERED_CUSTOMER" && (
                       <button
-                        onClick={() => handleExecuteTransition("RETURNED_INSPECT")}
-                        className="px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-xs font-bold hover:bg-cyan-700 cursor-pointer"
+                        onClick={() => handleExecuteTransition("AVAILABLE")}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 cursor-pointer"
                       >
-                        Khali Jar Wapas Aaya (Plant Reception)
+                        Receive Empty Jar & Make Available in Stock
                       </button>
                     )}
                   </div>
@@ -1089,7 +1089,7 @@ export default function JarsPage() {
             </div>
 
             <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 text-xs text-emerald-900 mb-3">
-              <strong>Plant Reception Policy:</strong> Khali jars raste mein nahi scan hote. Yahan plant par scan karte hi jar status <strong>RETURNED_INSPECT</strong> ban jata hai aur customer ke hisaab se jar release ho jata hai!
+              <strong>Plant Reception Policy:</strong> Empty jars scanned here are immediately returned to <strong>AVAILABLE</strong> stock and customer liability is relieved.
             </div>
 
             {/* Mode Switcher */}

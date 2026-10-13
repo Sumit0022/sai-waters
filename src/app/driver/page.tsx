@@ -37,6 +37,7 @@ export default function DriverAppPage() {
   const [customerInfo, setCustomerInfo] = useState<any>(null);
   const [customerCodeInput, setCustomerCodeInput] = useState("");
   const [scannedJars, setScannedJars] = useState<string[]>([]);
+  const [emptyJarsReturned, setEmptyJarsReturned] = useState(0);
   const [cashCollected, setCashCollected] = useState("0");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [txSuccess, setTxSuccess] = useState<any>(null);
@@ -211,6 +212,7 @@ export default function DriverAppPage() {
           driverId: driverUser.id,
           customerIdentifier: customerInfo.id,
           jarCodes: scannedJars,
+          emptyJarsCount: emptyJarsReturned,
           unitPricePaise: currentRateRupees * 100,
           cashCollectedPaise: cashPaise,
         }),
@@ -222,6 +224,7 @@ export default function DriverAppPage() {
           customerName: customerInfo.fullName,
           jarsCount: scannedJars.length,
           jarCodes: scannedJars,
+          emptyJarsReturned,
           orderNumber: data.orderNumber,
           totalAmountPaise: data.totalAmountPaise || currentTotalRupees * 100,
           cashCollectedPaise: cashPaise,
@@ -232,6 +235,7 @@ export default function DriverAppPage() {
         setCustomerInfo(null);
         setCustomerCodeInput("");
         setScannedJars([]);
+        setEmptyJarsReturned(0);
         setCashCollected("0");
         setCurrentStep(1);
       } else {
@@ -397,6 +401,9 @@ export default function DriverAppPage() {
                 <div className="text-xs text-emerald-50 bg-emerald-600/60 p-2.5 rounded-xl space-y-0.5">
                   <p>Customer: <strong>{txSuccess.customerName}</strong></p>
                   <p>Jars: <strong>{txSuccess.jarsCount} Containers</strong> ({txSuccess.jarCodes?.join(", ")})</p>
+                  {txSuccess.emptyJarsReturned > 0 && (
+                    <p>Empty Jars Returned: <strong>{txSuccess.emptyJarsReturned} Empty Containers</strong> (Liability relieved)</p>
+                  )}
                   <p>Order: <strong>{txSuccess.orderNumber}</strong></p>
                   {txSuccess.cashCollectedPaise > 0 && (
                     <p>Cash Collected: <strong>{formatINR(txSuccess.cashCollectedPaise)}</strong> (Receipt: {txSuccess.receiptNumber})</p>
@@ -541,6 +548,35 @@ export default function DriverAppPage() {
                         Abhi koi jar scan nahi kiya. Upar camera button dabayein.
                       </span>
                     )}
+                  </div>
+                </div>
+
+                {/* Empty Jars Returned by Customer */}
+                <div className="p-3.5 bg-sky-50 rounded-xl border border-sky-200 flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-sky-900 block">Empty Jars Returned by Customer:</label>
+                    <span className="text-[10px] text-sky-700">
+                      Reduces customer jar liability immediately
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEmptyJarsReturned((prev) => Math.max(0, prev - 1))}
+                      className="w-8 h-8 rounded-lg bg-white border border-sky-300 font-bold text-sky-700 hover:bg-sky-100 flex items-center justify-center cursor-pointer shadow-2xs"
+                    >
+                      -
+                    </button>
+                    <span className="w-8 text-center font-black text-slate-900 text-sm">
+                      {emptyJarsReturned}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEmptyJarsReturned((prev) => prev + 1)}
+                      className="w-8 h-8 rounded-lg bg-white border border-sky-300 font-bold text-sky-700 hover:bg-sky-100 flex items-center justify-center cursor-pointer shadow-2xs"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
 

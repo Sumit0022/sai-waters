@@ -157,21 +157,15 @@ async function runAcceptanceTests() {
 
   // TEST 10: Authorized Jar Loss Charge (Owner sets custom fee)
   const db = await getDb();
-  let testJarId: string;
-  const availJars = await db.select().from(jarMasters).where(eq(jarMasters.currentStatus, "AVAILABLE")).limit(1);
-  if (availJars.length > 0) {
-    testJarId = availJars[0].id;
-  } else {
-    testJarId = `jar_test_${Date.now()}`;
-    await db.insert(jarMasters).values({
-      id: testJarId,
-      permanentJarCode: `JAR-TEST-${Date.now().toString().slice(-4)}`,
-      currentStatus: "AVAILABLE",
-      acquisitionDate: new Date().toISOString().split("T")[0],
-      acquisitionCostPaise: 25000,
-      totalUsageCycles: 0,
-    });
-  }
+  const testJarId = `jar_test_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  await db.insert(jarMasters).values({
+    id: testJarId,
+    permanentJarCode: `JAR-TEST-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
+    currentStatus: "AVAILABLE",
+    acquisitionDate: new Date().toISOString().split("T")[0],
+    acquisitionCostPaise: 25000,
+    totalUsageCycles: 0,
+  });
 
   // Step jar through FSM: AVAILABLE -> ALLOCATED -> IN_TRANSIT -> DELIVERED_CUSTOMER -> MISSING_INVESTIG
   await transitionJarState({ jarId: testJarId, toStatus: "ALLOCATED", actorUserId: "usr_owner_01" });

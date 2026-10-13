@@ -1,6 +1,6 @@
 import { getDb } from "@/db";
 import { jarMasters, qrIdentifiers, jarMovementEvents, jarCustodies, customers, damageLossCases } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { postJournalEntry } from "./accounting";
 
 export type JarStatus =
@@ -41,14 +41,33 @@ export function isValidTransition(from: JarStatus, to: JarStatus): boolean {
  * Resolves a QR token or permanent Jar Code to the Master Jar Record
  */
 export async function lookupJar(query: string) {
+  if (!query || typeof query !== "string") return null;
   const db = getDb();
   const trimmed = query.trim();
+  if (!trimmed) return null;
 
-  // Try direct permanent code lookup
-  const byCode = await db.select().from(jarMasters).where(eq(jarMasters.permanentJarCode, trimmed)).limit(1);
+  const stripped = trimmed.replace(/^urn:sw:j:/i, "").trim();
+  const withUrn = trimmed.toLowerCase().startsWith("urn:sw:j:") ? trimmed : `urn:sw:j:${stripped}`;
+
+  // 1. Direct or case-insensitive code/id lookup
+  const byCode = await db
+    .select()
+    .from(jarMasters)
+    .where(
+      or(
+        eq(jarMasters.id, trimmed),
+        eq(jarMasters.id, stripped),
+        eq(jarMasters.permanentJarCode, trimmed),
+        eq(jarMasters.permanentJarCode, stripped),
+        sql`LOWER(${jarMasters.permanentJarCode}) = LOWER(${trimmed})`,
+        sql`LOWER(${jarMasters.permanentJarCode}) = LOWER(${stripped})`
+      )
+    )
+    .limit(1);
+
   if (byCode.length > 0) return byCode[0];
 
-  // Try QR token lookup
+  // 2. QR token lookup (with or without urn prefix, case-insensitive)
   const byToken = await db
     .select({
       jar: jarMasters,
@@ -56,7 +75,16 @@ export async function lookupJar(query: string) {
     })
     .from(qrIdentifiers)
     .innerJoin(jarMasters, eq(qrIdentifiers.jarId, jarMasters.id))
-    .where(eq(qrIdentifiers.qrToken, trimmed))
+    .where(
+      or(
+        eq(qrIdentifiers.qrToken, trimmed),
+        eq(qrIdentifiers.qrToken, stripped),
+        eq(qrIdentifiers.qrToken, withUrn),
+        sql`LOWER(${qrIdentifiers.qrToken}) = LOWER(${trimmed})`,
+        sql`LOWER(${qrIdentifiers.qrToken}) = LOWER(${stripped})`,
+        sql`LOWER(${qrIdentifiers.qrToken}) = LOWER(${withUrn})`
+      )
+    )
     .limit(1);
 
   if (byToken.length > 0) {
@@ -90,6 +118,56 @@ export async function transitionJarState(params: {
 
   const fromStatus = jar.currentStatus as JarStatus;
 
+  // Multi-step lifecycle automated orchestrations:
+  // 1. Unload plant return: DELIVERED_CUSTOMER -> AVAILABLE
+  // When an empty jar is scanned at the plant, it steps through RETURNED_INSPECT (releases customer liability, increments usage cycle) then AVAILABLE (ready in stock)
+  if (fromStatus === "DELIVERED_CUSTOMER" && params.toStatus === "AVAILABLE") {
+    await transitionJarState({
+      ...params,
+      toStatus: "RETURNED_INSPECT",
+      notes: params.notes ? `${params.notes} (Plant Inspection Return)` : "Returned empty jar at plant reception",
+    });
+    return await transitionJarState({
+      ...params,
+      toStatus: "AVAILABLE",
+      notes: params.notes ? `${params.notes} (Stock Sanitized Ready)` : "Sanitized and marked ready in warehouse stock",
+    });
+  }
+
+  // 2. Doorstep delivery: AVAILABLE -> DELIVERED_CUSTOMER
+  // When an available jar is scanned at doorstep delivery, it steps through ALLOCATED -> IN_TRANSIT -> DELIVERED_CUSTOMER
+  if (fromStatus === "AVAILABLE" && params.toStatus === "DELIVERED_CUSTOMER") {
+    await transitionJarState({
+      ...params,
+      toStatus: "ALLOCATED",
+      notes: "Allocated to delivery batch",
+    });
+    await transitionJarState({
+      ...params,
+      toStatus: "IN_TRANSIT",
+      notes: "Loaded on delivery vehicle",
+    });
+    return await transitionJarState({
+      ...params,
+      toStatus: "DELIVERED_CUSTOMER",
+      notes: params.notes || "Delivered to customer doorstep",
+    });
+  }
+
+  // 3. In-vehicle or allocated jar delivered: ALLOCATED -> DELIVERED_CUSTOMER
+  if (fromStatus === "ALLOCATED" && params.toStatus === "DELIVERED_CUSTOMER") {
+    await transitionJarState({
+      ...params,
+      toStatus: "IN_TRANSIT",
+      notes: "Loaded on delivery vehicle",
+    });
+    return await transitionJarState({
+      ...params,
+      toStatus: "DELIVERED_CUSTOMER",
+      notes: params.notes || "Delivered to customer doorstep",
+    });
+  }
+
   if (!isValidTransition(fromStatus, params.toStatus)) {
     throw new Error(
       `Illegal State Transition for jar ${jar.permanentJarCode}: cannot transition from '${fromStatus}' to '${params.toStatus}'`
@@ -122,7 +200,7 @@ export async function transitionJarState(params: {
     createdAt: new Date(),
   });
 
-  // 3. Update Custody Table
+  // 3. Update Custody Table & Customer Held Jars Count
   if (params.toStatus === "DELIVERED_CUSTOMER" && params.customerId) {
     await db
       .insert(jarCustodies)
@@ -147,8 +225,8 @@ export async function transitionJarState(params: {
     await db.execute(sql`
       UPDATE customers SET held_jars_count = held_jars_count + 1 WHERE id = ${params.customerId};
     `);
-  } else if (params.toStatus === "RETURNED_INSPECT") {
-    // If jar was with a customer, decrement customer custody count
+  } else if (params.toStatus === "RETURNED_INSPECT" || params.toStatus === "AVAILABLE") {
+    // If jar was with a customer, decrement customer custody count (relieve customer liability)
     const existingCustody = (await db.select().from(jarCustodies).where(eq(jarCustodies.jarId, params.jarId)).limit(1))[0];
     if (existingCustody && existingCustody.customerId) {
       await db.execute(sql`

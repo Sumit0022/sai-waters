@@ -26,9 +26,11 @@ export async function POST(request: Request) {
         notes,
       });
 
+      const updatedJar = await lookupJar(jar.id);
+
       return NextResponse.json({
         success: true,
-        jar: { ...jar, currentStatus: result.toStatus },
+        jar: updatedJar || { ...jar, currentStatus: result.toStatus },
         transition: result,
       });
     }

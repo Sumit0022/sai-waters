@@ -12,7 +12,7 @@ import {
   users,
 } from "@/db/schema";
 import { eq, or, sql, desc } from "drizzle-orm";
-import { transitionJarState } from "@/lib/jars";
+import { lookupJar, transitionJarState } from "@/lib/jars";
 import { recordFieldCashCollection } from "@/lib/cash";
 import { createAndPostInvoice } from "@/lib/billing";
 import { getTodayIST } from "@/lib/date-utils";
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const db = getDb();
     const body = await req.json();
 
-    const { driverId, customerIdentifier, jarCodes, cashCollectedPaise } = body;
+    const { driverId, customerIdentifier, jarCodes, cashCollectedPaise, emptyJarsCount, emptyJarCodes } = body;
 
     if (!driverId || !customerIdentifier || !jarCodes || !Array.isArray(jarCodes) || jarCodes.length === 0) {
       return NextResponse.json(
@@ -121,63 +121,55 @@ export async function POST(req: Request) {
 
     // 6. Transition each delivered jar to DELIVERED_CUSTOMER
     const transitionedJars: string[] = [];
-    for (const cleanJarCode of cleanJars) {
-      // Lookup jar
-      const [jar] = await db
-        .select()
-        .from(jarMasters)
-        .where(eq(jarMasters.permanentJarCode, cleanJarCode));
-
+    for (const rawOrCleanCode of cleanJars) {
+      const jar = await lookupJar(rawOrCleanCode);
       if (jar) {
-        // Step to DELIVERED_CUSTOMER
-        await db
-          .update(jarMasters)
-          .set({
-            currentStatus: "DELIVERED_CUSTOMER",
-            totalUsageCycles: (jar.totalUsageCycles || 0) + 1,
-          })
-          .where(eq(jarMasters.id, jar.id));
-
-        // Update jar custody
-        await db
-          .insert(jarCustodies)
-          .values({
-            jarId: jar.id,
-            custodyType: "WITH_CUSTOMER",
-            customerId: cust.id,
-            holderUserId: null,
-          })
-          .onConflictDoUpdate({
-            target: jarCustodies.jarId,
-            set: {
-              custodyType: "WITH_CUSTOMER",
-              customerId: cust.id,
-              holderUserId: null,
-            },
-          });
-
-        // Log movement event
-        await db.insert(jarMovementEvents).values({
-          id: `jme_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        await transitionJarState({
           jarId: jar.id,
+          toStatus: "DELIVERED_CUSTOMER",
           actorUserId: driverId,
           orderId,
-          fromStatus: jar.currentStatus,
-          toStatus: "DELIVERED_CUSTOMER",
-          notes: `Doorstep scan to ${cust.fullName}`,
+          customerId: cust.id,
+          notes: `Doorstep scan delivery to ${cust.fullName}`,
         });
-
         transitionedJars.push(jar.permanentJarCode);
       }
     }
 
-    // 6. Update Customer Held Jars Count
-    await db
-      .update(customers)
-      .set({
-        heldJarsCount: (cust.heldJarsCount || 0) + jarCodes.length,
-      })
-      .where(eq(customers.id, cust.id));
+    // If any jar code was not registered in jar masters, increment customer held count by difference
+    const untrackedCount = cleanJars.length - transitionedJars.length;
+    if (untrackedCount > 0) {
+      await db.execute(sql`
+        UPDATE customers SET held_jars_count = held_jars_count + ${untrackedCount} WHERE id = ${cust.id};
+      `);
+    }
+
+    // 7. Process Doorstep Empty Jar Returns (relieves customer liability on the spot)
+    const returnedEmpties: string[] = [];
+    if (Array.isArray(emptyJarCodes) && emptyJarCodes.length > 0) {
+      for (const emptyCode of emptyJarCodes) {
+        const emptyJar = await lookupJar(emptyCode);
+        if (emptyJar) {
+          await transitionJarState({
+            jarId: emptyJar.id,
+            toStatus: "RETURNED_INSPECT",
+            actorUserId: driverId,
+            orderId,
+            notes: `Collected empty jar at doorstep from ${cust.fullName}`,
+          });
+          returnedEmpties.push(emptyJar.permanentJarCode);
+        }
+      }
+    }
+
+    // If driver entered numeric count of returned empty jars without scanning
+    const totalNumericEmpties = Number(emptyJarsCount || 0);
+    const unScannedEmptiesCount = Math.max(0, totalNumericEmpties - returnedEmpties.length);
+    if (unScannedEmptiesCount > 0) {
+      await db.execute(sql`
+        UPDATE customers SET held_jars_count = GREATEST(0, held_jars_count - ${unScannedEmptiesCount}) WHERE id = ${cust.id};
+      `);
+    }
 
     // 7. Commercial Invoicing Policy:
     // If customer is on SPOT / PER_DELIVERY or EVENT, issue invoice immediately.
