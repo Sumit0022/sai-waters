@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/db";
+import { getDb, ensureDatabaseReady } from "@/db";
 import { jarMasters, orders, customers, deliveryAssignments } from "@/db/schema";
 import { getTrialBalance, getProfitAndLoss } from "@/lib/accounting";
 import { sql, eq } from "drizzle-orm";
 
 export async function GET() {
+  await ensureDatabaseReady();
   const db = getDb();
 
   // 1. Jar Counts by Status

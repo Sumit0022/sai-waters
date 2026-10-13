@@ -347,9 +347,6 @@ export default function AccountingPage() {
       {/* ========================================================================= */}
       {/* TAB 2: PROFIT & LOSS STATEMENT */}
       {/* ========================================================================= */}
-      {/* ========================================================================= */}
-      {/* TAB 2: PROFIT & LOSS STATEMENT (PROPRIETOR VYAPAR KHATA) */}
-      {/* ========================================================================= */}
       {activeTab === "PNL" && pnlData && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-6 shadow-xs max-w-3xl mx-auto print:border-none print:shadow-none print:p-0">
           {/* Header & Print Button */}

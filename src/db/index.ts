@@ -9,9 +9,12 @@ import path from "path";
 declare global {
   // eslint-disable-next-line no-var
   var __db_instance: any;
+  // eslint-disable-next-line no-var
+  var __db_initialized: boolean;
 }
 
 let _rawClient: any = null;
+let _initPromise: Promise<void> | null = null;
 
 export function getRawClient() {
   if (_rawClient) return _rawClient;
@@ -51,6 +54,23 @@ export function getDb() {
     global.__db_instance = db;
     return db;
   }
+}
+
+export async function ensureDatabaseReady() {
+  if (global.__db_initialized) return;
+  if (!_initPromise) {
+    const { initializeDatabase } = await import("./init");
+    _initPromise = initializeDatabase()
+      .then(() => {
+        global.__db_initialized = true;
+      })
+      .catch((err) => {
+        _initPromise = null;
+        console.error("Auto DB initialization failed:", err);
+        throw err;
+      });
+  }
+  return _initPromise;
 }
 
 export const db = getDb();

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/db";
+import { getDb, ensureDatabaseReady } from "@/db";
 import {
   customers,
   jarMasters,
@@ -18,6 +18,7 @@ import { createAndPostInvoice } from "@/lib/billing";
 
 export async function POST(req: Request) {
   try {
+    await ensureDatabaseReady();
     const db = getDb();
     const body = await req.json();
 

@@ -54,7 +54,7 @@ export default function LoginPage() {
             Owner & Administration Portal
           </p>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Surakshit Bahi Khata, Jar Tracking & Billing System
+            Inventory, QR Tracking & Double-Entry Billing ERP
           </p>
         </div>
 
@@ -62,7 +62,7 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1">
-              Username (Malik / Admin ID):
+              Username (Admin / Owner ID):
             </label>
             <div className="relative">
               <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -80,7 +80,7 @@ export default function LoginPage() {
 
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1">
-              Password (Gupt Password):
+              Password:
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -95,7 +95,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600"
+                className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -116,20 +116,20 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-3.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            <span>{loading ? "Checking..." : "ERP mein Dakhil Hon (Sign In)"}</span>
+            <span>{loading ? "Authenticating..." : "Sign In to ERP"}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
         {/* Driver Portal Link */}
         <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-          <p className="text-xs text-slate-500 mb-2">Driver ya Delivery staff hain?</p>
+          <p className="text-xs text-slate-500 mb-2">Are you a driver or delivery staff?</p>
           <Link
             href="/driver"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all"
           >
             <Truck className="w-3.5 h-3.5 text-sky-600" />
-            <span>Driver Scanning Portal Kholein</span>
+            <span>Open Driver Portal</span>
           </Link>
         </div>
       </div>

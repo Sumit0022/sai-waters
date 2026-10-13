@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { ensureDatabaseReady } from "@/db";
 
 export async function POST(request: Request) {
   try {
+    await ensureDatabaseReady();
     const { username, password } = await request.json();
 
     const expectedUser = process.env.OWNER_USERNAME || "sai";
@@ -14,7 +16,7 @@ export async function POST(request: Request) {
 
     if (!isOwner) {
       return NextResponse.json(
-        { error: "Galat Username ya Password! (Invalid credentials)" },
+        { error: "Invalid Username or Password. Please try again." },
         { status: 401 }
       );
     }
