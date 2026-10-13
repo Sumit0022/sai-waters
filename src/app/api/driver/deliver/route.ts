@@ -11,7 +11,7 @@ import {
   cashCollectionSubmissions,
   users,
 } from "@/db/schema";
-import { eq, or } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { transitionJarState } from "@/lib/jars";
 import { recordFieldCashCollection } from "@/lib/cash";
 import { createAndPostInvoice } from "@/lib/billing";
@@ -36,7 +36,14 @@ export async function POST(req: Request) {
     const [cust] = await db
       .select()
       .from(customers)
-      .where(or(eq(customers.id, cleanCustomerCode), eq(customers.customerCode, cleanCustomerCode)));
+      .where(
+        or(
+          eq(customers.id, cleanCustomerCode),
+          eq(customers.customerCode, cleanCustomerCode),
+          eq(customers.phone, cleanCustomerCode),
+          sql`LOWER(${customers.customerCode}) = LOWER(${cleanCustomerCode})`
+        )
+      );
 
     if (!cust) {
       return NextResponse.json(

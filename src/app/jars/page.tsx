@@ -580,38 +580,43 @@ export default function JarsPage() {
       {/* MODAL 1: LIVE CAMERA & QR CODE SCANNER (LOOKUP & STATE TRANSITION) */}
       {/* ========================================================================= */}
       {scannerOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                <Camera className="w-5 h-5 text-sky-600" />
-                Live Camera & Barcode Scanner
-              </h3>
-              <button
-                onClick={() => setScannerOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Integrated QrCameraScanner */}
-            <QrCameraScanner
-              onScanSuccess={(code) => handleLookup(code)}
-              onManualSubmit={(code) => handleLookup(code)}
-              placeholderText="Enter QR Token or JAR-20L-XXXX..."
-              helperText="Align Jar QR inside frame / Jar ka QR code samne layein"
-            />
-
-            {scanError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-semibold flex items-center gap-2 mt-3">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                {scanError}
+        !scannedJarResult ? (
+          <QrCameraScanner
+            title="Scan 20L Jar QR Code"
+            subtitle="Point camera at jar QR sticker to inspect"
+            onClose={() => setScannerOpen(false)}
+            onScanSuccess={(code) => handleLookup(code)}
+            onManualSubmit={(code) => handleLookup(code)}
+            placeholderText="Enter QR Token or JAR-20L-XXXX..."
+            helperText="Align Jar QR inside frame"
+          />
+        ) : (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-sky-600" />
+                  Jar Inspection Result
+                </h3>
+                <button
+                  onClick={() => {
+                    setScannerOpen(false);
+                    setScannedJarResult(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            )}
 
-            {/* Scanned Jar Information & Actions */}
-            {scannedJarResult && (
+              {scanError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-semibold flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  {scanError}
+                </div>
+              )}
+
+              {/* Scanned Jar Information & Actions */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 mt-4">
                 <div className="flex justify-between items-start">
                   <div>
@@ -693,9 +698,9 @@ export default function JarsPage() {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* ========================================================================= */}

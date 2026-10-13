@@ -126,14 +126,14 @@ export default function DriverAppPage() {
     if (!clean) return;
 
     try {
-      const res = await fetch(`/api/customers?customerId=${clean}`);
+      const res = await fetch(`/api/customers?customerId=${encodeURIComponent(clean)}`);
       const data = await res.json();
       if (res.ok && data.customer) {
         setCustomerInfo(data.customer);
         setCurrentStep(2);
         setCameraModalOpen(false);
       } else {
-        alert(data.error || `Customer '${clean}' not found. Verify customer QR sticker.`);
+        alert(data.error || `Customer '${clean}' not found. Please verify the customer QR sticker.`);
       }
     } catch (e: any) {
       alert("Network error resolving customer. Check connection.");
@@ -662,54 +662,45 @@ export default function DriverAppPage() {
       {/* ========================================================================= */}
       {/* CAMERA SCANNER MODAL */}
       {/* ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* PHONEPE-STYLE FULL PAGE CAMERA SCANNER */}
+      {/* ========================================================================= */}
       {cameraModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <span className="text-xs font-black text-slate-900">
-                {scanTarget === "CUSTOMER"
-                  ? "📷 Scan Customer Station QR"
-                  : "📷 Scan 20L Jar QR Code"}
-              </span>
-              <button
-                type="button"
-                onClick={() => setCameraModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <QrCameraScanner
-              onScanSuccess={(code) => {
-                if (scanTarget === "CUSTOMER") {
-                  handleResolveCustomer(code);
-                } else {
-                  handleAddJar(code);
-                  setCameraModalOpen(false);
-                }
-              }}
-              onManualSubmit={(code) => {
-                if (scanTarget === "CUSTOMER") {
-                  handleResolveCustomer(code);
-                } else {
-                  handleAddJar(code);
-                  setCameraModalOpen(false);
-                }
-              }}
-              placeholderText={
-                scanTarget === "CUSTOMER"
-                  ? "Enter Customer Code (e.g. CUST-001)..."
-                  : "Enter Jar Code (e.g. JAR-20L-0012)..."
-              }
-              helperText={
-                scanTarget === "CUSTOMER"
-                  ? "Grahak ke station QR sticker ko frame mein layein"
-                  : "Jar par lage QR sticker ko frame mein layein"
-              }
-            />
-          </div>
-        </div>
+        <QrCameraScanner
+          title={scanTarget === "CUSTOMER" ? "Scan Customer Station QR" : "Scan 20L Jar QR"}
+          subtitle={
+            scanTarget === "CUSTOMER"
+              ? "Customer QR sticker ko square frame mein align karein"
+              : "20L Jar sticker ko square frame mein align karein"
+          }
+          placeholderText={
+            scanTarget === "CUSTOMER"
+              ? "Enter Customer Code (e.g. CUST-001)..."
+              : "Enter Jar Code (e.g. JAR-20L-0012)..."
+          }
+          helperText={
+            scanTarget === "CUSTOMER"
+              ? "Point camera at Customer Station QR"
+              : "Point camera at 20L Jar QR sticker"
+          }
+          onClose={() => setCameraModalOpen(false)}
+          onScanSuccess={(code) => {
+            if (scanTarget === "CUSTOMER") {
+              handleResolveCustomer(code);
+            } else {
+              handleAddJar(code);
+              setCameraModalOpen(false);
+            }
+          }}
+          onManualSubmit={(code) => {
+            if (scanTarget === "CUSTOMER") {
+              handleResolveCustomer(code);
+            } else {
+              handleAddJar(code);
+              setCameraModalOpen(false);
+            }
+          }}
+        />
       )}
     </div>
   );

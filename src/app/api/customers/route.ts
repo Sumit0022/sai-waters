@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/db";
+import { getDb, ensureDatabaseReady } from "@/db";
 import {
   customers,
   customerAddresses,
@@ -11,51 +11,71 @@ import {
   jarMovementEvents,
   jarMasters,
 } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, or, sql } from "drizzle-orm";
 
 export async function GET(request: Request) {
+  await ensureDatabaseReady();
   const db = getDb();
   const url = new URL(request.url);
-  const customerId = url.searchParams.get("customerId");
+  const rawQuery = url.searchParams.get("customerId") || url.searchParams.get("code") || url.searchParams.get("q");
 
-  // If a specific customerId is requested, return their detailed profile + delivery ledger
-  if (customerId) {
-    const [cust] = await db.select().from(customers).where(eq(customers.id, customerId));
+  // If a specific customer is requested (by id, code like CUST-001, urn token, or phone)
+  if (rawQuery) {
+    const clean = rawQuery.replace("urn:sw:c:", "").trim();
+    const [cust] = await db
+      .select()
+      .from(customers)
+      .where(
+        or(
+          eq(customers.id, clean),
+          eq(customers.customerCode, clean),
+          eq(customers.phone, clean),
+          sql`LOWER(${customers.customerCode}) = LOWER(${clean})`,
+          sql`LOWER(${customers.id}) = LOWER(${clean})`
+        )
+      );
+
     if (!cust) {
-      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: `Customer '${clean}' not found in recurring records` },
+        { status: 404 }
+      );
     }
 
-    const addresses = await db.select().from(customerAddresses).where(eq(customerAddresses.customerId, customerId));
+    const addresses = await db
+      .select()
+      .from(customerAddresses)
+      .where(eq(customerAddresses.customerId, cust.id));
     const priceAgreement = await db
       .select()
       .from(customerPriceAgreements)
-      .where(eq(customerPriceAgreements.customerId, customerId))
+      .where(eq(customerPriceAgreements.customerId, cust.id))
       .limit(1);
     const schedule = await db
       .select()
       .from(recurringSchedules)
-      .where(eq(recurringSchedules.customerId, customerId))
+      .where(eq(recurringSchedules.customerId, cust.id))
       .limit(1);
 
     // Fetch delivery history (from orders)
     const deliveryOrders = await db
       .select()
       .from(orders)
-      .where(eq(orders.customerId, customerId))
+      .where(eq(orders.customerId, cust.id))
       .orderBy(desc(orders.scheduledDate), desc(orders.createdAt));
 
     // Fetch customer invoices
     const customerInvoices = await db
       .select()
       .from(invoices)
-      .where(eq(invoices.customerId, customerId))
+      .where(eq(invoices.customerId, cust.id))
       .orderBy(desc(invoices.invoiceDate));
 
     // Fetch receipts
     const customerReceipts = await db
       .select()
       .from(receipts)
-      .where(eq(receipts.customerId, customerId))
+      .where(eq(receipts.customerId, cust.id))
       .orderBy(desc(receipts.receiptDate));
 
     // QR Token for this customer
@@ -95,6 +115,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  await ensureDatabaseReady();
   const db = getDb();
   const body = await request.json();
 
