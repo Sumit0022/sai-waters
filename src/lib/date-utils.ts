@@ -74,3 +74,18 @@ export function formatDateTimeIST(dateInput: string | Date | number | null | und
   // Capitalize AM/PM if lowercase
   return formatted.replace(/\b(am|pm)\b/gi, (m) => m.toUpperCase());
 }
+
+/**
+ * Returns YYYY-MM-DD in IST for any Date/timestamp.
+ */
+export function getDateStrIST(dateInput: string | Date | number | null | undefined): string {
+  if (!dateInput) return "";
+  const date = typeof dateInput === "string" || typeof dateInput === "number" ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: IST_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}

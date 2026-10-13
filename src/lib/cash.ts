@@ -112,11 +112,15 @@ export async function verifyDriverCashHandover(params: {
   totalDeclaredPaise: number;
   totalVerifiedPaise: number;
   notes?: string;
+  targetAccountId?: number;
+  submissionIds?: string[];
 }) {
   const db = getDb();
 
   const handoverId = `cho_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const variancePaise = params.totalVerifiedPaise - params.totalDeclaredPaise;
+  const targetAccountId = params.targetAccountId === 1130 ? 1130 : 1110;
+  const targetAccountLabel = targetAccountId === 1130 ? "Bank Current Account (1130)" : "Central Vault (1110)";
 
   // 1. Record Handover
   await db.insert(cashHandovers).values({
@@ -132,23 +136,31 @@ export async function verifyDriverCashHandover(params: {
   });
 
   // 2. Mark pending cash submissions as handed over
-  await db.execute(sql`
-    UPDATE cash_collection_submissions
-    SET is_handed_over = TRUE, handover_id = ${handoverId}
-    WHERE driver_id = ${params.driverId} AND is_handed_over = FALSE;
-  `);
+  if (params.submissionIds && params.submissionIds.length > 0) {
+    await db.execute(sql`
+      UPDATE cash_collection_submissions
+      SET is_handed_over = TRUE, handover_id = ${handoverId}
+      WHERE id IN (${sql.join(params.submissionIds.map((id) => sql`${id}`), sql`, `)});
+    `);
+  } else {
+    await db.execute(sql`
+      UPDATE cash_collection_submissions
+      SET is_handed_over = TRUE, handover_id = ${handoverId}
+      WHERE driver_id = ${params.driverId} AND is_handed_over = FALSE;
+    `);
+  }
 
   // 3. Post Double-Entry Journal Entry:
-  // Dr. 1110 Cash-in-Hand (Central Vault)
+  // Dr. 1110 Cash-in-Hand (Central Vault) OR 1130 Bank Current Account
   // Cr. 1120 Driver Collection Clearing (Driver)
   await postJournalEntry({
     sourceDocumentType: "HANDOVER",
     sourceDocumentId: handoverId,
-    narration: `Cash handover verified from driver to central vault (Verified: ₹${(params.totalVerifiedPaise / 100).toFixed(2)})`,
+    narration: `Cash handover verified from driver into ${targetAccountLabel} (Verified: ₹${(params.totalVerifiedPaise / 100).toFixed(2)})`,
     postedBy: params.receivedBy,
     lines: [
       {
-        accountId: 1110, // Cash-in-Hand (Vault)
+        accountId: targetAccountId,
         debitPaise: params.totalVerifiedPaise,
         creditPaise: 0,
       },
@@ -162,5 +174,5 @@ export async function verifyDriverCashHandover(params: {
     ],
   });
 
-  return { handoverId, totalVerifiedPaise: params.totalVerifiedPaise, variancePaise };
+  return { handoverId, totalVerifiedPaise: params.totalVerifiedPaise, variancePaise, targetAccountId };
 }

@@ -205,18 +205,28 @@ export default function DashboardPage() {
           </div>
 
           {/* Driver Cash Clearing */}
-          <div className="bg-amber-50/40 p-5 rounded-2xl border border-amber-200/90 shadow-xs hover:border-amber-300 transition-all">
+          <Link
+            href="/accounting?tab=CASH_REC"
+            className="bg-amber-50/50 p-5 rounded-2xl border border-amber-200/90 shadow-xs hover:border-amber-400 hover:shadow-md transition-all group block cursor-pointer"
+          >
             <div className="flex items-center justify-between text-amber-700 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">Driver Cash Clearing</span>
-              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+              <span className="text-xs font-bold uppercase tracking-wider group-hover:text-amber-900 transition-colors">
+                Driver Cash Clearing
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
                 <Truck className="w-4 h-4" />
               </div>
             </div>
             <div className="text-2xl font-black text-amber-900">
               {formatINR(financials?.driverClearingPaise || 0)}
             </div>
-            <p className="text-[11px] text-amber-800/80 mt-1">Field collections awaiting cashier handover (A/C 1120)</p>
-          </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-amber-200/60 text-[11px]">
+              <span className="text-amber-800/80">Awaiting cashier handover (A/C 1120)</span>
+              <span className="font-bold text-amber-800 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+                Verify & Approve →
+              </span>
+            </div>
+          </Link>
 
           {/* Operating Bank Balance */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">

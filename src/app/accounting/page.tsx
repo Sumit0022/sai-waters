@@ -21,11 +21,21 @@ import {
   Coffee,
   RotateCcw,
   Trash2,
-  CheckCircle,
   BookOpen,
+  Calendar,
+  Clock,
+  User,
+  Truck,
+  Search,
+  AlertTriangle,
+  CheckCircle,
+  CheckCircle2,
+  Wallet,
+  Banknote,
+  CheckCheck,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
-import { getTodayIST } from "@/lib/date-utils";
+import { getTodayIST, formatTimeIST, formatDateTimeIST, getDateStrIST } from "@/lib/date-utils";
 
 export default function AccountingPage() {
   const [activeTab, setActiveTab] = useState<
@@ -77,12 +87,22 @@ export default function AccountingPage() {
   const [jvAmountRupees, setJvAmountRupees] = useState("1000");
   const [jvError, setJvError] = useState("");
 
-  // Cashier Verification Modal State
+  // Cashier Verification Modal & Driver Cash State
   const [verifyModalOpen, setVerifyModalOpen] = useState(false);
   const [activeDriverId, setActiveDriverId] = useState("");
   const [activeDriverName, setActiveDriverName] = useState("");
+  const [declaredAmountRupees, setDeclaredAmountRupees] = useState("");
   const [verifyAmountRupees, setVerifyAmountRupees] = useState("");
+  const [targetAccountId, setTargetAccountId] = useState<number>(1110);
   const [verifyNotes, setVerifyNotes] = useState("");
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
+  const [submittingHandover, setSubmittingHandover] = useState(false);
+
+  // Day-wise Collection View Filters
+  const [cashDateFilter, setCashDateFilter] = useState<string>(getTodayIST());
+  const [cashDriverFilter, setCashDriverFilter] = useState<string>("");
+  const [cashStatusFilter, setCashStatusFilter] = useState<"ALL" | "PENDING" | "VERIFIED">("ALL");
+  const [cashSearchQuery, setCashSearchQuery] = useState<string>("");
 
   // Depreciation State
   const [depActionMsg, setDepActionMsg] = useState("");
@@ -118,8 +138,24 @@ export default function AccountingPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      if (tab && ["TB", "TL", "JV", "BRS", "EXP", "PNL", "BS", "CASH_REC", "DEP"].includes(tab)) {
+        setActiveTab(tab as any);
+      }
+    }
     loadAll();
   }, []);
+
+  const handleTabChange = (newTab: any) => {
+    setActiveTab(newTab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", newTab);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
 
   // Post Manual JV
   const handlePostManualJv = async (e: React.FormEvent) => {
@@ -316,22 +352,47 @@ export default function AccountingPage() {
     }
   };
 
-  // Verify Driver Handover into Vault
+  // Open Verification Modal Helper
+  const openVerifyModal = (params: {
+    driverId: string;
+    driverName: string;
+    amountPaise: number;
+    submissionIds?: string[];
+  }) => {
+    setActiveDriverId(params.driverId);
+    setActiveDriverName(params.driverName);
+    const inRupees = (params.amountPaise / 100).toString();
+    setDeclaredAmountRupees(inRupees);
+    setVerifyAmountRupees(inRupees);
+    setTargetAccountId(1110);
+    setVerifyNotes("Counted in cash drawer, zero variance");
+    setSelectedSubmissionIds(params.submissionIds || []);
+    setVerifyModalOpen(true);
+  };
+
+  // Verify Driver Handover into Vault or Bank
   const handleVerifyHandover = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmittingHandover(true);
     try {
+      const declaredPaise = Math.round(Number(declaredAmountRupees || verifyAmountRupees) * 100);
+      const verifiedPaise = Math.round(Number(verifyAmountRupees) * 100);
       const res = await fetch("/api/cash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "VERIFY_HANDOVER",
+          action: "HANDOVER",
           driverId: activeDriverId,
-          totalVerifiedPaise: Math.round(Number(verifyAmountRupees) * 100),
+          totalDeclaredPaise: declaredPaise,
+          totalVerifiedPaise: verifiedPaise,
+          targetAccountId: Number(targetAccountId || 1110),
           notes: verifyNotes,
+          submissionIds: selectedSubmissionIds.length > 0 ? selectedSubmissionIds : undefined,
         }),
       });
       if (res.ok) {
         setVerifyModalOpen(false);
+        setSelectedSubmissionIds([]);
         loadAll();
       } else {
         const d = await res.json();
@@ -339,6 +400,8 @@ export default function AccountingPage() {
       }
     } catch (err: any) {
       alert(err.message);
+    } finally {
+      setSubmittingHandover(false);
     }
   };
 
@@ -517,7 +580,7 @@ export default function AccountingPage() {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => handleTabChange(tab.id as any)}
               className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shrink-0 ${
                 activeTab === tab.id
                   ? "bg-sky-600 text-white font-extrabold shadow-xs"
@@ -526,6 +589,15 @@ export default function AccountingPage() {
             >
               <Icon className="w-3.5 h-3.5" />
               <span>{tab.label}</span>
+              {tab.id === "CASH_REC" && (cashRecData?.totalUnclearedCashPaise || 0) > 0 && (
+                <span
+                  className={`px-1.5 py-0.5 text-[9px] font-black rounded-full ${
+                    activeTab === tab.id ? "bg-amber-400 text-slate-900" : "bg-amber-500 text-white"
+                  }`}
+                >
+                  {formatINR(cashRecData.totalUnclearedCashPaise)}
+                </span>
+              )}
             </button>
           );
         })}
@@ -1452,49 +1524,508 @@ export default function AccountingPage() {
       {/* ========================================================================= */}
       {/* TAB 8: DRIVER CASH CLEARING */}
       {/* ========================================================================= */}
-      {activeTab === "CASH_REC" && cashRecData && (
-        <div className="space-y-4">
-          <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex justify-between items-center">
-            <div>
-              <h3 className="font-extrabold text-amber-950 text-xs">
-                Driver Cash Handover & Central Vault Verification
-              </h3>
-              <p className="text-[11px] text-amber-800 mt-0.5">
-                Cash collected on delivery routes verified by cashier and deposited into central cash vault.
-              </p>
-            </div>
-            <span className="text-xs font-black text-amber-950 bg-white px-3 py-1.5 rounded-xl border border-amber-300">
-              Pending Handover: {formatINR(cashRecData.totalUnclearedCashPaise)}
-            </span>
-          </div>
+      {activeTab === "CASH_REC" && cashRecData && (() => {
+        const allCashList: any[] = cashRecData.allSubmissions || cashRecData.submissions || [];
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(cashRecData.pendingByDriver || {}).map(([drvId, data]: any) => (
-              <div key={drvId} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-black text-slate-900 text-sm">{data.driverName}</h4>
-                    <span className="text-[10px] text-slate-400 font-mono">{drvId}</span>
+        // Filter submissions based on user filters
+        const displaySubmissions = allCashList.filter((item: any) => {
+          if (cashDateFilter && item.collectionDateIST !== cashDateFilter) {
+            return false;
+          }
+          if (cashDriverFilter && item.driverId !== cashDriverFilter) {
+            return false;
+          }
+          if (cashStatusFilter === "PENDING" && item.isHandedOver) {
+            return false;
+          }
+          if (cashStatusFilter === "VERIFIED" && !item.isHandedOver) {
+            return false;
+          }
+          if (cashSearchQuery.trim()) {
+            const q = cashSearchQuery.toLowerCase();
+            const matchCust = item.customerName?.toLowerCase().includes(q) || item.customerCode?.toLowerCase().includes(q);
+            const matchOrder = item.orderNumber?.toLowerCase().includes(q) || item.invoiceNumber?.toLowerCase().includes(q);
+            const matchDriver = item.driverName?.toLowerCase().includes(q);
+            if (!matchCust && !matchOrder && !matchDriver) return false;
+          }
+          return true;
+        });
+
+        // Totals for filtered view
+        const filteredTotalPaise = displaySubmissions.reduce((sum, s) => sum + (s.amountCollectedPaise || 0), 0);
+        const filteredPendingPaise = displaySubmissions
+          .filter((s) => !s.isHandedOver)
+          .reduce((sum, s) => sum + (s.amountCollectedPaise || 0), 0);
+        const filteredHandedPaise = displaySubmissions
+          .filter((s) => s.isHandedOver)
+          .reduce((sum, s) => sum + (s.amountCollectedPaise || 0), 0);
+
+        // Drivers available in list
+        const uniqueDriversMap: Record<string, string> = {};
+        allCashList.forEach((s) => {
+          if (s.driverId && s.driverName) uniqueDriversMap[s.driverId] = s.driverName;
+        });
+
+        const activeDriversCount = Object.keys(cashRecData.pendingByDriver || {}).length;
+
+        return (
+          <div className="space-y-6">
+            {/* Top KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Total Pending Handover */}
+              <div className="bg-amber-50/70 p-5 rounded-2xl border border-amber-200/90 shadow-xs">
+                <div className="flex items-center justify-between text-amber-700 mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Awaiting Handover (A/C 1120)</span>
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                    <Truck className="w-4 h-4" />
                   </div>
-                  <span className="text-xl font-black text-amber-900">{formatINR(data.totalPendingPaise)}</span>
+                </div>
+                <div className="text-2xl font-black text-amber-950">
+                  {formatINR(cashRecData.totalUnclearedCashPaise || 0)}
+                </div>
+                <p className="text-[11px] text-amber-800/80 mt-1">Field cash awaiting cashier vault/bank handover</p>
+              </div>
+
+              {/* Collections Today */}
+              <div className="bg-sky-50/70 p-5 rounded-2xl border border-sky-200/90 shadow-xs">
+                <div className="flex items-center justify-between text-sky-700 mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Collected Today (IST)</span>
+                  <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
+                    <Coins className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-sky-950">
+                  {formatINR(cashRecData.totalCollectedTodayPaise || 0)}
+                </div>
+                <p className="text-[11px] text-sky-800/80 mt-1">Total doorstep collections made today</p>
+              </div>
+
+              {/* Verified & Handed Over Today */}
+              <div className="bg-emerald-50/70 p-5 rounded-2xl border border-emerald-200/90 shadow-xs">
+                <div className="flex items-center justify-between text-emerald-700 mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Handed Over Today</span>
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-emerald-950">
+                  {formatINR(cashRecData.totalHandedOverTodayPaise || 0)}
+                </div>
+                <p className="text-[11px] text-emerald-800/80 mt-1">Deposited into Central Vault (1110) / Bank (1130)</p>
+              </div>
+
+              {/* Active Drivers With Pending Cash */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <div className="flex items-center justify-between text-slate-500 mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Drivers With Cash</span>
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+                    <User className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-slate-900">
+                  {activeDriversCount} <span className="text-xs font-normal text-slate-500">active staff</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">Delivery agents holding cash in field</p>
+              </div>
+            </div>
+
+            {/* Pending Drivers Handover Batch Cards */}
+            {activeDriversCount > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    Pending Driver Handovers Requiring Admin Verification
+                  </h4>
+                  <span className="text-xs text-slate-500">
+                    {activeDriversCount} driver{activeDriversCount > 1 ? "s" : ""} awaiting clearing
+                  </span>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setActiveDriverId(drvId);
-                    setActiveDriverName(data.driverName);
-                    setVerifyAmountRupees((data.totalPendingPaise / 100).toString());
-                    setVerifyModalOpen(true);
-                  }}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
-                >
-                  Verify & Deposit into Central Vault →
-                </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Object.entries(cashRecData.pendingByDriver || {}).map(([drvId, data]: any) => (
+                    <div
+                      key={drvId}
+                      className="bg-white p-5 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50/30 to-white shadow-xs space-y-3"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <Truck className="w-4 h-4 text-amber-600" />
+                            <h5 className="font-black text-slate-900 text-sm">{data.driverName}</h5>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono">{drvId}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-black text-amber-950 block">
+                            {formatINR(data.totalPendingPaise)}
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full">
+                            {data.count} pending collection{data.count > 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() =>
+                          openVerifyModal({
+                            driverId: drvId,
+                            driverName: data.driverName,
+                            amountPaise: data.totalPendingPaise,
+                          })
+                        }
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <CheckCheck className="w-4 h-4" />
+                        Verify & Clear Handover ({formatINR(data.totalPendingPaise)}) →
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+            )}
+
+            {/* Filter & Day-wise Toolbar */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Date Controls */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-sky-600" />
+                    Day View:
+                  </span>
+
+                  {/* Quick Pills */}
+                  <button
+                    onClick={() => setCashDateFilter("")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                      cashDateFilter === ""
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    All Days
+                  </button>
+                  <button
+                    onClick={() => setCashDateFilter(cashRecData.todayIST || getTodayIST())}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                      cashDateFilter === (cashRecData.todayIST || getTodayIST())
+                        ? "bg-sky-600 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    Today
+                  </button>
+
+                  {/* Native Date Picker */}
+                  <input
+                    type="date"
+                    value={cashDateFilter}
+                    onChange={(e) => setCashDateFilter(e.target.value)}
+                    className="px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-sky-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* Driver Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5 text-slate-500" />
+                    Driver:
+                  </span>
+                  <select
+                    value={cashDriverFilter}
+                    onChange={(e) => setCashDriverFilter(e.target.value)}
+                    className="px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-sky-500 cursor-pointer"
+                  >
+                    <option value="">All Delivery Staff</option>
+                    {Object.entries(uniqueDriversMap).map(([id, name]) => (
+                      <option key={id} value={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Status and Search Filter Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                {/* Status Pills */}
+                <div className="flex items-center gap-1.5 text-xs font-bold">
+                  {[
+                    { id: "ALL", label: "All Collections", count: allCashList.length },
+                    {
+                      id: "PENDING",
+                      label: "Pending Handover",
+                      count: allCashList.filter((s) => !s.isHandedOver).length,
+                    },
+                    {
+                      id: "VERIFIED",
+                      label: "Handed Over & Verified",
+                      count: allCashList.filter((s) => s.isHandedOver).length,
+                    },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      onClick={() => setCashStatusFilter(st.id as any)}
+                      className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
+                        cashStatusFilter === st.id
+                          ? "bg-sky-600 text-white font-extrabold shadow-xs"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {st.label} ({st.count})
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search Field */}
+                <div className="relative min-w-[240px]">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search customer, code, order #..."
+                    value={cashSearchQuery}
+                    onChange={(e) => setCashSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-sky-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Itemized Day-wise Transactions Table */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                    <Coins className="w-4 h-4 text-emerald-600" />
+                    Itemized Doorstep Cash Collections List
+                    {cashDateFilter && (
+                      <span className="text-xs font-normal text-slate-500">
+                        {" "}for {cashDateFilter === (cashRecData.todayIST || getTodayIST()) ? "Today" : cashDateFilter}
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Showing {displaySubmissions.length} collection record{displaySubmissions.length === 1 ? "" : "s"}
+                    {filteredTotalPaise > 0 && ` • Total: ${formatINR(filteredTotalPaise)}`}
+                    {filteredPendingPaise > 0 && ` • Pending: ${formatINR(filteredPendingPaise)}`}
+                  </p>
+                </div>
+
+                {filteredPendingPaise > 0 && (
+                  <button
+                    onClick={() => {
+                      const firstDriver = displaySubmissions.find((s) => !s.isHandedOver);
+                      if (firstDriver) {
+                        openVerifyModal({
+                          driverId: firstDriver.driverId,
+                          driverName: firstDriver.driverName,
+                          amountPaise: filteredPendingPaise,
+                          submissionIds: displaySubmissions.filter((s) => !s.isHandedOver).map((s) => s.id),
+                        });
+                      }
+                    }}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5" />
+                    Verify Filtered Collections ({formatINR(filteredPendingPaise)}) →
+                  </button>
+                )}
+              </div>
+
+              {displaySubmissions.length === 0 ? (
+                <div className="p-12 text-center space-y-2">
+                  <Coins className="w-8 h-8 text-slate-300 mx-auto" />
+                  <h5 className="font-bold text-slate-700 text-sm">No cash collections found</h5>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    No field cash submissions match the selected date or filter criteria. Change filters to view collections.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        <th className="py-3 px-4">Time (IST)</th>
+                        <th className="py-3 px-4">Delivery Staff</th>
+                        <th className="py-3 px-4">Customer</th>
+                        <th className="py-3 px-4">Order / Invoice Ref</th>
+                        <th className="py-3 px-4">Type</th>
+                        <th className="py-3 px-4 text-right">Amount (₹)</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {displaySubmissions.map((sub: any) => (
+                        <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
+                          {/* Time */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              {sub.collectionTimeIST}
+                            </div>
+                            <span className="text-[10px] text-slate-400 block">{sub.collectionDateIST}</span>
+                          </td>
+
+                          {/* Driver */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                              <Truck className="w-3.5 h-3.5 text-amber-600" />
+                              {sub.driverName}
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono">{sub.driverId}</span>
+                          </td>
+
+                          {/* Customer */}
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-900">{sub.customerName}</div>
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                              <span className="font-mono bg-slate-100 px-1 py-0.2 rounded text-slate-600">
+                                {sub.customerCode}
+                              </span>
+                              {sub.customerPhone && sub.customerPhone !== "-" && (
+                                <span>• {sub.customerPhone}</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Order / Invoice */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="font-mono font-bold text-slate-800">
+                              {sub.orderNumber || sub.invoiceNumber || "Field Cash Entry"}
+                            </div>
+                            <span className="text-[10px] text-slate-400">Slip #{sub.id.slice(-6)}</span>
+                          </td>
+
+                          {/* Type */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                sub.orderType === "ONE_TIME_EVENT"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-sky-100 text-sky-800"
+                              }`}
+                            >
+                              {sub.orderType === "ONE_TIME_EVENT" ? "EVENT SPOT" : "RECURRING"}
+                            </span>
+                          </td>
+
+                          {/* Amount */}
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-black text-emerald-800 text-sm">
+                            {formatINR(sub.amountCollectedPaise)}
+                          </td>
+
+                          {/* Status */}
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            {sub.isHandedOver ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Handed Over
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">
+                                <Clock className="w-3 h-3" />
+                                Awaiting Handover
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Action */}
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            {sub.isHandedOver ? (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                #{sub.handoverId?.slice(-6) || "cleared"}
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() =>
+                                  openVerifyModal({
+                                    driverId: sub.driverId,
+                                    driverName: sub.driverName,
+                                    amountPaise: sub.amountCollectedPaise,
+                                    submissionIds: [sub.id],
+                                  })
+                                }
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg shadow-xs cursor-pointer transition-colors"
+                              >
+                                Clear Handover →
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Handover Settlement History Log */}
+            {cashRecData.handovers && cashRecData.handovers.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="p-4 bg-slate-50 border-b border-slate-200">
+                  <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Verified Cash Handover Settlements History (Double-Entry General Journal Logs)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Historical log of cashier verified handovers transferred from A/C 1120 to Central Vault / Bank.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        <th className="py-3 px-4">Voucher ID</th>
+                        <th className="py-3 px-4">Timestamp (IST)</th>
+                        <th className="py-3 px-4">Delivery Staff</th>
+                        <th className="py-3 px-4 text-right">Declared (₹)</th>
+                        <th className="py-3 px-4 text-right">Verified (₹)</th>
+                        <th className="py-3 px-4 text-right">Variance (₹)</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4">Cashier Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {cashRecData.handovers.slice(0, 10).map((h: any) => (
+                        <tr key={h.id} className="hover:bg-slate-50/70">
+                          <td className="py-3 px-4 font-mono font-bold text-slate-700">#{h.id.slice(-8)}</td>
+                          <td className="py-3 px-4 whitespace-nowrap text-slate-600">
+                            {formatDateTimeIST(h.handoverTimestamp)}
+                          </td>
+                          <td className="py-3 px-4 font-bold text-slate-900">{h.driverName}</td>
+                          <td className="py-3 px-4 text-right text-slate-600 font-bold">
+                            {formatINR(h.totalDeclaredPaise)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-black text-emerald-800">
+                            {formatINR(h.totalVerifiedPaise)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-bold">
+                            {h.variancePaise === 0 ? (
+                              <span className="text-slate-400">₹0.00</span>
+                            ) : h.variancePaise < 0 ? (
+                              <span className="text-rose-600">-{formatINR(Math.abs(h.variancePaise))}</span>
+                            ) : (
+                              <span className="text-blue-600">+{formatINR(h.variancePaise)}</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                              {h.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-500 text-[11px]">{h.notes || "Counted and verified"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* TAB 9: JAR DEPRECIATION */}
@@ -1988,69 +2519,207 @@ export default function AccountingPage() {
       {/* ========================================================================= */}
       {/* MODAL 5: VERIFY DRIVER HANDOVER INTO VAULT */}
       {/* ========================================================================= */}
-      {verifyModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-black text-slate-900">
-                Verify Cash Deposit: {activeDriverName}
-              </h3>
-              <button
-                onClick={() => setVerifyModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {verifyModalOpen && (() => {
+        const declaredNum = Number(declaredAmountRupees || verifyAmountRupees || 0);
+        const verifiedNum = Number(verifyAmountRupees || 0);
+        const variance = verifiedNum - declaredNum;
 
-            <p className="text-xs text-slate-500">
-              Cashier counts physical currency notes and verifies them into central vault (A/C 1110).
-            </p>
-
-            <form onSubmit={handleVerifyHandover} className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Verified Deposit Amount (₹)
-                </label>
-                <input
-                  type="number"
-                  value={verifyAmountRupees}
-                  onChange={(e) => setVerifyAmountRupees(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-base font-black text-emerald-800"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Verification Notes</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Counted in cash drawer, zero variance"
-                  value={verifyNotes}
-                  onChange={(e) => setVerifyNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <Coins className="w-5 h-5 text-emerald-600" />
+                    Verify Cash Handover: {activeDriverName}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Clear driver collection clearing (A/C 1120) and deposit into Central Vault or Bank.
+                  </p>
+                </div>
                 <button
-                  type="button"
                   onClick={() => setVerifyModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-700 cursor-pointer p-1 rounded-lg hover:bg-slate-100"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
-                >
-                  Verify & Deposit into Vault
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleVerifyHandover} className="space-y-4">
+                {/* Declared Summary */}
+                <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 flex justify-between items-center text-xs">
+                  <div>
+                    <span className="text-amber-800 font-bold block">Declared Field Collections:</span>
+                    <span className="text-[11px] text-amber-700">
+                      {selectedSubmissionIds.length > 0
+                        ? `${selectedSubmissionIds.length} Selected Transaction(s)`
+                        : "All Unhanded Transactions for Driver"}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-black text-amber-950">
+                      ₹{Number(declaredAmountRupees || 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Target Destination Account Selection */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-wider text-slate-700 block">
+                    Deposit Destination Account:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Option 1: Central Vault 1110 */}
+                    <div
+                      onClick={() => setTargetAccountId(1110)}
+                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                        targetAccountId === 1110
+                          ? "bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 font-bold"
+                          : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-black flex items-center gap-1.5">
+                          <Wallet className="w-4 h-4 text-emerald-600" />
+                          Central Vault (1110)
+                        </span>
+                        <input
+                          type="radio"
+                          name="targetAcc"
+                          checked={targetAccountId === 1110}
+                          onChange={() => setTargetAccountId(1110)}
+                          className="accent-emerald-600 cursor-pointer"
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500">
+                        Physical currency kept in central plant cash drawer.
+                      </span>
+                    </div>
+
+                    {/* Option 2: Bank Current Account 1130 */}
+                    <div
+                      onClick={() => setTargetAccountId(1130)}
+                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                        targetAccountId === 1130
+                          ? "bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 text-blue-950 font-bold"
+                          : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-black flex items-center gap-1.5">
+                          <Building2 className="w-4 h-4 text-blue-600" />
+                          Bank Account (1130)
+                        </span>
+                        <input
+                          type="radio"
+                          name="targetAcc"
+                          checked={targetAccountId === 1130}
+                          onChange={() => setTargetAccountId(1130)}
+                          className="accent-blue-600 cursor-pointer"
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500">
+                        Driver directly deposited into company bank account.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Physically Counted Verified Amount */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-black uppercase tracking-wider text-slate-700">
+                      Physically Counted / Received Amount (₹)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setVerifyAmountRupees(declaredAmountRupees)}
+                      className="text-[11px] text-sky-600 hover:text-sky-800 font-bold cursor-pointer"
+                    >
+                      Match Declared (₹{declaredAmountRupees})
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={verifyAmountRupees}
+                    onChange={(e) => setVerifyAmountRupees(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-lg font-black text-slate-900 focus:outline-emerald-500"
+                    required
+                  />
+
+                  {/* Variance Indicator */}
+                  {variance === 0 ? (
+                    <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      Exact Physical Match — Zero Variance (₹0.00)
+                    </div>
+                  ) : variance < 0 ? (
+                    <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      Shortage Discrepancy: Short by ₹{Math.abs(variance).toFixed(2)}
+                    </div>
+                  ) : (
+                    <div className="p-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      Surplus Discrepancy: Excess of ₹{variance.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Verification Notes */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Cashier / Approval Notes</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Counted in cash drawer, zero variance"
+                    value={verifyNotes}
+                    onChange={(e) => setVerifyNotes(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-sky-500"
+                  />
+                </div>
+
+                {/* Double-Entry Journal Entry Preview Card */}
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-[11px] space-y-1.5 font-mono">
+                  <div className="flex justify-between text-slate-500 font-sans font-bold">
+                    <span>Double-Entry Journal Voucher:</span>
+                    <span className="text-emerald-700">Auto-Posted</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 font-bold">
+                    <span>
+                      Dr. {targetAccountId === 1130 ? "1130 Bank Current Account" : "1110 Cash-in-Hand (Vault)"}
+                    </span>
+                    <span>+₹{Number(verifyAmountRupees || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-700 font-bold">
+                    <span>Cr. 1120 Driver Collection Clearing ({activeDriverName})</span>
+                    <span>-₹{Number(verifyAmountRupees || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setVerifyModalOpen(false)}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingHandover}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <CheckCheck className="w-4 h-4" />
+                    {submittingHandover ? "Posting Voucher..." : "Approve & Post Journal Entry"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
