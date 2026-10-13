@@ -122,8 +122,22 @@ export default function DriverAppPage() {
 
   // STEP 1: Resolve Customer by QR Token or Code
   const handleResolveCustomer = async (code: string) => {
-    const clean = code.replace("urn:sw:c:", "").trim();
-    if (!clean) return;
+    const raw = code.trim();
+    if (!raw) return;
+
+    // VICE-VERSA GUARD: Reject if driver scans a Jar QR while in Customer step
+    const isJarQr =
+      raw.startsWith("urn:sw:j:") ||
+      raw.toUpperCase().startsWith("JAR-") ||
+      raw.toLowerCase().startsWith("jar_") ||
+      raw.includes("20L");
+
+    if (isJarQr) {
+      alert("❌ Galat QR Code! Ye 20L Water Jar ka QR sticker hai.\nKripya pehle Grahak ka Customer Station QR sticker scan karein.");
+      return;
+    }
+
+    const clean = raw.replace("urn:sw:c:", "").trim();
 
     try {
       const res = await fetch(`/api/customers?customerId=${encodeURIComponent(clean)}`);
@@ -141,18 +155,38 @@ export default function DriverAppPage() {
   };
 
   // STEP 2: Add Jar Code
-  const handleAddJar = (code: string) => {
-    const clean = code.trim();
-    if (!clean) return;
+  const handleAddJar = (code: string): boolean => {
+    const raw = code.trim();
+    if (!raw) return false;
 
-    if (scannedJars.includes(clean)) {
-      alert(`Jar ${clean} is already added in this delivery batch!`);
-      return;
+    // GUARD 1: Reject if driver accidentally scans Customer QR while in Jar scanning step
+    const isCustomerQr =
+      raw.startsWith("urn:sw:c:") ||
+      raw.toUpperCase().startsWith("CUST-") ||
+      raw.toLowerCase().startsWith("cust_") ||
+      (customerInfo && (
+        raw === customerInfo.customerCode ||
+        raw === customerInfo.id ||
+        raw === customerInfo.phone ||
+        raw.toLowerCase() === (customerInfo.customerCode || "").toLowerCase()
+      ));
+
+    if (isCustomerQr) {
+      alert("❌ Galat QR Code! Ye Customer Station QR hai, 20L Water Jar nahi.\nKripya 20L Water Jar par chipka hua QR code scan karein.");
+      return false;
     }
 
-    setScannedJars((prev) => [...prev, clean]);
-    // By default cashCollected stays 0 because most customers pay via monthly consolidated invoice.
-    // Driver only enters cash if physical cash is collected on spot for daily payers.
+    // Normalize jar code (strip urn:sw:j: prefix if present)
+    const cleanJar = raw.replace("urn:sw:j:", "").trim();
+
+    // GUARD 2: Prevent duplicate scans in the same delivery batch
+    if (scannedJars.includes(cleanJar) || scannedJars.includes(raw)) {
+      alert(`⚠️ Jar '${cleanJar}' is delivery batch mein pehle se shamil hai!`);
+      return false;
+    }
+
+    setScannedJars((prev) => [...prev, cleanJar]);
+    return true;
   };
 
   // Remove Jar from list
@@ -688,16 +722,20 @@ export default function DriverAppPage() {
             if (scanTarget === "CUSTOMER") {
               handleResolveCustomer(code);
             } else {
-              handleAddJar(code);
-              setCameraModalOpen(false);
+              const added = handleAddJar(code);
+              if (added) {
+                setCameraModalOpen(false);
+              }
             }
           }}
           onManualSubmit={(code) => {
             if (scanTarget === "CUSTOMER") {
               handleResolveCustomer(code);
             } else {
-              handleAddJar(code);
-              setCameraModalOpen(false);
+              const added = handleAddJar(code);
+              if (added) {
+                setCameraModalOpen(false);
+              }
             }
           }}
         />

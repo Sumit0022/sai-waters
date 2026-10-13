@@ -52,16 +52,44 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Fetch Customer Price Agreement (default ₹35/jar)
+    // 2. Validate jarCodes: Reject customer identifiers disguised as jars, and deduplicate
+    const cleanJars: string[] = [];
+    for (const rawJar of jarCodes) {
+      const cleanJar = String(rawJar).replace("urn:sw:j:", "").trim();
+      if (
+        cleanJar.toUpperCase().startsWith("CUST-") ||
+        cleanJar.toLowerCase().startsWith("cust_") ||
+        cleanJar === cust.customerCode ||
+        cleanJar === cust.id ||
+        cleanJar === cust.phone
+      ) {
+        return NextResponse.json(
+          { error: `Validation Error: '${rawJar}' is a customer identifier and cannot be registered as a 20L Water Jar!` },
+          { status: 400 }
+        );
+      }
+      if (!cleanJars.includes(cleanJar)) {
+        cleanJars.push(cleanJar);
+      }
+    }
+
+    if (cleanJars.length === 0) {
+      return NextResponse.json(
+        { error: "No valid 20L Water Jar codes provided for delivery." },
+        { status: 400 }
+      );
+    }
+
+    // 3. Fetch Customer Price Agreement (default ₹35/jar)
     const [priceRow] = await db
       .select()
       .from(customerPriceAgreements)
       .where(eq(customerPriceAgreements.customerId, cust.id))
       .limit(1);
     const unitPricePaise = priceRow ? priceRow.pricePerJarPaise : 3500;
-    const totalAmountPaise = unitPricePaise * jarCodes.length;
+    const totalAmountPaise = unitPricePaise * cleanJars.length;
 
-    // 3. Fetch Customer Address
+    // 4. Fetch Customer Address
     const [addrRow] = await db
       .select()
       .from(customerAddresses)
@@ -72,7 +100,7 @@ export async function POST(req: Request) {
     const orderNumber = `ORD-REC-${Date.now().toString().slice(-6)}`;
     const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
-    // 4. Record Delivery Order
+    // 5. Record Delivery Order
     await db.insert(orders).values({
       id: orderId,
       orderNumber,
@@ -80,17 +108,16 @@ export async function POST(req: Request) {
       addressId: addrRow ? addrRow.id : "addr_default",
       orderType: "RECURRING",
       scheduledDate: todayStr,
-      quantityJars: jarCodes.length,
+      quantityJars: cleanJars.length,
       unitPricePaise,
       totalAmountPaise,
       status: "DELIVERED",
       deliveryNotes: `Doorstep scan delivery by driver ${driverId}`,
     });
 
-    // 5. Transition each delivered jar to DELIVERED_CUSTOMER
+    // 6. Transition each delivered jar to DELIVERED_CUSTOMER
     const transitionedJars: string[] = [];
-    for (const jarCode of jarCodes) {
-      const cleanJarCode = jarCode.replace("urn:sw:j:", "").trim();
+    for (const cleanJarCode of cleanJars) {
       // Lookup jar
       const [jar] = await db
         .select()
