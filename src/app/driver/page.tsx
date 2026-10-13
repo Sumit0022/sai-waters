@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Truck,
   QrCode,
@@ -37,6 +37,12 @@ export default function DriverAppPage() {
   const [customerInfo, setCustomerInfo] = useState<any>(null);
   const [customerCodeInput, setCustomerCodeInput] = useState("");
   const [scannedJars, setScannedJars] = useState<string[]>([]);
+  const scannedJarsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    scannedJarsRef.current = scannedJars;
+  }, [scannedJars]);
+
   const [emptyJarsReturned, setEmptyJarsReturned] = useState(0);
   const [cashCollected, setCashCollected] = useState("0");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -181,19 +187,59 @@ export default function DriverAppPage() {
     // Normalize jar code (strip urn:sw:j: prefix if present)
     const cleanJar = raw.replace("urn:sw:j:", "").trim();
 
-    // GUARD 2: Prevent duplicate scans in the same delivery batch
-    if (scannedJars.includes(cleanJar) || scannedJars.includes(raw)) {
-      alert(`⚠️ Jar '${cleanJar}' is delivery batch mein pehle se shamil hai!`);
+    // GUARD 2: Synchronous duplicate check via ref (blocks multi-scan race conditions immediately)
+    if (
+      scannedJarsRef.current.includes(cleanJar) ||
+      scannedJarsRef.current.includes(raw)
+    ) {
+      alert(`⚠️ Jar '${cleanJar}' is delivery batch mein pehle se shamil hai!\nEk jar sirf ek hi baar deliver ho sakta hai.`);
       return false;
     }
 
-    setScannedJars((prev) => [...prev, cleanJar]);
+    // Immediately update ref so any immediate subsequent frame callback is blocked
+    scannedJarsRef.current = [...scannedJarsRef.current, cleanJar];
+
+    // Update state with deduplication guard
+    setScannedJars((prev) => {
+      if (prev.includes(cleanJar)) return prev;
+      return [...prev, cleanJar];
+    });
+
+    // Guard 3: Verify with backend that this jar is not already held by this customer
+    if (customerInfo) {
+      fetch("/api/jars/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: cleanJar }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.jar) {
+            const custody = data.custody;
+            if (
+              custody &&
+              custody.custodyType === "WITH_CUSTOMER" &&
+              custody.customerId === customerInfo.id &&
+              data.jar.currentStatus === "DELIVERED_CUSTOMER"
+            ) {
+              alert(
+                `⚠️ Jar '${data.jar.permanentJarCode || cleanJar}' already ${customerInfo.fullName} ke paas delivered hai!\nEk jar bina empty return ke dobara deliver nahi kiya ja sakta.`
+              );
+              scannedJarsRef.current = scannedJarsRef.current.filter((j) => j !== cleanJar);
+              setScannedJars((prev) => prev.filter((j) => j !== cleanJar));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
     return true;
   };
 
   // Remove Jar from list
   const handleRemoveJar = (idx: number) => {
     const updated = scannedJars.filter((_, i) => i !== idx);
+    scannedJarsRef.current = updated;
     setScannedJars(updated);
   };
 
@@ -234,6 +280,7 @@ export default function DriverAppPage() {
         // Reset for next delivery
         setCustomerInfo(null);
         setCustomerCodeInput("");
+        scannedJarsRef.current = [];
         setScannedJars([]);
         setEmptyJarsReturned(0);
         setCashCollected("0");
@@ -492,6 +539,7 @@ export default function DriverAppPage() {
                     onClick={() => {
                       setCurrentStep(1);
                       setCustomerInfo(null);
+                      scannedJarsRef.current = [];
                       setScannedJars([]);
                     }}
                     className="text-[10px] font-bold text-slate-400 hover:text-slate-600 underline"
@@ -768,20 +816,16 @@ export default function DriverAppPage() {
             if (scanTarget === "CUSTOMER") {
               handleResolveCustomer(code);
             } else {
-              const added = handleAddJar(code);
-              if (added) {
-                setCameraModalOpen(false);
-              }
+              handleAddJar(code);
+              setCameraModalOpen(false);
             }
           }}
           onManualSubmit={(code) => {
             if (scanTarget === "CUSTOMER") {
               handleResolveCustomer(code);
             } else {
-              const added = handleAddJar(code);
-              if (added) {
-                setCameraModalOpen(false);
-              }
+              handleAddJar(code);
+              setCameraModalOpen(false);
             }
           }}
         />

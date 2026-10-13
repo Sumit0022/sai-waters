@@ -39,6 +39,8 @@ export default function QrCameraScanner({
   const codeReaderRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanLockedRef = useRef(false);
+  const controlsRef = useRef<any>(null);
+  const isDestroyedRef = useRef(false);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState("");
@@ -53,6 +55,7 @@ export default function QrCameraScanner({
 
   // Subtle PhonePe-style success audio beep
   const playBeep = () => {
+    if (isDestroyedRef.current) return;
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
@@ -70,19 +73,35 @@ export default function QrCameraScanner({
     } catch (e) {}
   };
 
-  // Stop camera tracks cleanly
+  // Stop camera tracks and ZXing decoding loop cleanly
   const stopCamera = () => {
+    isDestroyedRef.current = true;
+    scanLockedRef.current = true;
     try {
+      if (controlsRef.current) {
+        try {
+          controlsRef.current.stop();
+        } catch (e) {}
+        controlsRef.current = null;
+      }
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch (e) {}
+        });
         streamRef.current = null;
       }
       if (videoRef.current) {
+        if (videoRef.current.srcObject) {
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach((t) => {
+            try {
+              t.stop();
+            } catch (e) {}
+          });
+        }
         videoRef.current.srcObject = null;
-      }
-      if (codeReaderRef.current) {
-        codeReaderRef.current.reset?.();
-        codeReaderRef.current.stop?.();
       }
     } catch (e) {}
     setCameraActive(false);
@@ -91,14 +110,19 @@ export default function QrCameraScanner({
 
   // Start Camera with Normal 1x Focal Length (filtering out ultra-wide & macro)
   const startCamera = async (deviceId?: string) => {
+    isDestroyedRef.current = false;
+    scanLockedRef.current = false;
     setCameraError("");
     setLastScannedCode(null);
     try {
       const { BrowserMultiFormatReader } = await import("@zxing/browser");
+      if (isDestroyedRef.current) return;
+
       const codeReader = new BrowserMultiFormatReader();
       codeReaderRef.current = codeReader;
 
       const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+      if (isDestroyedRef.current) return;
       setVideoDevices(devices);
 
       let targetId = deviceId;
@@ -128,12 +152,21 @@ export default function QrCameraScanner({
 
       setSelectedDeviceId(targetId || "");
 
-      if (videoRef.current) {
+      if (videoRef.current && !isDestroyedRef.current) {
         // ZXing decode loop
-        await codeReader.decodeFromVideoDevice(
+        const controls = await codeReader.decodeFromVideoDevice(
           targetId,
           videoRef.current,
           (result, error, controls) => {
+            if (controls) {
+              controlsRef.current = controls;
+            }
+            if (isDestroyedRef.current) {
+              try {
+                controls?.stop();
+              } catch (e) {}
+              return;
+            }
             if (result && !scanLockedRef.current) {
               const text = result.getText();
               scanLockedRef.current = true;
@@ -148,17 +181,27 @@ export default function QrCameraScanner({
 
               // 1.5s lock before allowing next scan to prevent rapid-fire duplicate processing
               setTimeout(() => {
-                scanLockedRef.current = false;
-                setLastScannedCode(null);
+                if (!isDestroyedRef.current) {
+                  scanLockedRef.current = false;
+                  setLastScannedCode(null);
+                }
               }, 1500);
             }
           }
         );
 
+        controlsRef.current = controls;
+        if (isDestroyedRef.current) {
+          try {
+            controls.stop();
+          } catch (e) {}
+          return;
+        }
+
         setCameraActive(true);
 
         // Check torch capability & clamp zoom to standard 1.0 (normal focal length)
-        if (videoRef.current.srcObject) {
+        if (videoRef.current && videoRef.current.srcObject) {
           const stream = videoRef.current.srcObject as MediaStream;
           streamRef.current = stream;
           const track = stream.getVideoTracks()[0];
@@ -180,6 +223,7 @@ export default function QrCameraScanner({
         }
       }
     } catch (err: any) {
+      if (isDestroyedRef.current) return;
       console.error("Camera scanner error:", err);
       setCameraError(
         err?.message || "Camera access denied. Please allow camera permissions or enter code manually."

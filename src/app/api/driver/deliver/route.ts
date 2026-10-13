@@ -53,8 +53,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Validate jarCodes: Reject customer identifiers disguised as jars, and deduplicate
+    // 2. Validate jarCodes: Reject customer identifiers disguised as jars, and enforce strict deduplication
     const cleanJars: string[] = [];
+    const seen = new Set<string>();
+
     for (const rawJar of jarCodes) {
       const cleanJar = String(rawJar).replace("urn:sw:j:", "").trim();
       if (
@@ -69,9 +71,14 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      if (!cleanJars.includes(cleanJar)) {
-        cleanJars.push(cleanJar);
+      if (seen.has(cleanJar)) {
+        return NextResponse.json(
+          { error: `Duplicate Jar '${cleanJar}' detect hua! 1 jar sirf ek hi baar deliver ho sakta hai.` },
+          { status: 400 }
+        );
       }
+      seen.add(cleanJar);
+      cleanJars.push(cleanJar);
     }
 
     if (cleanJars.length === 0) {
@@ -79,6 +86,32 @@ export async function POST(req: Request) {
         { error: "No valid 20L Water Jar codes provided for delivery." },
         { status: 400 }
       );
+    }
+
+    // Verify each jar is not already in custody with this customer
+    for (const cleanJar of cleanJars) {
+      const jar = await lookupJar(cleanJar);
+      if (jar) {
+        const [custody] = await db
+          .select()
+          .from(jarCustodies)
+          .where(eq(jarCustodies.jarId, jar.id))
+          .limit(1);
+
+        if (
+          custody &&
+          custody.custodyType === "WITH_CUSTOMER" &&
+          custody.customerId === cust.id &&
+          jar.currentStatus === "DELIVERED_CUSTOMER"
+        ) {
+          return NextResponse.json(
+            {
+              error: `Jar '${jar.permanentJarCode}' already ${cust.fullName} ke paas delivered hai! Ek hi jar bina empty return ke dobara deliver nahi ho sakta.`,
+            },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     // 3. Fetch Customer Price Agreement (allotted rate)

@@ -36,9 +36,27 @@ export async function POST(request: Request) {
     }
 
     // Default action: LOOKUP
+    const db = (await import("@/db")).getDb();
+    const { jarCustodies, customers } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const [custody] = await db
+      .select({
+        jarId: jarCustodies.jarId,
+        custodyType: jarCustodies.custodyType,
+        customerId: jarCustodies.customerId,
+        customerName: customers.fullName,
+        customerCode: customers.customerCode,
+      })
+      .from(jarCustodies)
+      .leftJoin(customers, eq(jarCustodies.customerId, customers.id))
+      .where(eq(jarCustodies.jarId, jar.id))
+      .limit(1);
+
     return NextResponse.json({
       success: true,
       jar,
+      custody: custody || null,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Failed to process scan" }, { status: 400 });
