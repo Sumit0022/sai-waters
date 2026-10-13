@@ -215,6 +215,7 @@ export async function POST(request: Request) {
 
     // Payment Type & Advance Logic
     const paymentType = body.paymentType || "PAY_ON_DELIVERY"; // "PREPAID" | "PARTIAL_ADVANCE" | "PAY_ON_DELIVERY"
+    const advancePaymentMode = body.advancePaymentMode === "BANK" || body.advancePaymentMode === "UPI" ? "BANK" : "CASH";
     let advanceReceivedPaise = 0;
     if (paymentType === "PREPAID") {
       advanceReceivedPaise = totalAmountPaise;
@@ -227,6 +228,7 @@ export async function POST(request: Request) {
     const initialDeliveryMeta = {
       paymentType,
       advanceReceivedPaise,
+      advancePaymentMode,
       balanceDuePaise,
       depositAmountPaise,
       bookedAt: new Date().toISOString(),
@@ -307,23 +309,23 @@ export async function POST(request: Request) {
           customerId,
           invoiceId: invoiceData.invoiceId,
           amountPaise: advanceReceivedPaise,
-          paymentMode: paymentType === "PREPAID" ? "UPI_MANUAL" : "CASH",
-          transactionReference: `Advance payment for order ${orderNumber} (${paymentType})`,
+          paymentMode: advancePaymentMode === "BANK" ? "UPI_MANUAL" : "CASH",
+          transactionReference: `Advance payment for order ${orderNumber} (${paymentType} via ${advancePaymentMode})`,
           recordedBy: body.postedBy || "usr_owner_01",
           receiptDate: body.scheduledDate || getTodayIST(),
         });
 
         // Double-entry journal entry for advance receipt:
-        // Dr. 1110 Vault Cash (or 1130 Bank if PREPAID)
+        // Dr. 1110 Vault Cash OR 1130 Bank Account
         // Cr. 1150 Accounts Receivable (Customer Sub-ledger)
         await postJournalEntry({
           sourceDocumentType: "RECEIPT",
           sourceDocumentId: invoiceData.invoiceId,
-          narration: `Advance payment received for order ${orderNumber}`,
+          narration: `Advance payment received via ${advancePaymentMode} for order ${orderNumber}`,
           postedBy: body.postedBy || "usr_owner_01",
           lines: [
             {
-              accountId: paymentType === "PREPAID" ? 1130 : 1110,
+              accountId: advancePaymentMode === "BANK" ? 1130 : 1110,
               debitPaise: advanceReceivedPaise,
               creditPaise: 0,
             },

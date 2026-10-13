@@ -15,6 +15,7 @@ import {
   X,
   Database,
   LogOut,
+  Settings,
 } from "lucide-react";
 
 export function Navbar() {
@@ -57,6 +58,7 @@ export function Navbar() {
     { href: "/invoices", label: "Invoices", icon: Receipt },
     { href: "/accounting", label: "Accounting", icon: BookOpen },
     { href: "/backup", label: "Backup & Data", icon: Database },
+    { href: "/settings", label: "Settings", icon: Settings },
   ];
 
   return (

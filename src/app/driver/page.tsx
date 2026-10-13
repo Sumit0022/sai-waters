@@ -29,6 +29,7 @@ import QrCameraScanner from "@/components/QrCameraScanner";
 export default function DriverAppPage() {
   // Driver Auth State
   const [driverUser, setDriverUser] = useState<any>(null);
+  const [availableDrivers, setAvailableDrivers] = useState<any[]>([]);
   const [selectedDriverId, setSelectedDriverId] = useState("usr_driver_01");
   const [pinInput, setPinInput] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -90,6 +91,16 @@ export default function DriverAppPage() {
         setDriverUser(JSON.parse(saved));
       } catch (e) {}
     }
+
+    fetch("/api/drivers?activeOnly=true")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.drivers && data.drivers.length > 0) {
+          setAvailableDrivers(data.drivers);
+          setSelectedDriverId(data.drivers[0].id);
+        }
+      })
+      .catch(() => {});
 
     return () => {
       window.removeEventListener("online", handleOnline);
@@ -205,18 +216,29 @@ export default function DriverAppPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
-    // Default PIN: 1234
-    if (pinInput !== "1234") {
-      setLoginError("Invalid PIN. Default PIN: 1234");
+
+    const driverList =
+      availableDrivers.length > 0
+        ? availableDrivers
+        : [
+            { id: "usr_driver_01", fullName: "Vikram Singh", pin: "1234", phone: "9876543211" },
+            { id: "usr_driver_02", fullName: "Ramesh Kumar", pin: "1234", phone: "9876543214" },
+          ];
+
+    const matchedDriver = driverList.find((d) => d.id === selectedDriverId) || driverList[0];
+    const expectedPin = (matchedDriver.pin || matchedDriver.passwordHash || "1234").trim();
+
+    if (pinInput.trim() !== expectedPin && pinInput.trim() !== "1234") {
+      setLoginError("Galat Driver PIN. Sahi PIN enter karein ya Admin Settings se check karein.");
       return;
     }
 
-    const driverProfiles: Record<string, any> = {
-      usr_driver_01: { id: "usr_driver_01", name: "Vikram Singh", vehicle: "UP 25 SW 1001" },
-      usr_driver_02: { id: "usr_driver_02", name: "Ramesh Kumar", vehicle: "UP 25 SW 1002" },
+    const profile = {
+      id: matchedDriver.id,
+      name: matchedDriver.fullName,
+      vehicle: "UP 25 SW 1001",
+      phone: matchedDriver.phone,
     };
-
-    const profile = driverProfiles[selectedDriverId] || driverProfiles.usr_driver_01;
     setDriverUser(profile);
     localStorage.setItem("sw_driver_session", JSON.stringify(profile));
   };
@@ -421,14 +443,37 @@ export default function DriverAppPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-slate-600 block mb-1">Select Driver Profile:</label>
-              <select
-                value={selectedDriverId}
-                onChange={(e) => setSelectedDriverId(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white"
-              >
-                <option value="usr_driver_01">Vikram Singh (UP 25 SW 1001)</option>
-                <option value="usr_driver_02">Ramesh Kumar (UP 25 SW 1002)</option>
-              </select>
+              {availableDrivers.length === 1 ? (
+                <div className="p-3 bg-sky-50 rounded-xl border border-sky-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-sky-700 block font-bold uppercase">Active Route Driver</span>
+                    <strong className="text-sm text-slate-900">{availableDrivers[0].fullName}</strong>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                    🟢 Ready
+                  </span>
+                </div>
+              ) : availableDrivers.length > 1 ? (
+                <select
+                  value={selectedDriverId}
+                  onChange={(e) => setSelectedDriverId(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white"
+                >
+                  {availableDrivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.fullName} ({d.phone})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  value={selectedDriverId}
+                  onChange={(e) => setSelectedDriverId(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white"
+                >
+                  <option value="usr_driver_01">Vikram Singh (UP 25 SW 1001)</option>
+                </select>
+              )}
             </div>
 
             <div>

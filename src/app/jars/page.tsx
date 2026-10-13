@@ -48,6 +48,16 @@ export default function JarsPage() {
   const [plantScanInput, setPlantScanInput] = useState("");
   const [activeJar, setActiveJar] = useState<any>(null);
 
+  // Event Bulk Returns State
+  const [eventReturnModalOpen, setEventReturnModalOpen] = useState(false);
+  const [pendingEvents, setPendingEvents] = useState<any[]>([]);
+  const [pendingEventsLoading, setPendingEventsLoading] = useState(false);
+  const [selectedEventForReturn, setSelectedEventForReturn] = useState<any>(null);
+  const [undertakingModalOpen, setUndertakingModalOpen] = useState(false);
+  const [undertakingInput, setUndertakingInput] = useState("");
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const [eventReturnSuccessMessage, setEventReturnSuccessMessage] = useState<string | null>(null);
+
   // Scanner state
   const [scannedJarResult, setScannedJarResult] = useState<any>(null);
   const [scanError, setScanError] = useState("");
@@ -87,8 +97,23 @@ export default function JarsPage() {
       });
   };
 
+  const loadPendingEvents = () => {
+    setPendingEventsLoading(true);
+    fetch("/api/jars/event-return")
+      .then((res) => res.json())
+      .then((data) => {
+        setPendingEvents(data.pendingEvents || []);
+        setPendingEventsLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load pending event returns:", err);
+        setPendingEventsLoading(false);
+      });
+  };
+
   useEffect(() => {
     loadJars();
+    loadPendingEvents();
   }, []);
 
   const handleLookup = async (queryText: string) => {
@@ -414,6 +439,22 @@ export default function JarsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Event Jars Bulk Return Button */}
+          <button
+            onClick={() => {
+              setEventReturnModalOpen(true);
+              loadPendingEvents();
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-sm transition-all cursor-pointer relative"
+          >
+            <span>🎉 Event Jars Return</span>
+            {pendingEvents.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-white text-purple-700 text-[10px] font-black shadow-xs">
+                {pendingEvents.length} Pending
+              </span>
+            )}
+          </button>
+
           {/* Unload Empties at Plant Button */}
           <button
             onClick={() => {
@@ -1396,6 +1437,235 @@ export default function JarsPage() {
               >
                 <RotateCw className="w-3 h-3 text-slate-400" />
                 <span>Damaged or unreadable sticker? Replace / Re-QR</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUCCESS BANNER TOAST FOR EVENT JAR RETURNS */}
+      {/* ========================================================================= */}
+      {eventReturnSuccessMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in slide-in-from-bottom duration-200 max-w-md">
+          <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <CheckCircle className="w-4 h-4" />
+          </div>
+          <p className="text-xs font-semibold leading-relaxed">{eventReturnSuccessMessage}</p>
+          <button
+            onClick={() => setEventReturnSuccessMessage(null)}
+            className="text-slate-400 hover:text-white ml-auto"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 7: EVENT JAR BULK RETURNS LIST */}
+      {/* ========================================================================= */}
+      {eventReturnModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-5">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">
+                  Bulk Custody Clearance
+                </span>
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <span>🎉 Event Order Jar Returns</span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800">
+                    {pendingEvents.length} Pending
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  One-click empty jar return for event bulk orders without 1-by-1 barcode scanning.
+                </p>
+              </div>
+              <button
+                onClick={() => setEventReturnModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {pendingEventsLoading ? (
+              <div className="py-12 text-center text-xs font-bold text-slate-400">
+                Loading pending event orders...
+              </div>
+            ) : pendingEvents.length === 0 ? (
+              <div className="py-12 text-center space-y-2">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                  <CheckCircle className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-900">All Event Jars Received!</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  There are currently no delivered bulk events with outstanding empty jars in customer custody. All containers have safely returned to plant stock.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingEvents.map((ev) => (
+                  <div
+                    key={ev.orderId}
+                    className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-slate-900 text-sm">{ev.eventName || "Event Order"}</span>
+                        <span className="text-[11px] font-mono text-purple-700 bg-purple-100 px-2 py-0.5 rounded font-bold">
+                          {ev.orderNumber}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-600">
+                        <span>Host: <strong>{ev.customerName}</strong></span>
+                        <span className="text-slate-400 mx-1.5">•</span>
+                        <span>📞 {ev.customerPhone}</span>
+                        <span className="text-slate-400 mx-1.5">•</span>
+                        <span>Date: {ev.scheduledDate}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs pt-1">
+                        <span className="text-slate-500">Delivered: {ev.quantityJars} Jars</span>
+                        <span className="text-slate-300">|</span>
+                        <span className="text-purple-700 font-black">
+                          In Custody: {ev.unreturnedJarsCount} Jars Awaiting Return
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedEventForReturn(ev);
+                        setUndertakingInput("");
+                        setUndertakingModalOpen(true);
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                    >
+                      <span>Receive All {ev.unreturnedJarsCount} Jars</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setEventReturnModalOpen(false)}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 8: UNDERTAKING & CONFIRMATION FOR BULK EVENT RETURN */}
+      {/* ========================================================================= */}
+      {undertakingModalOpen && selectedEventForReturn && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex justify-between items-start pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-purple-700">
+                <ShieldAlert className="w-5 h-5" />
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                  Bulk Return Undertaking
+                </h3>
+              </div>
+              <button
+                onClick={() => setUndertakingModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-purple-50/70 rounded-2xl border border-purple-200 text-xs space-y-1.5">
+              <div className="flex justify-between font-bold text-purple-950">
+                <span>Event: {selectedEventForReturn.eventName}</span>
+                <span>{selectedEventForReturn.orderNumber}</span>
+              </div>
+              <div className="text-purple-800">
+                Customer: <strong>{selectedEventForReturn.customerName}</strong> ({selectedEventForReturn.customerPhone})
+              </div>
+              <div className="text-sm font-black text-purple-900 pt-1 border-t border-purple-200/60">
+                Total Jars to Return: {selectedEventForReturn.unreturnedJarsCount} Empty Jars
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-600 space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <p className="font-semibold text-slate-800">
+                📜 <strong>Undertaking Certification:</strong>
+              </p>
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                Main tasdeeq karta hoon ki is event ke sabhi <strong>{selectedEventForReturn.unreturnedJarsCount} empty jars</strong> Sai Waters plant par wapas praapt ho gaye hain, physical inspection kar liya gaya hai, aur inhein warehouse active stock mein return kiya ja raha hai. Customer ki jar liability khatam ho jayegi.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">
+                Type <span className="font-mono text-purple-700 font-black">"RECEIVED"</span> to confirm:
+              </label>
+              <input
+                type="text"
+                placeholder="RECEIVED"
+                value={undertakingInput}
+                onChange={(e) => setUndertakingInput(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-center font-black tracking-widest text-sm focus:outline-hidden focus:ring-2 focus:ring-purple-500 uppercase"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setUndertakingModalOpen(false)}
+                className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingReturn || undertakingInput.trim().toUpperCase() !== "RECEIVED"}
+                onClick={async () => {
+                  if (undertakingInput.trim().toUpperCase() !== "RECEIVED") return;
+                  setIsSubmittingReturn(true);
+                  try {
+                    const res = await fetch("/api/jars/event-return", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        orderId: selectedEventForReturn.orderId,
+                        undertakingText: undertakingInput.trim(),
+                        actorUserId: "usr_owner_01",
+                      }),
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      setUndertakingModalOpen(false);
+                      setUndertakingInput("");
+                      setEventReturnModalOpen(false);
+                      setSelectedEventForReturn(null);
+                      setEventReturnSuccessMessage(data.message || "All event jars returned successfully!");
+                      setTimeout(() => setEventReturnSuccessMessage(null), 6000);
+                      loadJars();
+                      loadPendingEvents();
+                    } else {
+                      alert(data.error || "Event jars return nahi ho sake.");
+                    }
+                  } catch (err: any) {
+                    alert(err.message || "Network error");
+                  } finally {
+                    setIsSubmittingReturn(false);
+                  }
+                }}
+                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                {isSubmittingReturn ? "Processing Return..." : "Confirm & Return All Jars"}
               </button>
             </div>
           </div>

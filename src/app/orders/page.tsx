@@ -51,10 +51,11 @@ export default function OrdersPage() {
   const [eventName, setEventName] = useState("");
   const [quantityJars, setQuantityJars] = useState("25");
   const [ratePerJarRupees, setRatePerJarRupees] = useState("20");
-  const [depositAmountRupees, setDepositAmountRupees] = useState("1000");
+  const [depositAmountRupees, setDepositAmountRupees] = useState("0");
   const [scheduledDate, setScheduledDate] = useState(getTodayIST());
   const [paymentType, setPaymentType] = useState<"PAY_ON_DELIVERY" | "PARTIAL_ADVANCE" | "PREPAID">("PAY_ON_DELIVERY");
   const [advanceReceivedRupees, setAdvanceReceivedRupees] = useState("");
+  const [advancePaymentMode, setAdvancePaymentMode] = useState<"CASH" | "BANK">("CASH");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Dispatch Modal State (Owner Warehouse Dispatch)
@@ -62,6 +63,7 @@ export default function OrdersPage() {
   const [selectedOrderForDispatch, setSelectedOrderForDispatch] = useState<any>(null);
   const [dispatchDriverId, setDispatchDriverId] = useState("usr_driver_01");
   const [dispatchVehicle, setDispatchVehicle] = useState("UP 25 SW 1001");
+  const [activeDriversList, setActiveDriversList] = useState<any[]>([]);
   const [dispatchedJarsList, setDispatchedJarsList] = useState<string[]>([]);
   const [dispatchScannerOpen, setDispatchScannerOpen] = useState(false);
   const [manualJarInput, setManualJarInput] = useState("");
@@ -113,11 +115,16 @@ export default function OrdersPage() {
       fetch("/api/orders?bulk=true").then((r) => r.json()),
       fetch("/api/customers").then((r) => r.json()),
       fetch("/api/jars").then((r) => r.json()),
+      fetch("/api/drivers?activeOnly=true").then((r) => r.json()).catch(() => ({ drivers: [] })),
     ])
-      .then(([ordData, custData, jarsData]) => {
+      .then(([ordData, custData, jarsData, driversData]) => {
         setOrders(ordData.orders || []);
         setCustomers(custData.customers || []);
         setAvailableJars((jarsData.jars || []).filter((j: any) => j.currentStatus === "AVAILABLE"));
+        if (driversData?.drivers?.length > 0) {
+          setActiveDriversList(driversData.drivers);
+          setDispatchDriverId(driversData.drivers[0].id);
+        }
         if (custData.customers?.length > 0 && !selectedCustomerId) {
           const first = custData.customers[0];
           setSelectedCustomerId(first.id);
@@ -157,6 +164,7 @@ export default function OrdersPage() {
         eventName: eventName || "Bulk Event Order",
         depositAmountPaise: Math.round(Number(depositAmountRupees || 0) * 100),
         paymentType,
+        advancePaymentMode,
         advanceReceivedPaise: advancePaise,
       };
 
@@ -185,6 +193,8 @@ export default function OrdersPage() {
         setEventName("");
         setPaymentType("PAY_ON_DELIVERY");
         setAdvanceReceivedRupees("");
+        setAdvancePaymentMode("CASH");
+        setDepositAmountRupees("0");
         loadData();
       } else {
         alert(data.error || "Event order create nahi ho saka. Kripya details check karein.");
@@ -979,6 +989,31 @@ export default function OrdersPage() {
                 />
               </div>
 
+              {/* Delivery Date & Security Deposit placed high up to ensure native calendar never clips */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Delivery Date *</label>
+                  <input
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Security Deposit (₹)</label>
+                  <input
+                    type="number"
+                    value={depositAmountRupees}
+                    onChange={(e) => setDepositAmountRupees(e.target.value)}
+                    placeholder="0"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-black text-slate-800 bg-white"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">Quantity (Jars) *</label>
@@ -1085,6 +1120,42 @@ export default function OrdersPage() {
                   </div>
                 )}
 
+                {/* Advance Payment Accounting Mode (Cash vs Bank/UPI) */}
+                {(paymentType === "PARTIAL_ADVANCE" || paymentType === "PREPAID") && (
+                  <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-700 block">
+                      Payment Account for Advance (GL Journal Entry) *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdvancePaymentMode("CASH")}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center transition-all cursor-pointer ${
+                          advancePaymentMode === "CASH"
+                            ? "bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1">💵 Cash in Hand</span>
+                        <span className="text-[10px] text-emerald-700 font-semibold">Dr. A/C 1110 (Central Vault)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAdvancePaymentMode("BANK")}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center transition-all cursor-pointer ${
+                          advancePaymentMode === "BANK"
+                            ? "bg-sky-50 border-sky-500 text-sky-950 ring-2 ring-sky-500/20 shadow-xs"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1">🏦 Bank / Online UPI</span>
+                        <span className="text-[10px] text-sky-700 font-semibold">Dr. A/C 1130 (Bank Account)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Live Financial Breakdown Summary */}
                 {(() => {
                   const billTotal = Number(quantityJars || 0) * Number(ratePerJarRupees || 0);
@@ -1104,7 +1175,9 @@ export default function OrdersPage() {
                       </div>
                       {adv > 0 && (
                         <div className="flex items-center justify-between text-purple-700 font-medium">
-                          <span>Advance Received Upfront:</span>
+                          <span>
+                            Advance Received ({advancePaymentMode === "BANK" ? "Bank/UPI" : "Cash"}):
+                          </span>
                           <span className="font-bold">- ₹{adv}</span>
                         </div>
                       )}
@@ -1117,29 +1190,6 @@ export default function OrdersPage() {
                     </div>
                   );
                 })()}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Delivery Date *</label>
-                  <input
-                    type="date"
-                    value={scheduledDate}
-                    onChange={(e) => setScheduledDate(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Security Deposit (₹)</label>
-                  <input
-                    type="number"
-                    value={depositAmountRupees}
-                    onChange={(e) => setDepositAmountRupees(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-black text-amber-700"
-                  />
-                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
@@ -1249,8 +1299,15 @@ export default function OrdersPage() {
                     }}
                     className="w-full p-1.5 rounded-lg border border-indigo-200 text-xs font-semibold bg-white"
                   >
-                    <option value="usr_driver_01">Vikram Singh (Driver 1)</option>
-                    <option value="usr_driver_02">Ramesh Kumar (Driver 2)</option>
+                    {activeDriversList.length > 0 ? (
+                      activeDriversList.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.fullName} ({d.phone})
+                        </option>
+                      ))
+                    ) : (
+                      <option value="usr_driver_01">Vikram Singh (Driver 1)</option>
+                    )}
                   </select>
                 </div>
 
