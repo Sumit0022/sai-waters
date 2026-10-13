@@ -1,10 +1,25 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/db";
-import { orders, customers, customerAddresses, orderItems, eventOrders, customerPriceAgreements } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { getDb, ensureDatabaseReady } from "@/db";
+import {
+  orders,
+  customers,
+  customerAddresses,
+  orderItems,
+  eventOrders,
+  customerPriceAgreements,
+  invoices,
+  invoiceLines,
+  dispatchRecords,
+  journalEntries,
+  journalLines,
+  jarMovementEvents,
+  damageLossCases,
+} from "@/db/schema";
+import { eq, desc, sql } from "drizzle-orm";
 import { createAndPostInvoice } from "@/lib/billing";
 import { postJournalEntry } from "@/lib/accounting";
 import { getTodayIST } from "@/lib/date-utils";
+import { lookupJar, transitionJarState } from "@/lib/jars";
 
 export async function GET(request: Request) {
   const db = getDb();
@@ -226,4 +241,173 @@ export async function POST(request: Request) {
     totalAmountPaise,
     invoiceNumber: (invoiceData as any)?.invoiceNumber,
   });
+}
+
+// PUT: Edit order (quantity, rate per jar, event name, address, date, notes)
+export async function PUT(request: Request) {
+  try {
+    await ensureDatabaseReady();
+    const db = getDb();
+    const body = await request.json();
+    const { orderId } = body;
+
+    if (!orderId) {
+      return NextResponse.json({ error: "Missing required field: orderId" }, { status: 400 });
+    }
+
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    if (!order) {
+      return NextResponse.json({ error: `Order '${orderId}' not found` }, { status: 404 });
+    }
+
+    const newQty = body.quantityJars !== undefined ? Number(body.quantityJars) : order.quantityJars;
+    const newUnitPricePaise = body.unitPricePaise !== undefined ? Number(body.unitPricePaise) : order.unitPricePaise;
+    const newTotalPaise = newQty * newUnitPricePaise;
+
+    // 1. Update order record
+    await db
+      .update(orders)
+      .set({
+        quantityJars: newQty,
+        unitPricePaise: newUnitPricePaise,
+        totalAmountPaise: newTotalPaise,
+        scheduledDate: body.scheduledDate || order.scheduledDate,
+        status: body.status || order.status,
+        deliveryNotes: body.deliveryNotes !== undefined ? body.deliveryNotes : order.deliveryNotes,
+      })
+      .where(eq(orders.id, orderId));
+
+    // 2. Update orderItems
+    await db
+      .update(orderItems)
+      .set({
+        quantity: newQty,
+        unitPricePaise: newUnitPricePaise,
+        lineTotalPaise: newTotalPaise,
+        itemDescription: `20L Drinking Water Jars (${newQty} Units)`,
+      })
+      .where(eq(orderItems.orderId, orderId));
+
+    // 3. Update eventOrders if present
+    const [evt] = await db.select().from(eventOrders).where(eq(eventOrders.orderId, orderId)).limit(1);
+    if (evt) {
+      await db
+        .update(eventOrders)
+        .set({
+          eventName: body.eventName || evt.eventName,
+          venueContactPerson: body.venueContactPerson || evt.venueContactPerson,
+          venueContactPhone: body.venueContactPhone || evt.venueContactPhone,
+          eventDate: body.scheduledDate || evt.eventDate,
+        })
+        .where(eq(eventOrders.orderId, orderId));
+    }
+
+    // 4. Update address if provided
+    if (body.streetAddress && order.addressId) {
+      await db
+        .update(customerAddresses)
+        .set({
+          streetAddress: body.streetAddress,
+          locality: body.locality || "Bareilly",
+        })
+        .where(eq(customerAddresses.id, order.addressId));
+    }
+
+    // 5. Update linked invoices & lines if present
+    const linkedInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
+    for (const inv of linkedInvoices) {
+      await db.update(invoices).set({ totalAmountPaise: newTotalPaise }).where(eq(invoices.id, inv.id));
+      await db
+        .update(invoiceLines)
+        .set({
+          quantity: newQty,
+          unitPricePaise: newUnitPricePaise,
+          lineTotalPaise: newTotalPaise,
+        })
+        .where(eq(invoiceLines.invoiceId, inv.id));
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Order successfully updated",
+      orderId,
+      quantityJars: newQty,
+      unitPricePaise: newUnitPricePaise,
+      totalAmountPaise: newTotalPaise,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Failed to update order" }, { status: 500 });
+  }
+}
+
+// DELETE: Delete order with cascading cleanup & jar release
+export async function DELETE(request: Request) {
+  try {
+    await ensureDatabaseReady();
+    const db = getDb();
+    const url = new URL(request.url);
+    const orderId = url.searchParams.get("orderId");
+
+    if (!orderId) {
+      return NextResponse.json({ error: "Missing required parameter: orderId" }, { status: 400 });
+    }
+
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    if (!order) {
+      return NextResponse.json({ error: `Order '${orderId}' not found` }, { status: 404 });
+    }
+
+    // 1. Release any allocated or in-transit jars safely back to AVAILABLE plant stock
+    if (order.deliveryNotes) {
+      try {
+        const meta = JSON.parse(order.deliveryNotes);
+        const dispatched: string[] = meta.dispatchedJars || [];
+        for (const code of dispatched) {
+          const jar = await lookupJar(code);
+          if (jar && (jar.currentStatus === "ALLOCATED" || jar.currentStatus === "IN_TRANSIT")) {
+            await transitionJarState({
+              jarId: jar.id,
+              toStatus: "AVAILABLE",
+              actorUserId: "usr_owner_01",
+              notes: `Auto-released back to plant stock due to order deletion (${order.orderNumber})`,
+            });
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 2. Clean up foreign key references
+    await db.update(jarMovementEvents).set({ orderId: null }).where(eq(jarMovementEvents.orderId, orderId));
+    await db.update(damageLossCases).set({ orderId: null }).where(eq(damageLossCases.orderId, orderId));
+    await db.delete(dispatchRecords).where(eq(dispatchRecords.orderId, orderId));
+
+    // 3. Clean up linked invoices and lines
+    const linkedInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
+    for (const inv of linkedInvoices) {
+      await db.delete(invoiceLines).where(eq(invoiceLines.invoiceId, inv.id));
+      await db.delete(invoices).where(eq(invoices.id, inv.id));
+    }
+
+    // 4. Clean up journal entries linked to this order
+    const linkedEntries = await db.select().from(journalEntries).where(eq(journalEntries.sourceDocumentId, orderId));
+    for (const entry of linkedEntries) {
+      await db.delete(journalLines).where(eq(journalLines.journalEntryId, entry.id));
+      await db.delete(journalEntries).where(eq(journalEntries.id, entry.id));
+    }
+
+    // 5. Clean up event details & order items
+    await db.delete(eventOrders).where(eq(eventOrders.orderId, orderId));
+    await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
+
+    // 6. Delete order record itself
+    await db.delete(orders).where(eq(orders.id, orderId));
+
+    return NextResponse.json({
+      success: true,
+      message: `Order ${order.orderNumber} and all associated records permanently deleted`,
+      deletedOrderId: orderId,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Failed to delete order" }, { status: 500 });
+  }
 }

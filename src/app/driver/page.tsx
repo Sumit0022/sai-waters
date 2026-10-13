@@ -144,7 +144,10 @@ export default function DriverAppPage() {
     setUndeliveredBulkJars([]);
     setManualUndeliveredInput("");
     setUndeliveredScannerOpen(false);
-    setBulkCashCollected((order.totalAmountPaise / 100).toString());
+    const unitPricePaise = order.unitPricePaise ?? order.orderLines?.[0]?.unitPricePaise ?? 2000;
+    const unitRate = Math.round(unitPricePaise / 100);
+    const dispatched = order.dispatchedJars?.length || order.quantityJars || 0;
+    setBulkCashCollected((dispatched * unitRate).toString());
   };
 
   const handleAddUndeliveredBulkJar = (code: string) => {
@@ -847,8 +850,9 @@ export default function DriverAppPage() {
                 ) : (
                   <div className="space-y-3">
                     {bulkOrders.map((order) => {
-                      const dispatchedCount = order.dispatchedJars?.length || order.orderLines?.[0]?.quantity || 0;
-                      const rateRupees = (order.orderLines?.[0]?.unitPricePaise || 3500) / 100;
+                      const dispatchedCount = order.dispatchedJars?.length || order.quantityJars || 0;
+                      const unitPricePaise = order.unitPricePaise ?? order.orderLines?.[0]?.unitPricePaise ?? 2000;
+                      const rateRupees = Math.round(unitPricePaise / 100);
                       return (
                         <div
                           key={order.id}
@@ -936,10 +940,10 @@ export default function DriverAppPage() {
                     </div>
                     <div className="text-right">
                       <span className="text-xs font-black text-slate-900">
-                        {selectedBulkOrder.dispatchedJars?.length || selectedBulkOrder.orderLines?.[0]?.quantity || 0} Jars Dispatched
+                        {selectedBulkOrder.dispatchedJars?.length || selectedBulkOrder.quantityJars || 0} Jars Dispatched
                       </span>
                       <span className="text-[11px] text-slate-500 block">
-                        ₹{((selectedBulkOrder.orderLines?.[0]?.unitPricePaise || 3500) / 100)} / jar
+                        ₹{Math.round((selectedBulkOrder.unitPricePaise ?? selectedBulkOrder.orderLines?.[0]?.unitPricePaise ?? 2000) / 100)} / jar
                       </span>
                     </div>
                   </div>
@@ -1035,10 +1039,10 @@ export default function DriverAppPage() {
 
                 {/* Live Calculation Card */}
                 {(() => {
-                  const dispatched = selectedBulkOrder.dispatchedJars?.length || selectedBulkOrder.orderLines?.[0]?.quantity || 0;
+                  const dispatched = selectedBulkOrder.dispatchedJars?.length || selectedBulkOrder.quantityJars || 0;
                   const rejected = undeliveredBulkJars.length;
                   const accepted = Math.max(0, dispatched - rejected);
-                  const unitRate = (selectedBulkOrder.orderLines?.[0]?.unitPricePaise || 3500) / 100;
+                  const unitRate = Math.round((selectedBulkOrder.unitPricePaise ?? selectedBulkOrder.orderLines?.[0]?.unitPricePaise ?? 2000) / 100);
                   const finalBillRupees = accepted * unitRate;
 
                   return (

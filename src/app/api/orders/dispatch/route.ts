@@ -74,6 +74,14 @@ export async function GET(request: Request) {
       }
       return {
         ...r,
+        unitPricePaise: r.unitPricePaise || 2000,
+        orderLines: [
+          {
+            quantity: r.quantityJars,
+            unitPricePaise: r.unitPricePaise || 2000,
+            lineTotalPaise: r.totalAmountPaise,
+          },
+        ],
         dispatchedJars: dispatchMeta?.dispatchedJars || [],
         assignedDriverId: dispatchMeta?.driverId || null,
         assignedDriverName: dispatchMeta?.driverName || null,

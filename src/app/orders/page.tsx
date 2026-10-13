@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   ShoppingCart,
   Search,
@@ -24,6 +24,9 @@ import {
   Trash2,
   PackageCheck,
   Check,
+  Edit3,
+  Filter,
+  RefreshCw,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
 import { getTodayIST } from "@/lib/date-utils";
@@ -46,7 +49,7 @@ export default function OrdersPage() {
   const [venueAddress, setVenueAddress] = useState("");
   const [eventName, setEventName] = useState("");
   const [quantityJars, setQuantityJars] = useState("25");
-  const [ratePerJarRupees, setRatePerJarRupees] = useState("35");
+  const [ratePerJarRupees, setRatePerJarRupees] = useState("20");
   const [depositAmountRupees, setDepositAmountRupees] = useState("1000");
   const [scheduledDate, setScheduledDate] = useState(getTodayIST());
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,6 +73,30 @@ export default function OrdersPage() {
   const [settleCashCollected, setSettleCashCollected] = useState("0");
   const [isSettling, setIsSettling] = useState(false);
 
+  // Month Filter State
+  const [selectedMonth, setSelectedMonth] = useState<string>("ALL");
+
+  // Edit Modal State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [editEventName, setEditEventName] = useState("");
+  const [editScheduledDate, setEditScheduledDate] = useState("");
+  const [editQuantityJars, setEditQuantityJars] = useState("1");
+  const [editRatePerJarRupees, setEditRatePerJarRupees] = useState("20");
+  const [editStreetAddress, setEditStreetAddress] = useState("");
+  const [editLocality, setEditLocality] = useState("");
+  const [editContactPerson, setEditContactPerson] = useState("");
+  const [editContactPhone, setEditContactPhone] = useState("");
+  const [editDeliveryNotes, setEditDeliveryNotes] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Delete Modal State (with random verification code)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<any>(null);
+  const [deleteConfirmationCode, setDeleteConfirmationCode] = useState("");
+  const [userInputCode, setUserInputCode] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Load Only Bulk & Event Orders (Excluding Daily Recurring Runs)
   const loadData = () => {
     setLoading(true);
@@ -85,7 +112,7 @@ export default function OrdersPage() {
         if (custData.customers?.length > 0 && !selectedCustomerId) {
           const first = custData.customers[0];
           setSelectedCustomerId(first.id);
-          const rate = Math.round((first.pricePerJarPaise ?? first.customPrice?.pricePerJarPaise ?? 3500) / 100);
+          const rate = Math.round((first.pricePerJarPaise ?? first.customPrice?.pricePerJarPaise ?? 2000) / 100);
           setRatePerJarRupees(rate.toString());
         }
         setLoading(false);
@@ -274,6 +301,118 @@ export default function OrdersPage() {
     }
   };
 
+  // Open Edit Order Modal
+  const handleOpenEdit = (ord: any) => {
+    setEditingOrder(ord);
+    setEditEventName(ord.eventName || "");
+    setEditScheduledDate(ord.scheduledDate || getTodayIST());
+    setEditQuantityJars((ord.quantityJars || 1).toString());
+    const rate = Math.round((ord.unitPricePaise || 2000) / 100);
+    setEditRatePerJarRupees(rate.toString());
+    setEditStreetAddress(ord.streetAddress || "");
+    setEditLocality(ord.locality || "Bareilly");
+    setEditContactPerson(ord.venueContactPerson || ord.customerName || "");
+    setEditContactPhone(ord.venueContactPhone || ord.customerPhone || "");
+    setEditDeliveryNotes(
+      typeof ord.deliveryNotes === "string" && !ord.deliveryNotes.startsWith("{") ? ord.deliveryNotes : ""
+    );
+    setEditModalOpen(true);
+  };
+
+  // Submit Edit Order
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrder) return;
+    setIsEditing(true);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: editingOrder.id,
+          eventName: editEventName,
+          scheduledDate: editScheduledDate,
+          quantityJars: Number(editQuantityJars),
+          unitPricePaise: Math.round(Number(editRatePerJarRupees) * 100),
+          streetAddress: editStreetAddress,
+          locality: editLocality,
+          venueContactPerson: editContactPerson,
+          venueContactPhone: editContactPhone,
+          deliveryNotes: editDeliveryNotes,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEditModalOpen(false);
+        setEditingOrder(null);
+        loadData();
+      } else {
+        alert(data.error || "Failed to update order");
+      }
+    } catch (err: any) {
+      alert(err.message || "Network error updating order");
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  // Open Delete Order Modal (with random confirmation code)
+  const handleOpenDelete = (ord: any) => {
+    setOrderToDelete(ord);
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setDeleteConfirmationCode(code);
+    setUserInputCode("");
+    setDeleteModalOpen(true);
+  };
+
+  // Confirm Delete Order
+  const handleConfirmDelete = async () => {
+    if (!orderToDelete) return;
+    if (userInputCode.trim().toUpperCase() !== deleteConfirmationCode.toUpperCase()) {
+      alert("Verification code mismatch! Please type the exact code.");
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/orders?orderId=${encodeURIComponent(orderToDelete.id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDeleteModalOpen(false);
+        setOrderToDelete(null);
+        loadData();
+      } else {
+        alert(data.error || "Failed to delete order");
+      }
+    } catch (err: any) {
+      alert(err.message || "Network error deleting order");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Available months from orders for month filter
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    orders.forEach((o) => {
+      if (o.scheduledDate && o.scheduledDate.length >= 7) {
+        set.add(o.scheduledDate.substring(0, 7));
+      }
+    });
+    return Array.from(set).sort().reverse();
+  }, [orders]);
+
+  const formatMonthLabel = (m: string) => {
+    try {
+      const [y, mo] = m.split("-");
+      const d = new Date(Number(y), Number(mo) - 1, 1);
+      return d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+    } catch (e) {
+      return m;
+    }
+  };
+
   // Counts for status tabs
   const allCount = orders.length;
   const pendingCount = orders.filter((o) => o.status === "CONFIRMED" || o.status === "DRAFT").length;
@@ -290,13 +429,16 @@ export default function OrdersPage() {
         ? o.status === "IN_TRANSIT" || o.status === "DISPATCHED"
         : o.status === "DELIVERED";
 
+    const matchesMonth =
+      selectedMonth === "ALL" || (o.scheduledDate && o.scheduledDate.startsWith(selectedMonth));
+
     const matchesSearch =
       searchTerm === "" ||
       o.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.eventName?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesMonth && matchesSearch;
   });
 
   return (
@@ -404,6 +546,66 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {/* Month Filter Bar & Selected Month Summary */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 justify-between items-center">
+        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 mr-1">
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <span>Month:</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSelectedMonth("ALL")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              selectedMonth === "ALL"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+            }`}
+          >
+            All Months
+          </button>
+
+          {availableMonths.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setSelectedMonth(m)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                selectedMonth === m
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              {formatMonthLabel(m)}
+            </button>
+          ))}
+
+          {/* Native Month Picker */}
+          <input
+            type="month"
+            value={selectedMonth === "ALL" ? "" : selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value || "ALL")}
+            className="px-2.5 py-1 text-xs border border-slate-200 rounded-xl font-bold text-slate-700 bg-white"
+          />
+        </div>
+
+        {/* Live Filter Stats */}
+        <div className="flex items-center gap-3 text-xs bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shrink-0">
+          <span className="text-slate-600 font-medium">
+            Orders: <strong className="text-slate-900">{filteredOrders.length}</strong>
+          </span>
+          <span className="text-slate-300">•</span>
+          <span className="text-slate-600 font-medium">
+            Jars: <strong className="text-sky-700">{filteredOrders.reduce((sum, o) => sum + (o.deliveredCount ?? o.quantityJars ?? 0), 0)}</strong>
+          </span>
+          <span className="text-slate-300">•</span>
+          <span className="text-emerald-700 font-black">
+            {formatINR(filteredOrders.reduce((sum, o) => sum + (o.totalAmountPaise || 0), 0))}
+          </span>
+        </div>
+      </div>
+
       {/* Orders Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredOrders.length === 0 ? (
@@ -504,16 +706,25 @@ export default function OrdersPage() {
                       <span className="text-sm font-black text-slate-900">
                         {ord.deliveredCount ?? ord.quantityJars} Jars
                       </span>
+                      <span className="text-[11px] font-bold text-sky-700 block mt-0.5">
+                        Rate: ₹{Math.round((ord.unitPricePaise || 2000) / 100)}/jar
+                      </span>
                     </div>
                     <div className="text-right">
                       <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Amount</span>
                       <span className="text-sm font-black text-slate-900">{formatINR(ord.totalAmountPaise)}</span>
+                      {ord.depositAmountPaise > 0 && (
+                        <span className="text-[10px] text-amber-700 font-bold block mt-0.5">
+                          Deposit: {formatINR(ord.depositAmountPaise)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Card Action Buttons */}
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                  {/* Primary Workflow Button */}
                   {isPending && (
                     <button
                       type="button"
@@ -541,6 +752,26 @@ export default function OrdersPage() {
                       ✓ Successfully Delivered & Invoiced
                     </div>
                   )}
+
+                  {/* Secondary Management Buttons: Edit & Delete */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(ord)}
+                      className="py-1.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Edit Order</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDelete(ord)}
+                      className="py-1.5 px-3 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100/80 text-rose-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Delete Order</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -1156,6 +1387,254 @@ export default function OrdersPage() {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: EDIT BULK ORDER */}
+      {/* ========================================================================= */}
+      {editModalOpen && editingOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">Edit Order Details</h3>
+                  <p className="text-xs text-slate-500 font-mono">{editingOrder.orderNumber}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Event / Function Name</label>
+                <input
+                  type="text"
+                  value={editEventName}
+                  onChange={(e) => setEditEventName(e.target.value)}
+                  placeholder="e.g. Sharma Marriage Function"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Quantity of Jars</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editQuantityJars}
+                    onChange={(e) => setEditQuantityJars(e.target.value)}
+                    required
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-black text-sky-800"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Rate per Jar (₹) <span className="text-emerald-600 font-black">*Fixed</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editRatePerJarRupees}
+                    onChange={(e) => setEditRatePerJarRupees(e.target.value)}
+                    required
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-black text-emerald-800"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between text-xs">
+                <span className="text-emerald-800 font-bold">Calculated Order Total:</span>
+                <span className="text-base font-black text-emerald-900">
+                  ₹{Number(editQuantityJars || 0) * Number(editRatePerJarRupees || 0)}
+                </span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Scheduled Date</label>
+                <input
+                  type="date"
+                  value={editScheduledDate}
+                  onChange={(e) => setEditScheduledDate(e.target.value)}
+                  required
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Venue / Delivery Address</label>
+                <input
+                  type="text"
+                  value={editStreetAddress}
+                  onChange={(e) => setEditStreetAddress(e.target.value)}
+                  placeholder="Street address or venue landmark"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Contact Person</label>
+                  <input
+                    type="text"
+                    value={editContactPerson}
+                    onChange={(e) => setEditContactPerson(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    value={editContactPhone}
+                    onChange={(e) => setEditContactPhone(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Delivery Notes</label>
+                <input
+                  type="text"
+                  value={editDeliveryNotes}
+                  onChange={(e) => setEditDeliveryNotes(e.target.value)}
+                  placeholder="Special instructions or notes"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isEditing}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isEditing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  <span>{isEditing ? "Saving Changes..." : "Save Order Changes"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: DELETE ORDER CONFIRMATION (WITH RANDOM VERIFICATION CODE) */}
+      {/* ========================================================================= */}
+      {deleteModalOpen && orderToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">Delete Order Permanently</h3>
+                  <p className="text-xs text-rose-600 font-bold">Irreversible Action</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Warning Message */}
+            <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-2xl text-xs space-y-2 text-rose-950">
+              <p className="font-bold">You are about to permanently delete this order:</p>
+              <div className="p-2.5 bg-white rounded-xl border border-rose-200 space-y-0.5">
+                <div className="font-black text-slate-900 text-sm">
+                  {orderToDelete.orderNumber} • {orderToDelete.eventName || orderToDelete.customerName}
+                </div>
+                <div className="text-[11px] font-bold text-slate-600">
+                  {orderToDelete.quantityJars} Jars • {formatINR(orderToDelete.totalAmountPaise)} • Date: {orderToDelete.scheduledDate}
+                </div>
+              </div>
+              <ul className="list-disc pl-4 space-y-1 text-[11px] text-rose-800 font-medium">
+                <li>All linked invoices, receipts, and order items will be permanently deleted.</li>
+                <li>Delivery records and accounting journal entries will be cleaned up.</li>
+                <li>
+                  Any jars currently loaded/in-transit for this order will be safely released back to Plant stock as <strong>AVAILABLE</strong>.
+                </li>
+              </ul>
+            </div>
+
+            {/* Random Verification Code Box */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block">
+                Type the verification code below to confirm deletion:
+              </label>
+              <div className="flex items-center justify-between p-3 bg-slate-900 rounded-xl text-center">
+                <span className="text-[11px] text-slate-400 font-medium">Confirmation Code:</span>
+                <span className="font-mono text-base font-black tracking-widest text-amber-400 select-all">
+                  {deleteConfirmationCode}
+                </span>
+              </div>
+              <input
+                type="text"
+                value={userInputCode}
+                onChange={(e) => setUserInputCode(e.target.value.toUpperCase())}
+                placeholder={`Type "${deleteConfirmationCode}" here`}
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-mono font-bold uppercase tracking-wider text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={
+                  isDeleting ||
+                  userInputCode.trim().toUpperCase() !== deleteConfirmationCode.toUpperCase()
+                }
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm & Permanently Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
