@@ -10,6 +10,8 @@ export async function GET(request: Request) {
   const db = getDb();
   const url = new URL(request.url);
   const dateFilter = url.searchParams.get("date");
+  const typeFilter = url.searchParams.get("type"); // e.g. "ONE_TIME_EVENT"
+  const onlyBulk = url.searchParams.get("bulk") === "true";
 
   const query = db
     .select({
@@ -22,6 +24,7 @@ export async function GET(request: Request) {
       totalAmountPaise: orders.totalAmountPaise,
       status: orders.status,
       deliveryNotes: orders.deliveryNotes,
+      createdAt: orders.createdAt,
       customerId: customers.id,
       customerName: customers.fullName,
       customerPhone: customers.phone,
@@ -29,16 +32,51 @@ export async function GET(request: Request) {
       streetAddress: customerAddresses.streetAddress,
       locality: customerAddresses.locality,
       city: customerAddresses.city,
+      eventName: eventOrders.eventName,
+      venueContactPerson: eventOrders.venueContactPerson,
+      venueContactPhone: eventOrders.venueContactPhone,
+      depositAmountPaise: eventOrders.depositAmountPaise,
+      depositStatus: eventOrders.depositStatus,
     })
     .from(orders)
     .innerJoin(customers, eq(orders.customerId, customers.id))
     .innerJoin(customerAddresses, eq(orders.addressId, customerAddresses.id))
+    .leftJoin(eventOrders, eq(orders.id, eventOrders.orderId))
     .orderBy(desc(orders.scheduledDate), desc(orders.createdAt));
 
   const allOrders = await query;
-  const filtered = dateFilter ? allOrders.filter((o: any) => o.scheduledDate === dateFilter) : allOrders;
+  let filtered = allOrders;
 
-  return NextResponse.json({ orders: filtered });
+  if (dateFilter) {
+    filtered = filtered.filter((o: any) => o.scheduledDate === dateFilter);
+  }
+
+  if (typeFilter) {
+    filtered = filtered.filter((o: any) => o.orderType === typeFilter);
+  } else if (onlyBulk) {
+    filtered = filtered.filter((o: any) => o.orderType !== "RECURRING");
+  }
+
+  const enriched = filtered.map((o: any) => {
+    let meta: any = null;
+    if (o.deliveryNotes) {
+      try {
+        meta = JSON.parse(o.deliveryNotes);
+      } catch (e) {}
+    }
+    return {
+      ...o,
+      dispatchedJars: meta?.dispatchedJars || [],
+      assignedDriverId: meta?.driverId || null,
+      assignedDriverName: meta?.driverName || null,
+      vehicleNumber: meta?.vehicleNumber || null,
+      undeliveredJars: meta?.undeliveredJars || [],
+      deliveredCount: meta?.deliveredCount ?? o.quantityJars,
+      settledAt: meta?.settledAt || null,
+    };
+  });
+
+  return NextResponse.json({ orders: enriched });
 }
 
 export async function POST(request: Request) {
