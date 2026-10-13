@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { formatINR } from "@/lib/utils";
+import { formatTimeIST } from "@/lib/date-utils";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -402,7 +403,7 @@ export default function CustomersPage() {
                             <td className="py-2.5 px-3.5 font-bold text-slate-900">
                               {del.scheduledDate}
                               <span className="text-[10px] text-slate-400 font-normal block">
-                                {new Date(del.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                {formatTimeIST(del.createdAt)}
                               </span>
                             </td>
                             <td className="py-2.5 px-3.5 text-center font-extrabold text-sky-700">

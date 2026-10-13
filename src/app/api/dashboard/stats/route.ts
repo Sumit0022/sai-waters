@@ -3,6 +3,7 @@ import { getDb, ensureDatabaseReady } from "@/db";
 import { jarMasters, orders, customers, deliveryAssignments } from "@/db/schema";
 import { getTrialBalance, getProfitAndLoss } from "@/lib/accounting";
 import { sql, eq } from "drizzle-orm";
+import { getTodayIST } from "@/lib/date-utils";
 
 export async function GET() {
   await ensureDatabaseReady();
@@ -19,7 +20,7 @@ export async function GET() {
   const missingOrLostJars = jars.filter((j: any) => j.currentStatus === "MISSING_INVESTIG" || j.currentStatus === "CONFIRMED_LOST").length;
 
   // 2. Today's Logistics Orders
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getTodayIST();
   const todayOrders = await db.select().from(orders).where(eq(orders.scheduledDate, todayStr));
   const todayDeliveredOrders = todayOrders.filter((o: any) => o.status === "DELIVERED").length;
 

@@ -19,6 +19,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
+import { formatTimeIST, getTodayIST } from "@/lib/date-utils";
 import QrCameraScanner from "@/components/QrCameraScanner";
 
 export default function DriverAppPage() {
@@ -45,7 +46,7 @@ export default function DriverAppPage() {
   const [scanTarget, setScanTarget] = useState<"CUSTOMER" | "JAR">("CUSTOMER");
 
   // Timeline State
-  const [timelineDate, setTimelineDate] = useState(new Date().toISOString().split("T")[0]);
+  const [timelineDate, setTimelineDate] = useState(getTodayIST());
   const [timelineData, setTimelineData] = useState<any>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
@@ -651,7 +652,7 @@ export default function DriverAppPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white font-mono text-[10px] font-black">
-                          {item.time}
+                          {item.timestamp ? formatTimeIST(item.timestamp) : item.time}
                         </span>
                         <div>
                           <h4 className="font-black text-slate-900 text-sm leading-tight">

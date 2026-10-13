@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { journalEntries, journalLines, chartOfAccounts, users, reconciliationMatches } from "@/db/schema";
 import { postJournalEntry, getAccountDisplay } from "@/lib/accounting";
 import { eq, desc } from "drizzle-orm";
+import { getTodayIST } from "@/lib/date-utils";
 
 export async function GET() {
   const db = getDb();
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
         subLedgerId: l.subLedgerId || undefined,
       }));
 
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = getTodayIST();
       const revResult = await postJournalEntry({
         entryNumber: `REV-${orig.entryNumber}`,
         entryDate: todayStr,

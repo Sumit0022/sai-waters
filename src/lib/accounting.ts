@@ -11,6 +11,7 @@ import {
   reconciliationSessions,
 } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { getTodayIST } from "./date-utils";
 
 export interface JournalLineInput {
   accountId: number;
@@ -217,7 +218,7 @@ export async function postJournalEntry(input: PostJournalInput) {
     throw new Error("Journal entry must have non-zero debit and credit lines.");
   }
 
-  const todayStr = input.entryDate || new Date().toISOString().split("T")[0];
+  const todayStr = input.entryDate || getTodayIST();
   const entryId = `jv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const entryNumber = input.entryNumber || `JV-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
 
@@ -449,7 +450,7 @@ export async function recordBusinessExpense(params: {
     throw new Error("Expense amount must be greater than zero");
   }
 
-  const dateStr = params.expenseDate || new Date().toISOString().split("T")[0];
+  const dateStr = params.expenseDate || getTodayIST();
   const expenseId = `exp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const recordedBy = params.recordedBy || "usr_owner_01";
   const narration = params.notes?.trim() || "Business Expense Settlement";
@@ -619,7 +620,7 @@ export async function toggleBankTransactionMatch(params: {
     await db.insert(reconciliationSessions).values({
       id: sessionId,
       reconciliationType: "BANK",
-      sessionDate: params.clearedDate || new Date().toISOString().split("T")[0],
+      sessionDate: params.clearedDate || getTodayIST(),
       reconciledBy: params.userId || "usr_owner_01",
       closingVariancePaise: 0,
       notes: "Bank Reconciliation Match",
@@ -647,7 +648,7 @@ export async function recordDirectBankTransaction(params: {
   userId?: string;
 }) {
   const bankAccId = params.bankAccountId || 1130;
-  const dateStr = params.date || new Date().toISOString().split("T")[0];
+  const dateStr = params.date || getTodayIST();
   const user = params.userId || "usr_owner_01";
 
   if (params.type === "BANK_CHARGE") {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ShoppingCart, Search, Plus, Calendar, MapPin, Phone, Users, CheckCircle, Clock, X, Sparkles } from "lucide-react";
 import { formatINR } from "@/lib/utils";
+import { getTodayIST } from "@/lib/date-utils";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -24,7 +25,7 @@ export default function OrdersPage() {
   const [quantityJars, setQuantityJars] = useState("25");
   const [ratePerJarRupees, setRatePerJarRupees] = useState("35");
   const [depositAmountRupees, setDepositAmountRupees] = useState("1000");
-  const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split("T")[0]);
+  const [scheduledDate, setScheduledDate] = useState(getTodayIST());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = () => {

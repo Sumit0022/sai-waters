@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { orders, customers, customerAddresses, jarMovementEvents, jarMasters, cashCollectionSubmissions } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { formatTimeIST, getTodayIST } from "@/lib/date-utils";
 
 export async function GET(request: Request) {
   try {
     const db = getDb();
     const url = new URL(request.url);
     const driverId = url.searchParams.get("driverId") || "usr_driver_01";
-    const dateParam = url.searchParams.get("date") || new Date().toISOString().split("T")[0];
+    const dateParam = url.searchParams.get("date") || getTodayIST();
 
     // 1. Fetch Orders for the day
     const dayOrders = await db
@@ -75,8 +76,7 @@ export async function GET(request: Request) {
       const cashCollected = customerCashMap[o.customerId] || 0;
       totalCashCollectedPaise += cashCollected;
 
-      const dateObj = new Date(o.createdAt);
-      const formattedTime = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const formattedTime = formatTimeIST(o.createdAt);
 
       return {
         orderId: o.orderId,

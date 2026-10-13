@@ -4,6 +4,7 @@ import { orders, customers, customerAddresses, orderItems, eventOrders, customer
 import { eq, desc } from "drizzle-orm";
 import { createAndPostInvoice } from "@/lib/billing";
 import { postJournalEntry } from "@/lib/accounting";
+import { getTodayIST } from "@/lib/date-utils";
 
 export async function GET(request: Request) {
   const db = getDb();
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
 
   const countRes = await db.select().from(orders);
   const nextNum = countRes.length + 1;
-  const todayCompact = new Date().toISOString().split("T")[0].replace(/-/g, "");
+  const todayCompact = getTodayIST().replace(/-/g, "");
   const orderNumber = body.orderNumber || `ORD-${todayCompact}-${String(nextNum).padStart(2, "0")}`;
   const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
     customerId,
     addressId: addressId || "addr_default",
     orderType: body.orderType || "ONE_TIME_EVENT",
-    scheduledDate: body.scheduledDate || new Date().toISOString().split("T")[0],
+    scheduledDate: body.scheduledDate || getTodayIST(),
     quantityJars,
     unitPricePaise,
     totalAmountPaise,
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
       eventName: body.eventName || "Bulk Function / Gathering",
       venueContactPerson: body.venueContactPerson || body.customCustomerName || "Contact Person",
       venueContactPhone: body.venueContactPhone || body.customCustomerPhone || "0000000000",
-      eventDate: body.scheduledDate || new Date().toISOString().split("T")[0],
+      eventDate: body.scheduledDate || getTodayIST(),
       depositAmountPaise,
       depositStatus: depositAmountPaise > 0 ? "PAID" : "PENDING",
     });

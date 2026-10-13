@@ -15,6 +15,7 @@ import { eq, or, sql, desc } from "drizzle-orm";
 import { transitionJarState } from "@/lib/jars";
 import { recordFieldCashCollection } from "@/lib/cash";
 import { createAndPostInvoice } from "@/lib/billing";
+import { getTodayIST } from "@/lib/date-utils";
 
 export async function POST(req: Request) {
   try {
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
       .where(eq(customerAddresses.customerId, cust.id))
       .limit(1);
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getTodayIST();
     const orderNumber = `ORD-REC-${Date.now().toString().slice(-6)}`;
     const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 

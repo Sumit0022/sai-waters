@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { deliveryAssignments, dispatchRecords, orders, customers, customerAddresses, users } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { getTodayIST } from "@/lib/date-utils";
 
 export async function GET(request: Request) {
   const db = getDb();
   const url = new URL(request.url);
   const driverId = url.searchParams.get("driverId");
-  const dateFilter = url.searchParams.get("date") || new Date().toISOString().split("T")[0];
+  const dateFilter = url.searchParams.get("date") || getTodayIST();
 
   const trips = await db
     .select({
@@ -75,10 +76,10 @@ export async function POST(request: Request) {
 
   const countRes = await db.select().from(deliveryAssignments);
   const nextNum = countRes.length + 1;
-  const todayCompact = new Date().toISOString().split("T")[0].replace(/-/g, "");
+  const todayCompact = getTodayIST().replace(/-/g, "");
   const tripSheetNumber = body.tripSheetNumber || `TRIP-${todayCompact}-${String(nextNum).padStart(2, "0")}`;
   const tripId = `trip_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const routeDate = body.routeDate || new Date().toISOString().split("T")[0];
+  const routeDate = body.routeDate || getTodayIST();
 
   await db.insert(deliveryAssignments).values({
     id: tripId,

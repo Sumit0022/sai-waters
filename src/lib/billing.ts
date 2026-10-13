@@ -2,6 +2,7 @@ import { getDb } from "@/db";
 import { invoices, invoiceLines, orders, customers, customerAddresses, customerPriceAgreements } from "@/db/schema";
 import { eq, sql, and, desc } from "drizzle-orm";
 import { postJournalEntry } from "./accounting";
+import { getTodayIST } from "./date-utils";
 
 export interface CreateInvoiceParams {
   customerId: string;
@@ -25,7 +26,7 @@ export async function createAndPostInvoice(params: CreateInvoiceParams) {
     throw new Error(`Customer not found with ID ${params.customerId}`);
   }
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getTodayIST();
   const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]; // +7 days
   const yearSuffix = new Date().getFullYear().toString().slice(-2);
   const nextYearSuffix = (new Date().getFullYear() + 1).toString().slice(-2);

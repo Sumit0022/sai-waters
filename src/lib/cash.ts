@@ -2,6 +2,7 @@ import { getDb } from "@/db";
 import { cashCollectionSubmissions, cashHandovers, invoices, receipts, customers } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { postJournalEntry } from "./accounting";
+import { getTodayIST } from "./date-utils";
 
 /**
  * Delivery Staff collects cash in the field against an order/invoice
@@ -21,7 +22,7 @@ export async function recordFieldCashCollection(params: {
 
   const submissionId = `ccs_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const receiptNumber = `REC-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getTodayIST();
 
   // 1. Record Cash Submission
   await db.insert(cashCollectionSubmissions).values({

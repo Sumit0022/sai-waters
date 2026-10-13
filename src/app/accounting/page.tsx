@@ -25,6 +25,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
+import { getTodayIST } from "@/lib/date-utils";
 
 export default function AccountingPage() {
   const [activeTab, setActiveTab] = useState<
@@ -64,13 +65,13 @@ export default function AccountingPage() {
   const [expenseAmountRupees, setExpenseAmountRupees] = useState("");
   const [expensePaidViaId, setExpensePaidViaId] = useState<string>("1110");
   const [expenseNarration, setExpenseNarration] = useState("");
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split("T")[0]);
+  const [expenseDate, setExpenseDate] = useState(getTodayIST());
   const [expenseError, setExpenseError] = useState("");
 
   // Manual JV Modal State
   const [manualJvModalOpen, setManualJvModalOpen] = useState(false);
   const [jvNarration, setJvNarration] = useState("");
-  const [jvDate, setJvDate] = useState(new Date().toISOString().split("T")[0]);
+  const [jvDate, setJvDate] = useState(getTodayIST());
   const [debitAccount, setDebitAccount] = useState("1110");
   const [creditAccount, setCreditAccount] = useState("3110");
   const [jvAmountRupees, setJvAmountRupees] = useState("1000");
@@ -276,7 +277,7 @@ export default function AccountingPage() {
         body: JSON.stringify({
           action: "TOGGLE_MATCH",
           journalLineId: lineId,
-          clearedDate: new Date().toISOString().split("T")[0],
+          clearedDate: getTodayIST(),
           externalReference: "Bank Statement Verified",
         }),
       });
@@ -302,7 +303,7 @@ export default function AccountingPage() {
           type: directBankType,
           amountRupees: directBankAmountRupees,
           narration: directBankNarration,
-          date: new Date().toISOString().split("T")[0],
+          date: getTodayIST(),
         }),
       });
       if (res.ok) {

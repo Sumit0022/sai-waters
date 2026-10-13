@@ -22,6 +22,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
+import { formatTimeIST } from "@/lib/date-utils";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
@@ -56,7 +57,7 @@ export default function DashboardPage() {
         if (data.success) {
           setRecentMovements(data.recentMovements || []);
           setRecentCashEvents(data.recentCashEvents || []);
-          setLastLiveUpdate(new Date().toLocaleTimeString());
+          setLastLiveUpdate(formatTimeIST(new Date()));
           setLivePulsing(true);
           setTimeout(() => setLivePulsing(false), 1200);
         }
@@ -342,7 +343,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <span className="text-[10px] text-slate-400 font-mono">
-                      {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {formatTimeIST(m.createdAt)}
                     </span>
                   </div>
                 ))

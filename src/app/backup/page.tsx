@@ -15,6 +15,7 @@ import {
   Upload,
   RefreshCw,
 } from "lucide-react";
+import { formatDateTimeIST, formatDateIST } from "@/lib/date-utils";
 
 export default function BackupPage() {
   const [stats, setStats] = useState<any>(null);
@@ -322,7 +323,7 @@ export default function BackupPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-xs text-slate-600">
-                      {new Date(b.createdAt).toLocaleString()}
+                      {formatDateTimeIST(b.createdAt)}
                     </td>
                     <td className="py-3 px-4 text-xs font-semibold text-slate-700">
                       {b.totalRecords} records ({b.tablesCount} tables)
@@ -408,7 +409,7 @@ export default function BackupPage() {
                 >
                   {backups.map((b) => (
                     <option key={b.id} value={b.filename}>
-                      {b.filename} ({new Date(b.createdAt).toLocaleDateString()}, {b.totalRecords} records)
+                      {b.filename} ({formatDateIST(b.createdAt)}, {b.totalRecords} records)
                     </option>
                   ))}
                 </select>

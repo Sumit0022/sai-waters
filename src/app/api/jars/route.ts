@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { jarMasters, qrIdentifiers, jarCustodies, customers, jarMovementEvents } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { getTodayIST } from "@/lib/date-utils";
 
 function calculateJarLifecycleMetrics(jar: any) {
   const acqDate = jar.acquisitionDate ? new Date(jar.acquisitionDate) : new Date();
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
   const permanentJarCode = body.permanentJarCode || `JAR-20L-${String(nextNum).padStart(4, "0")}`;
   const jarId = `jar_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const qrToken = body.qrToken || `urn:sw:j:q8x9f2m1-${String(nextNum).padStart(4, "0")}`;
-  const todayStr = body.acquisitionDate || new Date().toISOString().split("T")[0];
+  const todayStr = body.acquisitionDate || getTodayIST();
 
   // 1. Insert Master Jar
   await db.insert(jarMasters).values({

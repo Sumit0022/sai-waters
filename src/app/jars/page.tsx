@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { formatINR } from "@/lib/utils";
+import { getTodayIST } from "@/lib/date-utils";
 import QrCameraScanner from "@/components/QrCameraScanner";
 
 export default function JarsPage() {
@@ -53,7 +54,7 @@ export default function JarsPage() {
 
   // Form states - Register
   const [newJarCode, setNewJarCode] = useState("");
-  const [newJarDate, setNewJarDate] = useState(new Date().toISOString().split("T")[0]);
+  const [newJarDate, setNewJarDate] = useState(getTodayIST());
   const [newJarCost, setNewJarCost] = useState("180");
   const [newJarNotes, setNewJarNotes] = useState("");
 
@@ -212,7 +213,7 @@ export default function JarsPage() {
   const openEditModal = (jar: any) => {
     setActiveJar(jar);
     setEditJarCode(jar.permanentJarCode || "");
-    setEditJarDate(jar.acquisitionDate || new Date().toISOString().split("T")[0]);
+    setEditJarDate(jar.acquisitionDate || getTodayIST());
     setEditJarCost(String(Math.round((jar.acquisitionCostPaise || 18000) / 100)));
     setEditJarStatus(jar.currentStatus || "AVAILABLE");
     setEditJarNotes(jar.notes || "");

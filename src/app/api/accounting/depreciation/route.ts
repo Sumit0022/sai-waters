@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { jarMasters } from "@/db/schema";
 import { postJournalEntry } from "@/lib/accounting";
 import { eq, and } from "drizzle-orm";
+import { getTodayIST } from "@/lib/date-utils";
 
 export async function POST(request: Request) {
   try {
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getTodayIST();
 
     const result = await postJournalEntry({
       sourceDocumentType: "DEPRECIATION",
