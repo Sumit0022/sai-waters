@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { jarMasters } from "../db/schema";
+import { jarMasters, customers } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { postJournalEntry, getTrialBalance, getProfitAndLoss, getBalanceSheet } from "../lib/accounting";
 import { lookupJar, transitionJarState, isValidTransition, relabelJar, authorizeJarLoss } from "../lib/jars";
@@ -119,6 +119,15 @@ async function runAcceptanceTests() {
   assert(tbAfterHandover.isBalanced, "Post-Handover Double-Entry: Trial balance remains balanced after vault deposit");
 
   // TEST 9: Offline Queue Sync & Idempotency Check
+  const dbInst = await getDb();
+  await dbInst.insert(customers).values({
+    id: "cust_test_sync",
+    customerCode: "CUST-TEST-SYNC",
+    fullName: "Offline Sync Test Customer",
+    phone: "9999900001",
+    billingFrequency: "MONTHLY",
+  }).onConflictDoNothing();
+
   const testClientEventId = `test_offline_${Date.now()}`;
   const syncRes1 = await processOfflineSyncBatch([
     {
@@ -127,7 +136,7 @@ async function runAcceptanceTests() {
       eventType: "CASH_COLLECT",
       clientTimestamp: new Date().toISOString(),
       payload: {
-        customerId: "cust_002",
+        customerId: "cust_test_sync",
         amountCollectedPaise: 3200,
       },
     },
@@ -145,7 +154,7 @@ async function runAcceptanceTests() {
       eventType: "CASH_COLLECT",
       clientTimestamp: new Date().toISOString(),
       payload: {
-        customerId: "cust_002",
+        customerId: "cust_test_sync",
         amountCollectedPaise: 3200,
       },
     },

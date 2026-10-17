@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb, ensureDatabaseReady } from "@/db";
 import { invoices, invoiceLines, customers, orders, eventOrders, receipts, cashCollectionSubmissions, users, customerPriceAgreements } from "@/db/schema";
 import { createAndPostInvoice, generateUpiLink, generateWhatsAppShareLink } from "@/lib/billing";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { formatTimeIST, formatDateTimeIST } from "@/lib/date-utils";
 import { getBusinessInfo } from "@/lib/settings";
 
@@ -50,6 +50,9 @@ export async function GET(request: Request) {
   const allInvoices = await query;
   const filtered = customerId ? allInvoices.filter((i: any) => i.customerId === customerId) : allInvoices;
 
+  // Fetch all orders to match orders against monthly statements
+  const allOrders = await db.select().from(orders);
+
   // Fetch receipts and cash submissions for all invoices
   const allReceipts = await db.select().from(receipts);
   const allCashSubs = await db
@@ -71,24 +74,26 @@ export async function GET(request: Request) {
   const eventMap = new Map<string, any>(allEvents.map((e: any) => [e.orderId, e]));
 
   const enriched = filtered.map((inv: any) => {
-    // Receipts linked to this invoice or matching order reference
-    const invReceipts = allReceipts.filter(
-      (r: any) => r.invoiceId === inv.id || (inv.orderNumber && r.transactionReference?.includes(inv.orderNumber))
-    );
+    // 1. Resolve which orders belong to this invoice
+    const invMonth = inv.invoiceDate ? inv.invoiceDate.slice(0, 7) : "";
+    const targetMonth = inv.notes?.match(/\d{4}-\d{2}/)?.[0] || invMonth;
 
-    // Driver field cash collections linked to this invoice or order
+    const linkedOrderIds = new Set<string>();
+    if (inv.orderId) linkedOrderIds.add(inv.orderId);
+    if (inv.billingType === "MONTHLY_CONSOLIDATED") {
+      for (const o of allOrders) {
+        if (o.customerId === inv.customerId && o.scheduledDate?.startsWith(targetMonth)) {
+          linkedOrderIds.add(o.id);
+        }
+      }
+    }
+
+    // 2. Driver field cash collections linked to this invoice or linked orders
     const invCashSubs = allCashSubs
       .filter((s: any) => {
         if (s.invoiceId === inv.id) return true;
-        if (inv.orderId && s.orderId === inv.orderId) return true;
-        if (inv.billingType === "MONTHLY_CONSOLIDATED") {
-          const invMonth = inv.invoiceDate ? inv.invoiceDate.slice(0, 7) : "";
-          const targetMonth = inv.notes?.match(/\d{4}-\d{2}/)?.[0] || invMonth;
-          const subDate = s.collectedAt ? new Date(s.collectedAt).toISOString().slice(0, 7) : "";
-          const matchedRec = allReceipts.find(
-            (r: any) => r.customerId === inv.customerId && (r.transactionReference?.includes(s.id?.slice(-6)) || (r.invoiceId === inv.id))
-          );
-          if (matchedRec && subDate === targetMonth) return true;
+        if (s.orderId && linkedOrderIds.has(s.orderId)) {
+          return !s.invoiceId || s.invoiceId === inv.id;
         }
         return false;
       })
@@ -98,7 +103,24 @@ export async function GET(request: Request) {
         collectedDateTimeIST: formatDateTimeIST(s.collectedAt),
       }));
 
-    // Parse order metadata if available
+    const cashSubSlipCodes = new Set(invCashSubs.map((s: any) => s.id?.slice(-6)));
+
+    // 3. Official Receipts linked to this invoice or matching linked collection slips
+    const invReceipts = allReceipts.filter((r: any) => {
+      if (r.invoiceId === inv.id) return true;
+      if (r.customerId !== inv.customerId) return false;
+      if (r.invoiceId && r.invoiceId !== inv.id) return false;
+
+      if (cashSubSlipCodes.size > 0 && Array.from(cashSubSlipCodes).some((code) => r.transactionReference?.includes(code))) {
+        return true;
+      }
+      if (inv.orderNumber && r.transactionReference?.includes(inv.orderNumber)) {
+        return true;
+      }
+      return false;
+    });
+
+    // 4. Parse order metadata if available (Advance payment)
     let advancePaise = 0;
     let paymentType = "PAY_ON_DELIVERY";
     if (inv.orderDeliveryNotes) {
@@ -109,16 +131,20 @@ export async function GET(request: Request) {
       } catch (e) {}
     }
 
-    // Driver collected cash total
+    // 5. Driver collected cash total
     const driverCollectedPaise = invCashSubs.reduce((sum: number, s: any) => sum + (s.amountCollectedPaise || 0), 0);
 
-    // Compute verified paid amount and outstanding balance
-    const totalReceiptsPaise = invReceipts.reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
-    const verifiedPaymentsPaise = Math.max(advancePaise + driverCollectedPaise, totalReceiptsPaise, inv.paidAmountPaise || 0);
+    // 6. Direct / Subsequent Settlements (receipts linked that are not doorstep driver slips)
+    const directSettlementPaise = invReceipts
+      .filter((r: any) => !r.transactionReference?.includes("Driver Collection Slip"))
+      .reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
 
-    // Use verified payments if DB was corrupted by previous double-count, otherwise recorded paidAmountPaise
-    const actualPaid = verifiedPaymentsPaise > 0 
-      ? Math.min(inv.totalAmountPaise, Math.max(verifiedPaymentsPaise, Math.min(inv.paidAmountPaise || 0, verifiedPaymentsPaise)))
+    // Total verified payments received: Doorstep Cash + Advance + Direct Settlements
+    const totalPaymentsReceived = driverCollectedPaise + advancePaise + directSettlementPaise;
+
+    // Use verified payments if payments were recorded, otherwise recorded paidAmountPaise
+    const actualPaid = totalPaymentsReceived > 0
+      ? Math.min(inv.totalAmountPaise, totalPaymentsReceived)
       : Math.min(inv.totalAmountPaise, inv.paidAmountPaise || 0);
 
     const outstandingPaise = Math.max(0, inv.totalAmountPaise - actualPaid);
@@ -192,6 +218,32 @@ export async function POST(request: Request) {
     }
     const unitPrice = defaultUnitPricePaise || 3500;
 
+    let initialPaid = 0;
+    let initialStatus: string | undefined = undefined;
+    const isMonthly = (body.billingType || "SPOT_DELIVERY") === "MONTHLY_CONSOLIDATED";
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    let matchedSubsToLink: any[] = [];
+
+    if (isMonthly && body.customerId) {
+      const custOrders = await db.select().from(orders).where(eq(orders.customerId, body.customerId));
+      const orderIds = new Set(custOrders.map((o: any) => o.id));
+
+      const allSubs = await db.select().from(cashCollectionSubmissions);
+      matchedSubsToLink = allSubs.filter((s: any) => {
+        if (s.orderId && orderIds.has(s.orderId)) {
+          return !s.invoiceId;
+        }
+        return false;
+      });
+
+      const driverCash = matchedSubsToLink.reduce((sum: number, s: any) => sum + (s.amountCollectedPaise || 0), 0);
+      if (driverCash > 0) {
+        const totalPaise = Number(body.quantity || 1) * unitPrice;
+        initialPaid = Math.min(totalPaise, driverCash);
+        initialStatus = initialPaid >= totalPaise ? "PAID" : "PARTIALLY_PAID";
+      }
+    }
+
     const result = await createAndPostInvoice({
       customerId: body.customerId,
       orderId: body.orderId,
@@ -204,8 +256,31 @@ export async function POST(request: Request) {
         },
       ],
       postedBy: body.postedBy || "usr_owner_01",
+      paidAmountPaise: initialPaid,
+      status: initialStatus,
       notes: body.notes,
     });
+
+    if (matchedSubsToLink.length > 0) {
+      const subIdList = matchedSubsToLink.map((s: any) => s.id);
+      await db
+        .update(cashCollectionSubmissions)
+        .set({ invoiceId: result.invoiceId })
+        .where(inArray(cashCollectionSubmissions.id, subIdList));
+
+      const subSlipCodes = new Set(matchedSubsToLink.map((s: any) => s.id?.slice(-6)));
+      const allRecs = await db.select().from(receipts).where(eq(receipts.customerId, body.customerId));
+      const matchingRecs = allRecs.filter(
+        (r: any) => !r.invoiceId && subSlipCodes.size > 0 && Array.from(subSlipCodes).some((code) => r.transactionReference?.includes(code))
+      );
+      if (matchingRecs.length > 0) {
+        const recIdList = matchingRecs.map((r: any) => r.id);
+        await db
+          .update(receipts)
+          .set({ invoiceId: result.invoiceId })
+          .where(inArray(receipts.id, recIdList));
+      }
+    }
 
     return NextResponse.json({ success: true, ...result });
   } catch (err: any) {

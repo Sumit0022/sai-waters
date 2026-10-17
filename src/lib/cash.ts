@@ -35,8 +35,9 @@ export async function recordFieldCashCollection(params: {
     if (invByOrder) targetInvoiceId = invByOrder.id;
   }
 
-  // If still not linked, check if the customer has an open un-settled invoice
-  if (!targetInvoiceId && params.customerId) {
+  // If still not linked, and NOT a route order delivery (i.e. direct settlement on customer account),
+  // check if the customer has an open un-settled invoice
+  if (!targetInvoiceId && !params.orderId && params.customerId) {
     const [openInv] = await db
       .select()
       .from(invoices)

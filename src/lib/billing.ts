@@ -195,22 +195,23 @@ export async function getUnbilledMonthlySummary(billingMonth?: string) {
 
     // Find cash collected by drivers for this customer in targetMonth
     const orderIdList = deliveredOrders.map((o: any) => o.id);
+    const orderIdSet = new Set(orderIdList);
     const custCashSubs = allCashSubs.filter((s: any) => {
-      if (s.orderId && orderIdList.includes(s.orderId)) return true;
-      if (s.collectedAt) {
-        const subMonth = new Date(s.collectedAt).toISOString().slice(0, 7);
-        if (subMonth === targetMonth && deliveredOrders.some((o: any) => o.id === s.orderId)) return true;
-      }
+      if (s.orderId && orderIdSet.has(s.orderId)) return !s.invoiceId;
       return false;
     });
 
-    const custReceipts = allReceipts.filter((r: any) => {
-      return r.customerId === cust.id && r.receiptDate?.startsWith(targetMonth);
-    });
-
     const subCashPaise = custCashSubs.reduce((sum: number, s: any) => sum + (s.amountCollectedPaise || 0), 0);
-    const recCashPaise = custReceipts.reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
-    const alreadyPaidPaise = Math.min(estimatedTotalPaise, Math.max(subCashPaise, recCashPaise));
+    const directReceipts = allReceipts.filter((r: any) => {
+      return (
+        r.customerId === cust.id &&
+        !r.invoiceId &&
+        !r.transactionReference?.includes("Driver Collection Slip") &&
+        r.receiptDate?.startsWith(targetMonth)
+      );
+    });
+    const directPaidPaise = directReceipts.reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
+    const alreadyPaidPaise = Math.min(estimatedTotalPaise, subCashPaise + directPaidPaise);
     const estimatedNetDuePaise = Math.max(0, estimatedTotalPaise - alreadyPaidPaise);
 
     pendingSummary.push({
@@ -304,7 +305,7 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
       );
 
     const totalJars = deliveredOrders.reduce((s: number, o: any) => s + (o.quantityJars || 1), 0);
-    if (totalJars === 0 && !options?.forceAll) {
+    if (totalJars <= 0) {
       continue; // No jars delivered, skip
     }
 
@@ -318,27 +319,39 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
     const unitPricePaise = priceRow?.pricePerJarPaise || deliveredOrders[0]?.unitPricePaise || 3500;
     const totalAmountPaise = totalJars * unitPricePaise;
 
-    // Find driver cash collections and receipts collected for this customer in targetMonth
+    // Find driver cash collections strictly collected for these delivered orders
     const orderIdList = deliveredOrders.map((o: any) => o.id);
+    const orderIdSet = new Set(orderIdList);
     const matchingSubs = allCashSubs.filter((s: any) => {
-      if (s.orderId && orderIdList.includes(s.orderId)) return true;
-      if (s.collectedAt) {
-        const subMonth = new Date(s.collectedAt).toISOString().slice(0, 7);
-        if (subMonth === targetMonth && deliveredOrders.some((o: any) => o.id === s.orderId)) return true;
+      if (s.orderId && orderIdSet.has(s.orderId)) {
+        return !s.invoiceId;
       }
       return false;
     });
 
+    const subSlipCodes = new Set(matchingSubs.map((s: any) => s.id?.slice(-6)));
     const matchingReceipts = allReceipts.filter((r: any) => {
-      if (r.customerId === cust.id && r.receiptDate?.startsWith(targetMonth)) return true;
+      if (r.customerId !== cust.id) return false;
+      if (r.invoiceId) return false;
+      if (subSlipCodes.size > 0 && Array.from(subSlipCodes).some((code) => r.transactionReference?.includes(code))) {
+        return true;
+      }
       return false;
     });
 
-    const subCashPaise = matchingSubs.reduce((sum: number, s: any) => sum + (s.amountCollectedPaise || 0), 0);
-    const recCashPaise = matchingReceipts.reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
-    const alreadyPaidPaise = Math.min(totalAmountPaise, Math.max(subCashPaise, recCashPaise));
+    const directReceipts = allReceipts.filter((r: any) => {
+      if (r.customerId !== cust.id) return false;
+      if (r.invoiceId) return false;
+      if (r.transactionReference?.includes("Driver Collection Slip")) return false;
+      if (r.receiptDate && r.receiptDate.startsWith(targetMonth)) return true;
+      return false;
+    });
+
+    const driverCashPaise = matchingSubs.reduce((sum: number, s: any) => sum + (s.amountCollectedPaise || 0), 0);
+    const directAdvancePaise = directReceipts.reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
+    const alreadyPaidPaise = Math.min(totalAmountPaise, driverCashPaise + directAdvancePaise);
     const netDuePaise = Math.max(0, totalAmountPaise - alreadyPaidPaise);
-    const invStatus = alreadyPaidPaise >= totalAmountPaise ? "PAID" : alreadyPaidPaise > 0 ? "PARTIALLY_PAID" : "ISSUED";
+    const invStatus = netDuePaise === 0 && alreadyPaidPaise > 0 ? "PAID" : alreadyPaidPaise > 0 ? "PARTIALLY_PAID" : "ISSUED";
 
     const inv = await createAndPostInvoice({
       customerId: cust.id,
@@ -364,8 +377,9 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
         .set({ invoiceId: inv.invoiceId })
         .where(inArray(cashCollectionSubmissions.id, subIds));
     }
-    if (matchingReceipts.length > 0) {
-      const recIds = matchingReceipts.map((r: any) => r.id);
+    const receiptsToLink = [...matchingReceipts, ...directReceipts];
+    if (receiptsToLink.length > 0) {
+      const recIds = receiptsToLink.map((r: any) => r.id);
       await db
         .update(receipts)
         .set({ invoiceId: inv.invoiceId })
