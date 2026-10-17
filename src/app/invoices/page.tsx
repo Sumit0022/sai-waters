@@ -29,6 +29,8 @@ import {
   CreditCard,
   Scale,
   ShieldCheck,
+  Copy,
+  Check,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { formatINR } from "@/lib/utils";
@@ -135,6 +137,74 @@ export default function InvoicesPage() {
         .catch(() => setUpiQrDataUrl(""));
     }
   }, [activeInvoice]);
+
+  const [copiedInvoiceId, setCopiedInvoiceId] = useState<string | null>(null);
+
+  const getInvoiceWhatsAppText = (inv: any): string => {
+    if (inv.whatsAppText) return inv.whatsAppText;
+
+    const netDueRupees = (((inv.outstandingPaise ?? inv.totalAmountPaise) || 0) / 100).toFixed(2);
+    const totalBilledRupees = ((inv.totalAmountPaise || 0) / 100).toFixed(2);
+    const paidRupees = ((inv.paidAmountPaise || 0) / 100).toFixed(2);
+
+    let detailsText = "";
+    if (Number(paidRupees) > 0) {
+      detailsText =
+        `💧 *Total Month Deliveries:* ₹${totalBilledRupees}\n` +
+        `💵 *Paid to Driver / Advance:* ₹${paidRupees}\n` +
+        `💰 *Net Balance Due:* ₹${netDueRupees}\n`;
+    } else {
+      detailsText = `💰 *Total Amount Due:* ₹${netDueRupees}\n`;
+    }
+
+    const isDue = (inv.outstandingPaise ?? inv.totalAmountPaise) > 0;
+    const paymentText = isDue
+      ? `📅 *Due Date:* ${inv.dueDate || "Immediate"}\n\n` +
+        `Click below to pay balance via UPI (GPay/PhonePe/Paytm):\n` +
+        `${inv.upiLink || ""}\n\n`
+      : `✅ *Status:* Fully Paid (Zero Balance Due)\n\n`;
+
+    return (
+      `Namaste ${inv.customerName || "Customer"}! 🙏\n\n` +
+      `Your water delivery bill from *Sai Waters* is ready:\n` +
+      `📄 *Invoice No:* ${inv.invoiceNumber || ""}\n` +
+      detailsText +
+      paymentText +
+      `Thank you for choosing Sai Waters! 💧`
+    );
+  };
+
+  const handleOpenWhatsApp = (inv: any) => {
+    const cleanPhone = (inv.customerPhone || "").replace(/[^0-9]/g, "").slice(-10);
+    const text = getInvoiceWhatsAppText(inv);
+    const encodedText = encodeURIComponent(text);
+
+    // If mobile, open API link which launches WhatsApp application directly
+    // If desktop, open WhatsApp Web directly which decodes UTF-8 query in JS without proxy header corruption
+    const isMobile =
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    const targetUrl = isMobile
+      ? (inv.whatsAppShareUrl || `https://api.whatsapp.com/send/?phone=91${cleanPhone}&text=${encodedText}`)
+      : (inv.whatsAppWebUrl || `https://web.whatsapp.com/send?phone=91${cleanPhone}&text=${encodedText}`);
+
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleCopyWhatsAppMessage = async (inv: any) => {
+    const text = getInvoiceWhatsAppText(inv);
+    const idKey = inv.id || inv.invoiceId || inv.invoiceNumber;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedInvoiceId(idKey);
+      setTimeout(() => {
+        setCopiedInvoiceId((prev) => (prev === idKey ? null : prev));
+      }, 2500);
+    } catch (err) {
+      console.error("Failed to copy bill message:", err);
+    }
+  };
 
   const handleOpenMonthEndModal = () => {
     setBatchResults(null);
@@ -553,16 +623,33 @@ export default function InvoicesPage() {
                           <Eye className="w-3.5 h-3.5" />
                         </button>
 
-                        {/* WhatsApp Share Link */}
-                        <a
-                          href={inv.whatsAppShareUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Share Invoice on WhatsApp"
-                          className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors"
+                        {/* WhatsApp Direct Open */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenWhatsApp(inv)}
+                          title="Share Invoice on WhatsApp (Direct Web/App with Clean Emojis)"
+                          className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors cursor-pointer"
                         >
                           <Share2 className="w-3.5 h-3.5" />
-                        </a>
+                        </button>
+
+                        {/* Copy WhatsApp Message with Emojis */}
+                        <button
+                          type="button"
+                          onClick={() => handleCopyWhatsAppMessage(inv)}
+                          title="Copy WhatsApp Bill Message (With Clean Emojis)"
+                          className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                            copiedInvoiceId === (inv.id || inv.invoiceId || inv.invoiceNumber)
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                              : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          {copiedInvoiceId === (inv.id || inv.invoiceId || inv.invoiceNumber) ? (
+                            <Check className="w-3.5 h-3.5" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
 
                         {/* UPI QR Display */}
                         <button
@@ -673,16 +760,37 @@ export default function InvoicesPage() {
                           {inv.invoiceNumber} • {inv.totalJars} Jars • {formatINR(inv.totalAmountPaise)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={inv.whatsAppShareUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs"
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenWhatsApp(inv)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs cursor-pointer"
                         >
                           <Send className="w-3 h-3" />
                           <span>WhatsApp</span>
-                        </a>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyWhatsAppMessage(inv)}
+                          title="Copy Message Text"
+                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${
+                            copiedInvoiceId === (inv.id || inv.invoiceId || inv.invoiceNumber)
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-white hover:bg-slate-50 text-slate-700 border-slate-300"
+                          }`}
+                        >
+                          {copiedInvoiceId === (inv.id || inv.invoiceId || inv.invoiceNumber) ? (
+                            <>
+                              <Check className="w-3 h-3" />
+                              <span>Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>Copy</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -932,16 +1040,36 @@ export default function InvoicesPage() {
               </div>
             )}
 
-            <div className="pt-2">
-              <a
-                href={activeInvoice.whatsAppShareUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all block"
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenWhatsApp(activeInvoice)}
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
               >
                 <Share2 className="w-4 h-4" />
                 <span>Send Bill via WhatsApp</span>
-              </a>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCopyWhatsAppMessage(activeInvoice)}
+                className={`w-full py-2 px-4 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  copiedInvoiceId === (activeInvoice.id || activeInvoice.invoiceId || activeInvoice.invoiceNumber)
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                }`}
+              >
+                {copiedInvoiceId === (activeInvoice.id || activeInvoice.invoiceId || activeInvoice.invoiceNumber) ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Bill Text Copied with Emojis!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Bill Text (with Emojis)</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -1401,15 +1529,37 @@ export default function InvoicesPage() {
                       <span>UPI QR ({formatINR(activeInvoice.outstandingPaise)})</span>
                     </button>
 
-                    <a
-                      href={activeInvoice.whatsAppShareUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => handleOpenWhatsApp(activeInvoice)}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                     >
                       <Share2 className="w-4 h-4" />
                       <span>WhatsApp Due Reminder</span>
-                    </a>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWhatsAppMessage(activeInvoice)}
+                      title="Copy reminder message with emojis to clipboard"
+                      className={`px-3 py-2.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
+                        copiedInvoiceId === (activeInvoice.id || activeInvoice.invoiceId || activeInvoice.invoiceNumber)
+                          ? "bg-emerald-600 text-white border-emerald-600"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300"
+                      }`}
+                    >
+                      {copiedInvoiceId === (activeInvoice.id || activeInvoice.invoiceId || activeInvoice.invoiceNumber) ? (
+                        <>
+                          <Check className="w-4 h-4 text-white" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
                   </>
                 )}
               </div>

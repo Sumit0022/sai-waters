@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { getDb, ensureDatabaseReady } from "@/db";
 import { invoices, invoiceLines, customers, orders, eventOrders, receipts, cashCollectionSubmissions, users, customerPriceAgreements } from "@/db/schema";
-import { createAndPostInvoice, generateUpiLink, generateWhatsAppShareLink } from "@/lib/billing";
+import {
+  createAndPostInvoice,
+  generateUpiLink,
+  generateWhatsAppShareLink,
+  generateWhatsAppWebLink,
+  generateWhatsAppMessageText,
+} from "@/lib/billing";
 import { eq, desc, inArray } from "drizzle-orm";
 import { formatTimeIST, formatDateTimeIST } from "@/lib/date-utils";
 import { getBusinessInfo } from "@/lib/settings";
@@ -164,7 +170,28 @@ export async function GET(request: Request) {
       invoiceNumber: inv.invoiceNumber,
     });
 
+    const waText = generateWhatsAppMessageText({
+      customerName: inv.customerName,
+      invoiceNumber: inv.invoiceNumber,
+      amountPaise: outstandingPaise,
+      totalBilledPaise: inv.totalAmountPaise,
+      paidPaise: actualPaid,
+      dueDate: inv.dueDate,
+      upiLink,
+    });
+
     const waLink = generateWhatsAppShareLink({
+      customerPhone: inv.customerPhone,
+      customerName: inv.customerName,
+      invoiceNumber: inv.invoiceNumber,
+      amountPaise: outstandingPaise,
+      totalBilledPaise: inv.totalAmountPaise,
+      paidPaise: actualPaid,
+      dueDate: inv.dueDate,
+      upiLink,
+    });
+
+    const waWebLink = generateWhatsAppWebLink({
       customerPhone: inv.customerPhone,
       customerName: inv.customerName,
       invoiceNumber: inv.invoiceNumber,
@@ -191,7 +218,9 @@ export async function GET(request: Request) {
       businessUpiId: businessInfo.upi_id,
       businessPayeeName: businessInfo.payee_name,
       upiLink,
+      whatsAppText: waText,
       whatsAppShareUrl: waLink,
+      whatsAppWebUrl: waWebLink,
     };
   });
 

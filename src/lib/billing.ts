@@ -391,7 +391,28 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
       invoiceNumber: inv.invoiceNumber,
     });
 
+    const waText = generateWhatsAppMessageText({
+      customerName: cust.fullName,
+      invoiceNumber: inv.invoiceNumber,
+      amountPaise: netDuePaise,
+      totalBilledPaise: totalAmountPaise,
+      paidPaise: alreadyPaidPaise,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      upiLink,
+    });
+
     const waLink = generateWhatsAppShareLink({
+      customerPhone: cust.phone,
+      customerName: cust.fullName,
+      invoiceNumber: inv.invoiceNumber,
+      amountPaise: netDuePaise,
+      totalBilledPaise: totalAmountPaise,
+      paidPaise: alreadyPaidPaise,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      upiLink,
+    });
+
+    const waWebLink = generateWhatsAppWebLink({
       customerPhone: cust.phone,
       customerName: cust.fullName,
       invoiceNumber: inv.invoiceNumber,
@@ -419,7 +440,9 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
       billingMonth: targetMonth,
       monthName,
       upiLink,
+      whatsAppText: waText,
       whatsAppShareUrl: waLink,
+      whatsAppWebUrl: waWebLink,
     });
   }
 
@@ -434,6 +457,7 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
 
 /**
  * Generates UPI payment intent link for zero-friction mobile payments
+ * Uses sanitized name & note so URLs do not break in chat apps
  */
 export function generateUpiLink(params: {
   upiId?: string;
@@ -442,18 +466,17 @@ export function generateUpiLink(params: {
   invoiceNumber: string;
 }) {
   const upi = params.upiId || "saiwaters@upi";
-  const name = encodeURIComponent(params.businessName || "Sai Waters");
+  const cleanName = encodeURIComponent((params.businessName || "Sai Waters").trim().replace(/\s+/g, "_"));
   const amount = (params.amountPaise / 100).toFixed(2);
-  const note = encodeURIComponent(`Bill ${params.invoiceNumber}`);
-  return `upi://pay?pa=${upi}&pn=${name}&am=${amount}&cu=INR&tn=${note}`;
+  const cleanInvNo = params.invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `upi://pay?pa=${upi}&pn=${cleanName}&am=${amount}&cu=INR&tn=Bill_${cleanInvNo}`;
 }
 
 /**
- * Generates 1-Click pre-filled WhatsApp share link (wa.me)
- * Explicitly breaks down Total Deliveries Billed, Doorstep Cash Paid, and Net Due Amount
+ * Generates structured, professional plain text for WhatsApp billing dispatch
+ * Explicitly breaks down Total Deliveries Billed, Doorstep Cash Paid, and Net Due Amount with emojis
  */
-export function generateWhatsAppShareLink(params: {
-  customerPhone: string;
+export function generateWhatsAppMessageText(params: {
   customerName: string;
   invoiceNumber: string;
   amountPaise: number; // Net amount due
@@ -461,8 +484,7 @@ export function generateWhatsAppShareLink(params: {
   paidPaise?: number;
   dueDate: string;
   upiLink: string;
-}) {
-  const cleanPhone = params.customerPhone.replace(/[^0-9]/g, "").slice(-10);
+}): string {
   const netDueRupees = (params.amountPaise / 100).toFixed(2);
   const totalBilledRupees = params.totalBilledPaise ? (params.totalBilledPaise / 100).toFixed(2) : null;
   const paidRupees = params.paidPaise ? (params.paidPaise / 100).toFixed(2) : null;
@@ -484,13 +506,50 @@ export function generateWhatsAppShareLink(params: {
         `${params.upiLink}\n\n`
       : `✅ *Status:* Fully Paid (Zero Balance Due)\n\n`;
 
-  const text =
+  return (
     `Namaste ${params.customerName}! 🙏\n\n` +
     `Your water delivery bill from *Sai Waters* is ready:\n` +
     `📄 *Invoice No:* ${params.invoiceNumber}\n` +
     detailsText +
     paymentText +
-    `Thank you for choosing Sai Waters! 💧`;
+    `Thank you for choosing Sai Waters! 💧`
+  );
+}
 
-  return `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(text)}`;
+/**
+ * Generates direct pre-filled WhatsApp share link (Universal / Mobile)
+ * Uses direct api.whatsapp.com to prevent Meta's wa.me 302-redirect emoji corruption (%EF%BF%BD)
+ */
+export function generateWhatsAppShareLink(params: {
+  customerPhone: string;
+  customerName: string;
+  invoiceNumber: string;
+  amountPaise: number; // Net amount due
+  totalBilledPaise?: number;
+  paidPaise?: number;
+  dueDate: string;
+  upiLink: string;
+}) {
+  const cleanPhone = (params.customerPhone || "").replace(/[^0-9]/g, "").slice(-10);
+  const text = generateWhatsAppMessageText(params);
+  return `https://api.whatsapp.com/send/?phone=91${cleanPhone}&text=${encodeURIComponent(text)}`;
+}
+
+/**
+ * Generates direct WhatsApp Web link (Desktop browser)
+ * Opens web.whatsapp.com directly where JavaScript decodes UTF-8 without proxy header corruption
+ */
+export function generateWhatsAppWebLink(params: {
+  customerPhone: string;
+  customerName: string;
+  invoiceNumber: string;
+  amountPaise: number; // Net amount due
+  totalBilledPaise?: number;
+  paidPaise?: number;
+  dueDate: string;
+  upiLink: string;
+}) {
+  const cleanPhone = (params.customerPhone || "").replace(/[^0-9]/g, "").slice(-10);
+  const text = generateWhatsAppMessageText(params);
+  return `https://web.whatsapp.com/send?phone=91${cleanPhone}&text=${encodeURIComponent(text)}`;
 }
