@@ -1,6 +1,15 @@
 import { getDb } from "@/db";
-import { invoices, invoiceLines, orders, customers, customerAddresses, customerPriceAgreements } from "@/db/schema";
-import { eq, sql, and, desc } from "drizzle-orm";
+import {
+  invoices,
+  invoiceLines,
+  orders,
+  customers,
+  customerAddresses,
+  customerPriceAgreements,
+  cashCollectionSubmissions,
+  receipts,
+} from "@/db/schema";
+import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import { postJournalEntry } from "./accounting";
 import { getTodayIST } from "./date-utils";
 
@@ -11,6 +20,8 @@ export interface CreateInvoiceParams {
   lines: { description: string; quantity: number; unitPricePaise: number }[];
   postedBy: string;
   notes?: string;
+  paidAmountPaise?: number;
+  status?: string;
 }
 
 /**
@@ -44,6 +55,10 @@ export async function createAndPostInvoice(params: CreateInvoiceParams) {
   const invoiceId = `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   const totalPaise = params.lines.reduce((s, l) => s + l.quantity * l.unitPricePaise, 0);
+  const initialPaid = Math.min(totalPaise, Math.max(0, params.paidAmountPaise || 0));
+  const initialStatus =
+    params.status ||
+    (initialPaid >= totalPaise ? "PAID" : initialPaid > 0 ? "PARTIALLY_PAID" : "ISSUED");
 
   // 1. Insert Invoice Record
   await db.insert(invoices).values({
@@ -56,8 +71,8 @@ export async function createAndPostInvoice(params: CreateInvoiceParams) {
     subtotalPaise: totalPaise,
     taxPaise: 0, // GST Unregistered
     totalAmountPaise: totalPaise,
-    paidAmountPaise: 0,
-    status: "ISSUED",
+    paidAmountPaise: initialPaid,
+    status: initialStatus,
     billingType: params.billingType,
     pdfUrl: `/api/invoices/${invoiceId}/pdf`,
     createdAt: new Date(),
@@ -102,15 +117,20 @@ export async function createAndPostInvoice(params: CreateInvoiceParams) {
     ],
   });
 
-  // 4. Update Customer Current Balance
-  await db.execute(sql`
-    UPDATE customers SET current_balance_paise = current_balance_paise + ${totalPaise} WHERE id = ${params.customerId};
-  `);
+  // 4. Update Customer Current Balance: Only add the remaining un-settled balance
+  const netDuePaise = Math.max(0, totalPaise - initialPaid);
+  if (netDuePaise > 0) {
+    await db.execute(sql`
+      UPDATE customers SET current_balance_paise = current_balance_paise + ${netDuePaise} WHERE id = ${params.customerId};
+    `);
+  }
 
   return {
     invoiceId,
     invoiceNumber,
     totalAmountPaise: totalPaise,
+    paidAmountPaise: initialPaid,
+    status: initialStatus,
     customer,
   };
 }
@@ -129,6 +149,8 @@ export async function getUnbilledMonthlySummary(billingMonth?: string) {
     .where(eq(customers.billingFrequency, "MONTHLY"));
 
   const pendingSummary: any[] = [];
+  const allCashSubs = await db.select().from(cashCollectionSubmissions);
+  const allReceipts = await db.select().from(receipts);
 
   for (const cust of regularCustomers) {
     // Check if already billed for targetMonth with MONTHLY_CONSOLIDATED
@@ -169,6 +191,27 @@ export async function getUnbilledMonthlySummary(billingMonth?: string) {
       .limit(1);
 
     const unitPricePaise = priceRow?.pricePerJarPaise || deliveredOrders[0]?.unitPricePaise || 3500;
+    const estimatedTotalPaise = totalJars * unitPricePaise;
+
+    // Find cash collected by drivers for this customer in targetMonth
+    const orderIdList = deliveredOrders.map((o: any) => o.id);
+    const custCashSubs = allCashSubs.filter((s: any) => {
+      if (s.orderId && orderIdList.includes(s.orderId)) return true;
+      if (s.collectedAt) {
+        const subMonth = new Date(s.collectedAt).toISOString().slice(0, 7);
+        if (subMonth === targetMonth && deliveredOrders.some((o: any) => o.id === s.orderId)) return true;
+      }
+      return false;
+    });
+
+    const custReceipts = allReceipts.filter((r: any) => {
+      return r.customerId === cust.id && r.receiptDate?.startsWith(targetMonth);
+    });
+
+    const subCashPaise = custCashSubs.reduce((sum: number, s: any) => sum + (s.amountCollectedPaise || 0), 0);
+    const recCashPaise = custReceipts.reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
+    const alreadyPaidPaise = Math.min(estimatedTotalPaise, Math.max(subCashPaise, recCashPaise));
+    const estimatedNetDuePaise = Math.max(0, estimatedTotalPaise - alreadyPaidPaise);
 
     pendingSummary.push({
       customerId: cust.id,
@@ -178,7 +221,9 @@ export async function getUnbilledMonthlySummary(billingMonth?: string) {
       totalJars,
       deliveryTrips: deliveredOrders.length,
       unitPricePaise,
-      estimatedAmountPaise: totalJars * unitPricePaise,
+      estimatedAmountPaise: estimatedTotalPaise,
+      alreadyPaidPaise,
+      estimatedNetDuePaise,
       isBilled: alreadyBilled,
       existingInvoiceNumber: alreadyBilled ? existingInvoices[0]?.invoiceNumber : null,
     });
@@ -194,7 +239,7 @@ export async function getUnbilledMonthlySummary(billingMonth?: string) {
 
 /**
  * Automates Month-End Consolidated Invoice Generation for all Regular Customers
- * Idempotent: Skips customers who have already been billed for the target month.
+ * Adjusts driver doorstep field cash collections and accurately posts net due amounts.
  */
 export async function generateMonthlyConsolidatedInvoices(options?: {
   billingMonth?: string;
@@ -222,6 +267,8 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
     : regularCustomers;
 
   const generatedInvoices: any[] = [];
+  const allCashSubs = await db.select().from(cashCollectionSubmissions);
+  const allReceipts = await db.select().from(receipts);
 
   for (const cust of filteredCustomers) {
     // Check if already billed
@@ -244,7 +291,7 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
       continue;
     }
 
-    // Get delivered recurring orders
+    // Get delivered recurring orders in targetMonth
     const deliveredOrders = await db
       .select()
       .from(orders)
@@ -271,6 +318,28 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
     const unitPricePaise = priceRow?.pricePerJarPaise || deliveredOrders[0]?.unitPricePaise || 3500;
     const totalAmountPaise = totalJars * unitPricePaise;
 
+    // Find driver cash collections and receipts collected for this customer in targetMonth
+    const orderIdList = deliveredOrders.map((o: any) => o.id);
+    const matchingSubs = allCashSubs.filter((s: any) => {
+      if (s.orderId && orderIdList.includes(s.orderId)) return true;
+      if (s.collectedAt) {
+        const subMonth = new Date(s.collectedAt).toISOString().slice(0, 7);
+        if (subMonth === targetMonth && deliveredOrders.some((o: any) => o.id === s.orderId)) return true;
+      }
+      return false;
+    });
+
+    const matchingReceipts = allReceipts.filter((r: any) => {
+      if (r.customerId === cust.id && r.receiptDate?.startsWith(targetMonth)) return true;
+      return false;
+    });
+
+    const subCashPaise = matchingSubs.reduce((sum: number, s: any) => sum + (s.amountCollectedPaise || 0), 0);
+    const recCashPaise = matchingReceipts.reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
+    const alreadyPaidPaise = Math.min(totalAmountPaise, Math.max(subCashPaise, recCashPaise));
+    const netDuePaise = Math.max(0, totalAmountPaise - alreadyPaidPaise);
+    const invStatus = alreadyPaidPaise >= totalAmountPaise ? "PAID" : alreadyPaidPaise > 0 ? "PARTIALLY_PAID" : "ISSUED";
+
     const inv = await createAndPostInvoice({
       customerId: cust.id,
       billingType: "MONTHLY_CONSOLIDATED",
@@ -282,11 +351,29 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
         },
       ],
       postedBy,
-      notes: `Consolidated Monthly Invoice for ${monthName} (${targetMonth}). Total ${deliveredOrders.length} doorstep deliveries.`,
+      paidAmountPaise: alreadyPaidPaise,
+      status: invStatus,
+      notes: `Consolidated Monthly Invoice for ${monthName} (${targetMonth}). Total ${deliveredOrders.length} doorstep deliveries (${totalJars} Jars). Total Billed: ₹${(totalAmountPaise / 100).toFixed(2)}. Driver Doorstep Cash Paid: ₹${(alreadyPaidPaise / 100).toFixed(2)}. Net Amount Due: ₹${(netDuePaise / 100).toFixed(2)}.`,
     });
 
+    // Link matched submissions and receipts to this newly created invoice
+    if (matchingSubs.length > 0) {
+      const subIds = matchingSubs.map((s: any) => s.id);
+      await db
+        .update(cashCollectionSubmissions)
+        .set({ invoiceId: inv.invoiceId })
+        .where(inArray(cashCollectionSubmissions.id, subIds));
+    }
+    if (matchingReceipts.length > 0) {
+      const recIds = matchingReceipts.map((r: any) => r.id);
+      await db
+        .update(receipts)
+        .set({ invoiceId: inv.invoiceId })
+        .where(inArray(receipts.id, recIds));
+    }
+
     const upiLink = generateUpiLink({
-      amountPaise: totalAmountPaise,
+      amountPaise: netDuePaise,
       invoiceNumber: inv.invoiceNumber,
     });
 
@@ -294,7 +381,9 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
       customerPhone: cust.phone,
       customerName: cust.fullName,
       invoiceNumber: inv.invoiceNumber,
-      amountPaise: totalAmountPaise,
+      amountPaise: netDuePaise,
+      totalBilledPaise: totalAmountPaise,
+      paidPaise: alreadyPaidPaise,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       upiLink,
     });
@@ -310,6 +399,9 @@ export async function generateMonthlyConsolidatedInvoices(options?: {
       deliveryTrips: deliveredOrders.length,
       unitPricePaise,
       totalAmountPaise,
+      alreadyPaidPaise,
+      netDuePaise,
+      status: invStatus,
       billingMonth: targetMonth,
       monthName,
       upiLink,
@@ -344,26 +436,46 @@ export function generateUpiLink(params: {
 
 /**
  * Generates 1-Click pre-filled WhatsApp share link (wa.me)
+ * Explicitly breaks down Total Deliveries Billed, Doorstep Cash Paid, and Net Due Amount
  */
 export function generateWhatsAppShareLink(params: {
   customerPhone: string;
   customerName: string;
   invoiceNumber: string;
-  amountPaise: number;
+  amountPaise: number; // Net amount due
+  totalBilledPaise?: number;
+  paidPaise?: number;
   dueDate: string;
   upiLink: string;
 }) {
   const cleanPhone = params.customerPhone.replace(/[^0-9]/g, "").slice(-10);
-  const amountRupees = (params.amountPaise / 100).toFixed(2);
+  const netDueRupees = (params.amountPaise / 100).toFixed(2);
+  const totalBilledRupees = params.totalBilledPaise ? (params.totalBilledPaise / 100).toFixed(2) : null;
+  const paidRupees = params.paidPaise ? (params.paidPaise / 100).toFixed(2) : null;
+
+  let detailsText = "";
+  if (totalBilledRupees && paidRupees && Number(paidRupees) > 0) {
+    detailsText =
+      `💧 *Total Month Deliveries:* ₹${totalBilledRupees}\n` +
+      `💵 *Paid to Driver / Advance:* ₹${paidRupees}\n` +
+      `💰 *Net Balance Due:* ₹${netDueRupees}\n`;
+  } else {
+    detailsText = `💰 *Total Amount Due:* ₹${netDueRupees}\n`;
+  }
+
+  const paymentText =
+    params.amountPaise > 0
+      ? `📅 *Due Date:* ${params.dueDate}\n\n` +
+        `Click below to pay balance via UPI (GPay/PhonePe/Paytm):\n` +
+        `${params.upiLink}\n\n`
+      : `✅ *Status:* Fully Paid (Zero Balance Due)\n\n`;
 
   const text =
     `Namaste ${params.customerName}! 🙏\n\n` +
     `Your water delivery bill from *Sai Waters* is ready:\n` +
     `📄 *Invoice No:* ${params.invoiceNumber}\n` +
-    `💰 *Total Amount:* ₹${amountRupees}\n` +
-    `📅 *Due Date:* ${params.dueDate}\n\n` +
-    `Click below to pay via UPI (GPay/PhonePe/Paytm):\n` +
-    `${params.upiLink}\n\n` +
+    detailsText +
+    paymentText +
     `Thank you for choosing Sai Waters! 💧`;
 
   return `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(text)}`;

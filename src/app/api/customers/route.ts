@@ -18,8 +18,10 @@ import {
   jarMovementEvents,
   jarMasters,
   journalLines,
+  users,
 } from "@/db/schema";
 import { eq, desc, and, or, sql } from "drizzle-orm";
+import { formatTimeIST, getDateStrIST, formatDateTimeIST } from "@/lib/date-utils";
 
 export async function GET(request: Request) {
   await ensureDatabaseReady();
@@ -87,6 +89,159 @@ export async function GET(request: Request) {
       .where(eq(receipts.customerId, cust.id))
       .orderBy(desc(receipts.receiptDate));
 
+    // Fetch cash collections submitted by drivers for this customer
+    const customerCashSubs = await db
+      .select({
+        id: cashCollectionSubmissions.id,
+        driverId: cashCollectionSubmissions.driverId,
+        driverName: users.fullName,
+        orderId: cashCollectionSubmissions.orderId,
+        invoiceId: cashCollectionSubmissions.invoiceId,
+        amountCollectedPaise: cashCollectionSubmissions.amountCollectedPaise,
+        collectedAt: cashCollectionSubmissions.collectedAt,
+        isHandedOver: cashCollectionSubmissions.isHandedOver,
+      })
+      .from(cashCollectionSubmissions)
+      .leftJoin(users, eq(cashCollectionSubmissions.driverId, users.id))
+      .leftJoin(orders, eq(cashCollectionSubmissions.orderId, orders.id))
+      .leftJoin(invoices, eq(cashCollectionSubmissions.invoiceId, invoices.id))
+      .where(
+        or(
+          eq(orders.customerId, cust.id),
+          eq(invoices.customerId, cust.id)
+        )
+      )
+      .orderBy(desc(cashCollectionSubmissions.collectedAt));
+
+    // Map deliveries with any doorstep cash collected on that delivery
+    const enrichedDeliveries = deliveryOrders.map((d: any) => {
+      const matchedCash = customerCashSubs.find((s: any) => s.orderId === d.id);
+      return {
+        ...d,
+        cashCollectedPaise: matchedCash?.amountCollectedPaise || 0,
+        driverName: matchedCash?.driverName || null,
+        formattedTimeIST: formatTimeIST(d.createdAt),
+      };
+    });
+
+    // Unified payments list with driver names, dates, and references
+    const payments: any[] = customerCashSubs.map((s: any) => {
+      const rec = customerReceipts.find(
+        (r: any) =>
+          r.transactionReference?.includes(s.id.slice(-6)) ||
+          (s.invoiceId && r.invoiceId === s.invoiceId)
+      );
+      const linkedOrder = deliveryOrders.find((o: any) => o.id === s.orderId);
+      const linkedInv = customerInvoices.find((i: any) => i.id === s.invoiceId);
+      return {
+        id: s.id,
+        date: getDateStrIST(s.collectedAt),
+        time: formatTimeIST(s.collectedAt),
+        dateTime: formatDateTimeIST(s.collectedAt),
+        amountPaise: s.amountCollectedPaise,
+        driverName: s.driverName || "Route Driver",
+        orderNumber: linkedOrder?.orderNumber || null,
+        orderId: s.orderId || null,
+        invoiceNumber: linkedInv?.invoiceNumber || null,
+        invoiceId: s.invoiceId || null,
+        receiptNumber: rec?.receiptNumber || `REC-${s.id.slice(-5).toUpperCase()}`,
+        isHandedOver: s.isHandedOver,
+        paymentMode: rec?.paymentMode || "CASH",
+        reference: rec?.transactionReference || `Doorstep collection by ${s.driverName || "Driver"}`,
+      };
+    });
+
+    // Add standalone receipts that might not have a matching cash submission
+    for (const rec of customerReceipts) {
+      const alreadyIn = payments.some(
+        (p: any) => p.receiptNumber === rec.receiptNumber || rec.transactionReference?.includes(p.id.slice(-6))
+      );
+      if (!alreadyIn) {
+        payments.push({
+          id: rec.id,
+          date: rec.receiptDate,
+          time: formatTimeIST(rec.createdAt),
+          dateTime: formatDateTimeIST(rec.createdAt),
+          amountPaise: rec.amountPaise,
+          driverName: "Office / Direct Settlement",
+          orderNumber: null,
+          orderId: null,
+          invoiceNumber: customerInvoices.find((i: any) => i.id === rec.invoiceId)?.invoiceNumber || null,
+          invoiceId: rec.invoiceId || null,
+          receiptNumber: rec.receiptNumber,
+          isHandedOver: true,
+          paymentMode: rec.paymentMode || "CASH",
+          reference: rec.transactionReference || "Direct payment settlement",
+        });
+      }
+    }
+
+    payments.sort((a, b) => (b.date + " " + b.time).localeCompare(a.date + " " + a.time));
+
+    // Month-by-month financial summary
+    const monthMap = new Map<string, any>();
+
+    for (const d of enrichedDeliveries) {
+      const m = d.scheduledDate?.slice(0, 7) || "UNKNOWN";
+      if (!monthMap.has(m)) {
+        const [year, month] = m.split("-");
+        const monthLabel =
+          !isNaN(Number(year)) && !isNaN(Number(month))
+            ? new Date(Number(year), Number(month) - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" })
+            : m;
+        monthMap.set(m, {
+          month: m,
+          monthLabel,
+          totalJars: 0,
+          deliveriesCount: 0,
+          deliveryValuePaise: 0,
+          cashPaidPaise: 0,
+          invoices: [],
+        });
+      }
+      const item = monthMap.get(m);
+      item.totalJars += d.quantityJars || 0;
+      item.deliveriesCount += 1;
+      item.deliveryValuePaise += d.totalAmountPaise || 0;
+    }
+
+    for (const p of payments) {
+      const m = p.date?.slice(0, 7) || "UNKNOWN";
+      if (!monthMap.has(m)) {
+        const [year, month] = m.split("-");
+        const monthLabel =
+          !isNaN(Number(year)) && !isNaN(Number(month))
+            ? new Date(Number(year), Number(month) - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" })
+            : m;
+        monthMap.set(m, {
+          month: m,
+          monthLabel,
+          totalJars: 0,
+          deliveriesCount: 0,
+          deliveryValuePaise: 0,
+          cashPaidPaise: 0,
+          invoices: [],
+        });
+      }
+      const item = monthMap.get(m);
+      item.cashPaidPaise += p.amountPaise || 0;
+    }
+
+    for (const inv of customerInvoices) {
+      const m = inv.invoiceDate?.slice(0, 7) || "UNKNOWN";
+      if (monthMap.has(m)) {
+        monthMap.get(m).invoices.push(inv);
+      }
+    }
+
+    const monthlySummary = Array.from(monthMap.values())
+      .map((item: any) => ({
+        ...item,
+        netDuePaise: Math.max(0, item.deliveryValuePaise - item.cashPaidPaise),
+        isFullyPaid: item.cashPaidPaise >= item.deliveryValuePaise && item.deliveryValuePaise > 0,
+      }))
+      .sort((a, b) => b.month.localeCompare(a.month));
+
     // QR Token for this customer
     const qrToken = `urn:sw:c:${cust.customerCode}`;
     const pricePerJarPaise = priceAgreement[0]?.pricePerJarPaise ?? deliveryOrders[0]?.unitPricePaise ?? 2000;
@@ -102,9 +257,11 @@ export async function GET(request: Request) {
         pricePerJarPaise,
         schedule: schedule[0] || null,
       },
-      deliveries: deliveryOrders,
+      deliveries: enrichedDeliveries,
+      payments,
       invoices: customerInvoices,
       receipts: customerReceipts,
+      monthlySummary,
     });
   }
 
@@ -158,7 +315,7 @@ export async function POST(request: Request) {
     phone: body.phone,
     email: body.email || null,
     customerType: "RESIDENTIAL", // All recurring customers
-    billingFrequency: "MONTHLY",
+    billingFrequency: body.billingFrequency || "MONTHLY",
     heldJarsCount: 0,
     currentBalancePaise: 0,
     isActive: true,
@@ -231,13 +388,17 @@ export async function PUT(request: Request) {
   }
 
   // 1. Update Customer Master
+  const custUpdate: any = {
+    fullName: body.fullName,
+    phone: body.phone,
+    email: body.email || null,
+  };
+  if (body.billingFrequency) {
+    custUpdate.billingFrequency = body.billingFrequency;
+  }
   await db
     .update(customers)
-    .set({
-      fullName: body.fullName,
-      phone: body.phone,
-      email: body.email || null,
-    })
+    .set(custUpdate)
     .where(eq(customers.id, customerId));
 
   // 2. Update Address if provided

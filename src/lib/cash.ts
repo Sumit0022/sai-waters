@@ -1,6 +1,6 @@
 import { getDb } from "@/db";
 import { cashCollectionSubmissions, cashHandovers, invoices, receipts, customers } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, or } from "drizzle-orm";
 import { postJournalEntry } from "./accounting";
 import { getTodayIST } from "./date-utils";
 
@@ -33,6 +33,22 @@ export async function recordFieldCashCollection(params: {
       .where(eq(invoices.orderId, params.orderId))
       .limit(1);
     if (invByOrder) targetInvoiceId = invByOrder.id;
+  }
+
+  // If still not linked, check if the customer has an open un-settled invoice
+  if (!targetInvoiceId && params.customerId) {
+    const [openInv] = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.customerId, params.customerId),
+          or(eq(invoices.status, "ISSUED"), eq(invoices.status, "PARTIALLY_PAID"))
+        )
+      )
+      .orderBy(invoices.dueDate)
+      .limit(1);
+    if (openInv) targetInvoiceId = openInv.id;
   }
 
   // 1. Record Cash Submission

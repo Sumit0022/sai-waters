@@ -25,6 +25,9 @@ import {
   RotateCcw,
   RefreshCw,
   Truck,
+  Wallet,
+  Clock,
+  Check,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { formatINR } from "@/lib/utils";
@@ -56,6 +59,7 @@ export default function CustomersPage() {
   const [activeLedger, setActiveLedger] = useState<any>(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState("ALL");
+  const [activeLedgerTab, setActiveLedgerTab] = useState<"DELIVERIES" | "PAYMENTS" | "MONTHLY">("DELIVERIES");
   const [customerQrDataUrl, setCustomerQrDataUrl] = useState("");
 
   // Add / Edit Form State
@@ -65,6 +69,7 @@ export default function CustomersPage() {
   const [locality, setLocality] = useState("Civil Lines");
   const [specialPriceRupees, setSpecialPriceRupees] = useState("35");
   const [recurringQuantity, setRecurringQuantity] = useState("1");
+  const [billingFrequency, setBillingFrequency] = useState<"MONTHLY" | "PER_DELIVERY">("MONTHLY");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const generateConfirmationCode = () => {
@@ -201,6 +206,7 @@ export default function CustomersPage() {
       : "20";
     setSpecialPriceRupees(rateRupees);
     setRecurringQuantity((cust.schedule?.quantityJars || 1).toString());
+    setBillingFrequency(cust.billingFrequency || "MONTHLY");
     setEditModalOpen(true);
   };
 
@@ -219,6 +225,7 @@ export default function CustomersPage() {
           locality,
           specialPricePerJarPaise: Math.round(Number(specialPriceRupees) * 100),
           recurringQuantity: Number(recurringQuantity || 1),
+          billingFrequency,
         }),
       });
       if (res.ok) {
@@ -228,6 +235,7 @@ export default function CustomersPage() {
         setStreetAddress("");
         setSpecialPriceRupees("35");
         setRecurringQuantity("1");
+        setBillingFrequency("MONTHLY");
         loadCustomers();
       }
     } catch (err) {
@@ -254,6 +262,7 @@ export default function CustomersPage() {
           locality,
           specialPricePerJarPaise: Math.round(Number(specialPriceRupees) * 100),
           recurringQuantity: Number(recurringQuantity || 1),
+          billingFrequency,
         }),
       });
       if (res.ok) {
@@ -287,14 +296,53 @@ export default function CustomersPage() {
 
   // Compute monthly calculations for active ledger
   const deliveriesList = activeLedger?.deliveries || [];
+  const paymentsList = activeLedger?.payments || [];
+  const monthlySummaryList = activeLedger?.monthlySummary || [];
+
+  // Extract unique available months from deliveries and payments
+  const availableMonthsMap = new Map<string, string>();
+  deliveriesList.forEach((d: any) => {
+    if (d.scheduledDate && d.scheduledDate.length >= 7) {
+      const ym = d.scheduledDate.slice(0, 7);
+      if (!availableMonthsMap.has(ym)) {
+        const [y, m] = ym.split("-");
+        const label =
+          !isNaN(Number(y)) && !isNaN(Number(m))
+            ? new Date(Number(y), Number(m) - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" })
+            : ym;
+        availableMonthsMap.set(ym, label);
+      }
+    }
+  });
+  paymentsList.forEach((p: any) => {
+    if (p.date && p.date.length >= 7) {
+      const ym = p.date.slice(0, 7);
+      if (!availableMonthsMap.has(ym)) {
+        const [y, m] = ym.split("-");
+        const label =
+          !isNaN(Number(y)) && !isNaN(Number(m))
+            ? new Date(Number(y), Number(m) - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" })
+            : ym;
+        availableMonthsMap.set(ym, label);
+      }
+    }
+  });
+  const availableMonths = Array.from(availableMonthsMap.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
   const filteredDeliveries = deliveriesList.filter((d: any) => {
     if (selectedMonth === "ALL") return true;
     return d.scheduledDate?.startsWith(selectedMonth);
   });
 
+  const filteredPayments = paymentsList.filter((p: any) => {
+    if (selectedMonth === "ALL") return true;
+    return p.date?.startsWith(selectedMonth);
+  });
+
   const totalDeliveredJars = filteredDeliveries.reduce((sum: number, d: any) => sum + (d.quantityJars || 0), 0);
   const totalDeliveryAmountPaise = filteredDeliveries.reduce((sum: number, d: any) => sum + (d.totalAmountPaise || 0), 0);
-  const totalPaidPaise = (activeLedger?.receipts || []).reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
+  const totalPaidPaise = filteredPayments.reduce((sum: number, p: any) => sum + (p.amountPaise || 0), 0);
+  const netBalanceDuePaise = Math.max(0, totalDeliveryAmountPaise - totalPaidPaise);
 
   return (
     <div className="space-y-6">
@@ -446,9 +494,18 @@ export default function CustomersPage() {
                         <span>Bulk / Event Client</span>
                       </span>
                     ) : (
-                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
-                        Daily {quota} Jars
-                      </span>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          Daily {quota} Jars
+                        </span>
+                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-md border ${
+                          cust.billingFrequency === "PER_DELIVERY"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}>
+                          {cust.billingFrequency === "PER_DELIVERY" ? "Per-Delivery Cash" : "Monthly Bill"}
+                        </span>
+                      </div>
                     )}
                   </div>
 
@@ -542,23 +599,26 @@ export default function CustomersPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* MODAL 1: DETAILED CUSTOMER MONTHLY DELIVERY LEDGER */}
+      {/* MODAL 1: DETAILED CUSTOMER MONTHLY DELIVERY & PAYMENT LEDGER */}
       {/* ========================================================================= */}
       {ledgerModalOpen && activeCustomer && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto flex flex-col justify-between">
-            <div>
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto flex flex-col justify-between">
+            <div className="space-y-4">
               {/* Ledger Header */}
               <div className="flex justify-between items-start pb-4 border-b border-slate-100">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-mono font-bold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-md">
                       {activeCustomer.customerCode}
+                    </span>
+                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                      {activeCustomer.billingFrequency === "PER_DELIVERY" ? "Daily Cash / Per-Delivery" : "Monthly Consolidated Billing"}
                     </span>
                     <h3 className="text-lg font-black text-slate-900">{activeCustomer.fullName}</h3>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Allotted Rate: <strong>{formatINR(activeCustomer.pricePerJarPaise ?? activeCustomer.customPrice?.pricePerJarPaise ?? 3500)} / Jar</strong> • Phone: {activeCustomer.phone}
+                    Allotted Rate: <strong>{formatINR(activeCustomer.pricePerJarPaise ?? activeCustomer.customPrice?.pricePerJarPaise ?? 3500)} / Jar</strong> • Phone: {activeCustomer.phone} • Custody Jars: <strong>{activeCustomer.heldJarsCount || 0} Jars</strong>
                   </p>
                 </div>
                 <button
@@ -570,97 +630,305 @@ export default function CustomersPage() {
               </div>
 
               {/* Month Selector Filter */}
-              <div className="flex items-center justify-between py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-1">
                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                  Monthly Delivery History:
+                  Inspect Period:
                 </span>
                 <select
                   aria-label="Filter Month"
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="p-1.5 px-3 rounded-lg border border-slate-200 text-xs font-bold text-slate-800 bg-slate-50"
+                  className="p-2 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 bg-slate-50 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
                 >
-                  <option value="ALL">All Recorded Deliveries</option>
-                  <option value="2026-10">October 2026</option>
-                  <option value="2026-09">September 2026</option>
-                  <option value="2026-08">August 2026</option>
+                  <option value="ALL">All Recorded History (All Months)</option>
+                  {availableMonths.map(([ym, label]) => (
+                    <option key={ym} value={ym}>
+                      {label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* Delivery Entries Table */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-600">
-                    <thead className="bg-slate-50 font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200">
-                      <tr>
-                        <th className="py-2.5 px-3.5">Date & Time</th>
-                        <th className="py-2.5 px-3.5 text-center">Jars Delivered</th>
-                        <th className="py-2.5 px-3.5 text-right">Allotted Rate</th>
-                        <th className="py-2.5 px-3.5 text-right">Total Amount</th>
-                        <th className="py-2.5 px-3.5 text-center">Delivery Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredDeliveries.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="py-8 text-center text-slate-400 italic">
-                            No deliveries recorded for this period yet.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredDeliveries.map((del: any) => (
-                          <tr key={del.id} className="hover:bg-slate-50/80">
-                            <td className="py-2.5 px-3.5 font-bold text-slate-900">
-                              {del.scheduledDate}
-                              <span className="text-[10px] text-slate-400 font-normal block">
-                                {formatTimeIST(del.createdAt)}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3.5 text-center font-extrabold text-sky-700">
-                              {del.quantityJars} 20L Jars
-                            </td>
-                            <td className="py-2.5 px-3.5 text-right font-semibold">
-                              {formatINR(del.unitPricePaise)}
-                            </td>
-                            <td className="py-2.5 px-3.5 text-right font-black text-slate-900">
-                              {formatINR(del.totalAmountPaise)}
-                            </td>
-                            <td className="py-2.5 px-3.5 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                {del.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Monthly Summary Calculation Box */}
-            <div className="mt-4 pt-4 border-t border-slate-200">
+              {/* 4 Financial KPI Summary Cards (Recomputed by selected month) */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Jars</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Delivered</span>
                   <span className="text-lg font-black text-slate-900">{totalDeliveredJars} Jars</span>
+                  <span className="text-[10px] text-slate-400">{filteredDeliveries.length} delivery trips</span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Billed</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Delivery Charges</span>
                   <span className="text-lg font-black text-slate-900">{formatINR(totalDeliveryAmountPaise)}</span>
+                  <span className="text-[10px] text-slate-400">At agreed rate</span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-emerald-700 uppercase block">Total Paid</span>
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase block">Paid to Drivers</span>
                   <span className="text-lg font-black text-emerald-700">{formatINR(totalPaidPaise)}</span>
+                  <span className="text-[10px] text-emerald-600">{filteredPayments.length} cash collections</span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-rose-700 uppercase block">Balance Due</span>
-                  <span className="text-lg font-black text-rose-700">
-                    {formatINR(Math.max(0, totalDeliveryAmountPaise - totalPaidPaise))}
+                  <span className={`text-[10px] font-bold ${netBalanceDuePaise > 0 ? "text-rose-700" : "text-emerald-700"} uppercase block`}>
+                    {netBalanceDuePaise > 0 ? "Net Balance Due" : "Settlement"}
+                  </span>
+                  <span className={`text-lg font-black ${netBalanceDuePaise > 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                    {formatINR(netBalanceDuePaise)}
+                  </span>
+                  <span className={`text-[10px] ${netBalanceDuePaise > 0 ? "text-rose-600 font-bold" : "text-emerald-600 font-semibold"}`}>
+                    {netBalanceDuePaise > 0 ? "Outstanding" : "✓ Fully Paid"}
                   </span>
                 </div>
               </div>
+
+              {/* Navigation Tabs */}
+              <div className="flex border-b border-slate-200 text-xs font-bold gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveLedgerTab("DELIVERIES")}
+                  className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    activeLedgerTab === "DELIVERIES"
+                      ? "border-sky-600 text-sky-700 font-black"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Deliveries Log ({filteredDeliveries.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveLedgerTab("PAYMENTS")}
+                  className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    activeLedgerTab === "PAYMENTS"
+                      ? "border-emerald-600 text-emerald-700 font-black"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>Payments & Cash Received ({filteredPayments.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveLedgerTab("MONTHLY")}
+                  className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    activeLedgerTab === "MONTHLY"
+                      ? "border-indigo-600 text-indigo-700 font-black"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Month-by-Month Statement ({monthlySummaryList.length})</span>
+                </button>
+              </div>
+
+              {/* TAB 1: Deliveries Table */}
+              {activeLedgerTab === "DELIVERIES" && (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto max-h-72">
+                    <table className="w-full text-left text-xs text-slate-600">
+                      <thead className="bg-slate-50 font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 sticky top-0">
+                        <tr>
+                          <th className="py-2.5 px-3.5">Delivery Date</th>
+                          <th className="py-2.5 px-3.5">Order #</th>
+                          <th className="py-2.5 px-3.5 text-center">Jars Delivered</th>
+                          <th className="py-2.5 px-3.5 text-right">Agreed Rate</th>
+                          <th className="py-2.5 px-3.5 text-right">Total Amount</th>
+                          <th className="py-2.5 px-3.5 text-center">Driver Doorstep Cash</th>
+                          <th className="py-2.5 px-3.5 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredDeliveries.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                              No deliveries recorded for this period.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredDeliveries.map((del: any) => (
+                            <tr key={del.id} className="hover:bg-slate-50/80">
+                              <td className="py-2.5 px-3.5 font-bold text-slate-900 whitespace-nowrap">
+                                {del.scheduledDate}
+                                <span className="text-[10px] text-slate-400 font-normal block">
+                                  {del.formattedTimeIST || formatTimeIST(del.createdAt)}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-500">
+                                {del.orderNumber}
+                              </td>
+                              <td className="py-2.5 px-3.5 text-center font-extrabold text-sky-700">
+                                {del.quantityJars} Jars
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-semibold">
+                                {formatINR(del.unitPricePaise)}
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-black text-slate-900">
+                                {formatINR(del.totalAmountPaise)}
+                              </td>
+                              <td className="py-2.5 px-3.5 text-center">
+                                {del.cashCollectedPaise > 0 ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                    <span>{formatINR(del.cashCollectedPaise)}</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-300 text-xs">—</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3.5 text-center">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {del.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: Payments & Cash Collected Table */}
+              {activeLedgerTab === "PAYMENTS" && (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto max-h-72">
+                    <table className="w-full text-left text-xs text-slate-600">
+                      <thead className="bg-slate-50 font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 sticky top-0">
+                        <tr>
+                          <th className="py-2.5 px-3.5">Payment Date & Time</th>
+                          <th className="py-2.5 px-3.5 text-right">Cash Received</th>
+                          <th className="py-2.5 px-3.5">Collected By</th>
+                          <th className="py-2.5 px-3.5">Order / Slip Reference</th>
+                          <th className="py-2.5 px-3.5">Receipt #</th>
+                          <th className="py-2.5 px-3.5 text-center">Central Vault Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredPayments.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-slate-400 italic">
+                              No payments or cash collections recorded for this period yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredPayments.map((p: any) => (
+                            <tr key={p.id} className="hover:bg-slate-50/80">
+                              <td className="py-2.5 px-3.5 font-bold text-slate-900 whitespace-nowrap">
+                                {p.date}
+                                <span className="text-[10px] text-slate-400 font-normal block">{p.time}</span>
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-black text-emerald-800 text-sm whitespace-nowrap">
+                                {formatINR(p.amountPaise)}
+                              </td>
+                              <td className="py-2.5 px-3.5 font-bold text-slate-800">
+                                {p.driverName}
+                              </td>
+                              <td className="py-2.5 px-3.5 text-slate-600 font-mono text-[11px]">
+                                {p.orderNumber || p.reference || "Doorstep collection"}
+                              </td>
+                              <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-500">
+                                {p.receiptNumber}
+                              </td>
+                              <td className="py-2.5 px-3.5 text-center">
+                                {p.isHandedOver ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <Check className="w-3 h-3 text-emerald-600" /> Vault Safe
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    <Clock className="w-3 h-3 text-amber-600" /> Driver Transit (GL 1120)
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: Month-by-Month Statement Table */}
+              {activeLedgerTab === "MONTHLY" && (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto max-h-72">
+                    <table className="w-full text-left text-xs text-slate-600">
+                      <thead className="bg-slate-50 font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 sticky top-0">
+                        <tr>
+                          <th className="py-2.5 px-3.5">Month Period</th>
+                          <th className="py-2.5 px-3.5 text-center">Deliveries (Trips / Jars)</th>
+                          <th className="py-2.5 px-3.5 text-right">Delivery Charges (₹)</th>
+                          <th className="py-2.5 px-3.5 text-right">Driver Cash Paid (₹)</th>
+                          <th className="py-2.5 px-3.5 text-right">Net Balance Due (₹)</th>
+                          <th className="py-2.5 px-3.5 text-center">Bill Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {monthlySummaryList.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-slate-400 italic">
+                              No monthly history available yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          monthlySummaryList.map((m: any) => (
+                            <tr key={m.month} className="hover:bg-slate-50/80">
+                              <td className="py-2.5 px-3.5 font-bold text-slate-900 whitespace-nowrap">
+                                {m.monthLabel}
+                                <span className="text-[10px] text-slate-400 font-mono block">{m.month}</span>
+                              </td>
+                              <td className="py-2.5 px-3.5 text-center font-bold text-slate-800">
+                                {m.deliveriesCount} trips ({m.totalJars} Jars)
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-black text-slate-900">
+                                {formatINR(m.deliveryValuePaise)}
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-black text-emerald-800">
+                                {formatINR(m.cashPaidPaise)}
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-black">
+                                <span className={m.netDuePaise > 0 ? "text-rose-700" : "text-emerald-700"}>
+                                  {formatINR(m.netDuePaise)}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3.5 text-center">
+                                {m.invoices && m.invoices.length > 0 ? (
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
+                                      m.invoices[0].status === "PAID" || m.netDuePaise === 0
+                                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                        : "bg-amber-100 text-amber-900 border-amber-300"
+                                    }`}
+                                  >
+                                    {m.invoices[0].invoiceNumber} ({m.invoices[0].status})
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                    Unbilled (Ready)
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Close Button */}
+            <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setLedgerModalOpen(false)}
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Close Ledger
+              </button>
             </div>
           </div>
         </div>
@@ -788,6 +1056,23 @@ export default function CustomersPage() {
               </div>
 
               <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Billing & Settlement Type</label>
+                <select
+                  value={billingFrequency}
+                  onChange={(e) => setBillingFrequency(e.target.value as any)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 bg-white focus:outline-hidden focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                >
+                  <option value="MONTHLY">Monthly Consolidated Billing (Doorstep cash adjusted in monthly bill)</option>
+                  <option value="PER_DELIVERY">Daily Cash / Per-Delivery (Payment collected on each delivery)</option>
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {billingFrequency === "MONTHLY"
+                    ? "Cash collected by drivers during the month is adjusted against the monthly bill automatically."
+                    : "Drivers collect cash against every trip or individual delivery invoice."}
+                </p>
+              </div>
+
+              <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Locality</label>
                 <input
                   type="text"
@@ -890,6 +1175,23 @@ export default function CustomersPage() {
                   className="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Billing & Settlement Type</label>
+                <select
+                  value={billingFrequency}
+                  onChange={(e) => setBillingFrequency(e.target.value as any)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 bg-white focus:outline-hidden focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                >
+                  <option value="MONTHLY">Monthly Consolidated Billing (Doorstep cash adjusted in monthly bill)</option>
+                  <option value="PER_DELIVERY">Daily Cash / Per-Delivery (Payment collected on each delivery)</option>
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {billingFrequency === "MONTHLY"
+                    ? "Cash collected by drivers during the month is adjusted against the monthly bill automatically."
+                    : "Drivers collect cash against every trip or individual delivery invoice."}
+                </p>
               </div>
 
               <div>

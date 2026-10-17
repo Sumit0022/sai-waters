@@ -78,7 +78,20 @@ export async function GET(request: Request) {
 
     // Driver field cash collections linked to this invoice or order
     const invCashSubs = allCashSubs
-      .filter((s: any) => s.invoiceId === inv.id || (inv.orderId && s.orderId === inv.orderId))
+      .filter((s: any) => {
+        if (s.invoiceId === inv.id) return true;
+        if (inv.orderId && s.orderId === inv.orderId) return true;
+        if (inv.billingType === "MONTHLY_CONSOLIDATED") {
+          const invMonth = inv.invoiceDate ? inv.invoiceDate.slice(0, 7) : "";
+          const targetMonth = inv.notes?.match(/\d{4}-\d{2}/)?.[0] || invMonth;
+          const subDate = s.collectedAt ? new Date(s.collectedAt).toISOString().slice(0, 7) : "";
+          const matchedRec = allReceipts.find(
+            (r: any) => r.customerId === inv.customerId && (r.transactionReference?.includes(s.id?.slice(-6)) || (r.invoiceId === inv.id))
+          );
+          if (matchedRec && subDate === targetMonth) return true;
+        }
+        return false;
+      })
       .map((s: any) => ({
         ...s,
         collectedTimeIST: formatTimeIST(s.collectedAt),
@@ -100,9 +113,8 @@ export async function GET(request: Request) {
     const driverCollectedPaise = invCashSubs.reduce((sum: number, s: any) => sum + (s.amountCollectedPaise || 0), 0);
 
     // Compute verified paid amount and outstanding balance
-    // If double counting occurred in DB, cap to sum of actual receipts or cash collections
     const totalReceiptsPaise = invReceipts.reduce((sum: number, r: any) => sum + (r.amountPaise || 0), 0);
-    const verifiedPaymentsPaise = Math.max(advancePaise + driverCollectedPaise, totalReceiptsPaise);
+    const verifiedPaymentsPaise = Math.max(advancePaise + driverCollectedPaise, totalReceiptsPaise, inv.paidAmountPaise || 0);
 
     // Use verified payments if DB was corrupted by previous double-count, otherwise recorded paidAmountPaise
     const actualPaid = verifiedPaymentsPaise > 0 
@@ -131,6 +143,8 @@ export async function GET(request: Request) {
       customerName: inv.customerName,
       invoiceNumber: inv.invoiceNumber,
       amountPaise: outstandingPaise,
+      totalBilledPaise: inv.totalAmountPaise,
+      paidPaise: actualPaid,
       dueDate: inv.dueDate,
       upiLink,
     });
