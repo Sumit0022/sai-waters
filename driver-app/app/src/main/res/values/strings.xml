@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Sai Waters Driver</string>
+    <string name="notification_channel_name">Trip &amp; Order Dispatch Alerts</string>
+    <string name="notification_channel_desc">Real-time alerts when new deliveries or trips are assigned to you</string>
+</resources>
