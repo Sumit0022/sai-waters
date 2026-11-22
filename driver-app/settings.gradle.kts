@@ -30,6 +30,7 @@ plugins {
   id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-rootProject.name = "SaiWatersDriver"
+rootProject.name = "SaiWaters"
 
 include(":app")
+include(":admin")

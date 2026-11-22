@@ -25,12 +25,14 @@ import {
   Eye,
   EyeOff,
   User,
+  Smartphone,
+  Download,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
 
 export default function SettingsPage() {
-  // Navigation Tabs: DRIVERS | UPI | ADMIN_SECURITY
-  const [activeSection, setActiveSection] = useState<"DRIVERS" | "UPI" | "ADMIN_SECURITY">("DRIVERS");
+  // Navigation Tabs: DRIVERS | UPI | ADMIN_SECURITY | APPS
+  const [activeSection, setActiveSection] = useState<"DRIVERS" | "UPI" | "ADMIN_SECURITY" | "APPS">("DRIVERS");
 
   // Drivers Management State
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -452,6 +454,18 @@ export default function SettingsPage() {
             <Lock className="w-4 h-4 text-indigo-600" />
             <span>Admin Credentials</span>
           </button>
+
+          <button
+            onClick={() => setActiveSection("APPS")}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeSection === "APPS"
+                ? "bg-white text-slate-900 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Smartphone className="w-4 h-4 text-sky-600" />
+            <span>Android APKs</span>
+          </button>
         </div>
       </div>
 
@@ -860,6 +874,85 @@ export default function SettingsPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SECTION 4: ANDROID NATIVE APPS (ADMIN & DRIVER) */}
+      {/* ========================================================================= */}
+      {activeSection === "APPS" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Admin App Card */}
+            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-6 rounded-3xl border border-slate-700 shadow-xl text-white space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center">
+                    <Smartphone className="w-6 h-6 text-sky-400" />
+                  </div>
+                  <div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-400/20 text-sky-300 border border-sky-400/30 uppercase">
+                      Owner &amp; Admin ERP
+                    </span>
+                    <h3 className="text-lg font-black tracking-tight text-white mt-0.5">Sai Waters Admin App</h3>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  v1.0 Ready
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Native Android ERP Application with Apple-inspired Material 3 UI. Full control over 20L jar custody, customer directories, double-entry general ledger, driver cash vault handovers, camera QR scanner, and automated daily database backups directly to your phone storage.
+              </p>
+
+              <div className="pt-2">
+                <a
+                  href="/downloads/sai-waters-admin.apk"
+                  download="sai-waters-admin.apk"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs shadow-lg transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Admin APK (sai-waters-admin.apk)</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Driver App Card */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center">
+                    <Truck className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200 uppercase">
+                      Delivery Field Force
+                    </span>
+                    <h3 className="text-lg font-black tracking-tight text-slate-900 mt-0.5">Sai Waters Driver App</h3>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                  v1.0 Ready
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Dedicated driver app for daily delivery routes, CameraX + MLKit barcode scanning, jar doorstep custody handovers, digital customer passbooks, and cash collection accounting.
+              </p>
+
+              <div className="pt-2">
+                <a
+                  href="/downloads/sai-waters-driver.apk"
+                  download="sai-waters-driver.apk"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-900 hover:bg-black text-white font-black text-xs shadow-md transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Driver APK (sai-waters-driver.apk)</span>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

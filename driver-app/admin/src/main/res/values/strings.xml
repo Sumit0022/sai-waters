@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Sai Waters Admin</string>
+    <string name="notification_channel_name">Sai Waters ERP &amp; Auto-Backup Alerts</string>
+    <string name="notification_channel_desc">Daily scheduled database backups and operational alerts</string>
+</resources>
