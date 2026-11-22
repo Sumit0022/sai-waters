@@ -57,6 +57,13 @@ class DriverRepository(private val context: Context) {
     private val _networkError = MutableStateFlow<String?>(null)
     val networkError: StateFlow<String?> = _networkError.asStateFlow()
 
+    // Business settings (UPI ID, etc.) from /api/settings
+    private val _upiId = MutableStateFlow("saiwaters@upi")
+    val upiId: StateFlow<String> = _upiId.asStateFlow()
+
+    private val _businessName = MutableStateFlow("Sai Waters")
+    val businessName: StateFlow<String> = _businessName.asStateFlow()
+
     init {
         // Automatically sync live data on initialization
         syncFromBackend()
@@ -77,6 +84,7 @@ class DriverRepository(private val context: Context) {
             try {
                 fetchLiveOrders()
                 fetchLiveCash()
+                fetchBusinessSettings()
             } catch (e: Exception) {
                 Log.e("DriverRepository", "Sync failed: ${e.message}", e)
                 _networkError.value = e.message ?: "Failed to sync with backend"
@@ -354,6 +362,29 @@ class DriverRepository(private val context: Context) {
     }
 
     /**
+     * Fetch business settings (UPI ID, payee name) from GET /api/settings
+     */
+    private suspend fun fetchBusinessSettings() {
+        val baseUrl = sessionManager.backendUrl.trimEnd('/')
+        val url = "$baseUrl/api/settings"
+        val result = ApiClient.get(url)
+        result.onSuccess { responseText ->
+            try {
+                val root = JSONObject(responseText)
+                val biz = root.optJSONObject("businessInfo")
+                if (biz != null) {
+                    val upi = biz.optString("upi_id", "").trim()
+                    if (upi.isNotBlank()) _upiId.value = upi
+                    val name = biz.optString("name", biz.optString("payee_name", "Sai Waters")).trim()
+                    if (name.isNotBlank()) _businessName.value = name
+                }
+            } catch (e: Exception) {
+                Log.e("DriverRepository", "Failed parsing /api/settings: ${e.message}")
+            }
+        }
+    }
+
+    /**
      * Mark an order as delivered with scanned jar tokens & cash collected via Live API
      */
     fun completeDelivery(
@@ -472,8 +503,18 @@ class DriverRepository(private val context: Context) {
             val fullName = custObj.getString("fullName")
             val phone = custObj.optString("phone", "")
             val billingCycle = custObj.optString("billingCycle", "DAILY_SPOT")
-            val ratePaise = custObj.optLong("ratePerJarPaise", 3500L)
-            val defaultQty = custObj.optInt("defaultQuantity", 2)
+            val ratePaise = when {
+                custObj.has("pricePerJarPaise") && custObj.optLong("pricePerJarPaise") > 0L -> custObj.optLong("pricePerJarPaise")
+                custObj.has("ratePerJarPaise") && custObj.optLong("ratePerJarPaise") > 0L -> custObj.optLong("ratePerJarPaise")
+                custObj.has("customPrice") && !custObj.isNull("customPrice") && custObj.getJSONObject("customPrice").optLong("pricePerJarPaise", 0L) > 0L ->
+                    custObj.getJSONObject("customPrice").optLong("pricePerJarPaise")
+                else -> 3500L
+            }
+            val defaultQty = if (custObj.has("schedule") && !custObj.isNull("schedule")) {
+                custObj.getJSONObject("schedule").optInt("quantityJars", 2)
+            } else {
+                custObj.optInt("defaultQuantity", 2)
+            }
 
             var street = ""
             var locality = ""

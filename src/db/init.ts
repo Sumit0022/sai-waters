@@ -10,6 +10,22 @@ export async function executeMultiSql(sqlString: string) {
 }
 
 export async function initializeDatabase() {
+  const raw = getRawClient();
+
+  // Fast-path: If database tables already exist, skip redundant heavy DDL & seeding
+  try {
+    const checkSql = "SELECT 1 FROM users LIMIT 1;";
+    if (raw.query) {
+      await raw.query(checkSql);
+      return;
+    } else if (raw.exec) {
+      await raw.exec(checkSql);
+      return;
+    }
+  } catch (_e) {
+    // Tables do not exist yet, proceed with full schema creation
+  }
+
   // Create tables DDL
   await executeMultiSql(`
     -- 1. Security & RBAC

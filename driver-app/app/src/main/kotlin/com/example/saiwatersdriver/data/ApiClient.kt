@@ -10,8 +10,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object ApiClient {
-    private const val CONNECT_TIMEOUT_MS = 10000
-    private const val READ_TIMEOUT_MS = 15000
+    private const val CONNECT_TIMEOUT_MS = 25000
+    private const val READ_TIMEOUT_MS = 45000
 
     suspend fun get(urlString: String): Result<String> = withContext(Dispatchers.IO) {
         try {
@@ -38,6 +38,8 @@ object ApiClient {
                 }
                 Result.failure(Exception(errorMsg))
             }
+        } catch (e: java.net.SocketTimeoutException) {
+            Result.failure(Exception("Server response timeout. Kripya connection check karke dobara try karein."))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -75,6 +77,8 @@ object ApiClient {
                 }
                 Result.failure(Exception(errorMsg))
             }
+        } catch (e: java.net.SocketTimeoutException) {
+            Result.failure(Exception("Server response timeout. Kripya dobara confirm delivery dabayein."))
         } catch (e: Exception) {
             Result.failure(e)
         }

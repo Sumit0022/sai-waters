@@ -70,6 +70,7 @@ dependencies {
   implementation(libs.androidx.camera.view)
   implementation(libs.google.mlkit.barcode)
   implementation(libs.google.guava)
+  implementation("com.google.zxing:core:3.5.3")
 
   // DataStore for offline driver session & state
   implementation(libs.androidx.datastore.preferences)

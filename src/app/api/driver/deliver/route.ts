@@ -18,6 +18,9 @@ import { recordFieldCashCollection } from "@/lib/cash";
 import { createAndPostInvoice } from "@/lib/billing";
 import { getTodayIST } from "@/lib/date-utils";
 
+// Allow up to 30s for this endpoint on Vercel (Pro plan: 300s, Hobby: 60s)
+export const maxDuration = 30;
+
 export async function POST(req: Request) {
   try {
     await ensureDatabaseReady();
@@ -89,51 +92,71 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify each jar is not already in custody with this customer
-    for (const cleanJar of cleanJars) {
-      const jar = await lookupJar(cleanJar);
-      if (jar) {
-        const [custody] = await db
-          .select()
-          .from(jarCustodies)
-          .where(eq(jarCustodies.jarId, jar.id))
-          .limit(1);
-
-        if (
-          custody &&
-          custody.custodyType === "WITH_CUSTOMER" &&
-          custody.customerId === cust.id &&
-          jar.currentStatus === "DELIVERED_CUSTOMER"
-        ) {
-          return NextResponse.json(
-            {
-              error: `Jar '${jar.permanentJarCode}' already ${cust.fullName} ke paas delivered hai! Ek hi jar bina empty return ke dobara deliver nahi ho sakta.`,
-            },
-            { status: 400 }
-          );
-        }
+    // Pre-resolve all jars in parallel
+    const resolvedJars = await Promise.all(cleanJars.map((code) => lookupJar(code)));
+    const jarMap = new Map<string, any>();
+    for (let i = 0; i < cleanJars.length; i++) {
+      if (resolvedJars[i]) {
+        jarMap.set(cleanJars[i], resolvedJars[i]);
       }
     }
 
-    // 3. Fetch Customer Price Agreement (allotted rate)
-    const [priceRow] = await db
-      .select()
-      .from(customerPriceAgreements)
-      .where(eq(customerPriceAgreements.customerId, cust.id))
-      .orderBy(desc(customerPriceAgreements.effectiveFrom))
-      .limit(1);
+    // Verify each jar is not already in custody with this customer (parallel checks)
+    const custodyChecks = await Promise.all(
+      cleanJars.map(async (cleanJar) => {
+        const jar = jarMap.get(cleanJar);
+        if (jar) {
+          const [custody] = await db
+            .select()
+            .from(jarCustodies)
+            .where(eq(jarCustodies.jarId, jar.id))
+            .limit(1);
+
+          if (
+            custody &&
+            custody.custodyType === "WITH_CUSTOMER" &&
+            custody.customerId === cust.id &&
+            jar.currentStatus === "DELIVERED_CUSTOMER"
+          ) {
+            return jar.permanentJarCode;
+          }
+        }
+        return null;
+      })
+    );
+
+    const alreadyDelivered = custodyChecks.filter(Boolean);
+    if (alreadyDelivered.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Jar '${alreadyDelivered[0]}' already ${cust.fullName} ke paas delivered hai! Ek hi jar bina empty return ke dobara deliver nahi ho sakta.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // 3. Fetch Customer Price Agreement & Address concurrently
+    const [priceRows, addrRows] = await Promise.all([
+      db
+        .select()
+        .from(customerPriceAgreements)
+        .where(eq(customerPriceAgreements.customerId, cust.id))
+        .orderBy(desc(customerPriceAgreements.effectiveFrom))
+        .limit(1),
+      db
+        .select()
+        .from(customerAddresses)
+        .where(eq(customerAddresses.customerId, cust.id))
+        .limit(1),
+    ]);
+
+    const priceRow = priceRows[0];
     const unitPricePaise = priceRow
       ? priceRow.pricePerJarPaise
       : (body.unitPricePaise ? Number(body.unitPricePaise) : 3500);
     const totalAmountPaise = unitPricePaise * cleanJars.length;
 
-    // 4. Fetch Customer Address
-    const [addrRow] = await db
-      .select()
-      .from(customerAddresses)
-      .where(eq(customerAddresses.customerId, cust.id))
-      .limit(1);
-
+    const addrRow = addrRows[0];
     const todayStr = getTodayIST();
     const orderNumber = `ORD-REC-${Date.now().toString().slice(-6)}`;
     const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -153,22 +176,24 @@ export async function POST(req: Request) {
       deliveryNotes: `Doorstep scan delivery by driver ${driverId}`,
     });
 
-    // 6. Transition each delivered jar to DELIVERED_CUSTOMER
+    // 6. Transition each delivered jar to DELIVERED_CUSTOMER in parallel
     const transitionedJars: string[] = [];
-    for (const rawOrCleanCode of cleanJars) {
-      const jar = await lookupJar(rawOrCleanCode);
-      if (jar) {
-        await transitionJarState({
-          jarId: jar.id,
-          toStatus: "DELIVERED_CUSTOMER",
-          actorUserId: driverId,
-          orderId,
-          customerId: cust.id,
-          notes: `Doorstep scan delivery to ${cust.fullName}`,
-        });
-        transitionedJars.push(jar.permanentJarCode);
-      }
-    }
+    await Promise.all(
+      cleanJars.map(async (rawOrCleanCode) => {
+        const jar = jarMap.get(rawOrCleanCode) || (await lookupJar(rawOrCleanCode));
+        if (jar) {
+          await transitionJarState({
+            jarId: jar.id,
+            toStatus: "DELIVERED_CUSTOMER",
+            actorUserId: driverId,
+            orderId,
+            customerId: cust.id,
+            notes: `Doorstep scan delivery to ${cust.fullName}`,
+          });
+          transitionedJars.push(jar.permanentJarCode);
+        }
+      })
+    );
 
     // If any jar code was not registered in jar masters, increment customer held count by difference
     const untrackedCount = cleanJars.length - transitionedJars.length;
@@ -181,19 +206,21 @@ export async function POST(req: Request) {
     // 7. Process Doorstep Empty Jar Returns (relieves customer liability on the spot)
     const returnedEmpties: string[] = [];
     if (Array.isArray(emptyJarCodes) && emptyJarCodes.length > 0) {
-      for (const emptyCode of emptyJarCodes) {
-        const emptyJar = await lookupJar(emptyCode);
-        if (emptyJar) {
-          await transitionJarState({
-            jarId: emptyJar.id,
-            toStatus: "RETURNED_INSPECT",
-            actorUserId: driverId,
-            orderId,
-            notes: `Collected empty jar at doorstep from ${cust.fullName}`,
-          });
-          returnedEmpties.push(emptyJar.permanentJarCode);
-        }
-      }
+      await Promise.all(
+        emptyJarCodes.map(async (emptyCode) => {
+          const emptyJar = await lookupJar(emptyCode);
+          if (emptyJar) {
+            await transitionJarState({
+              jarId: emptyJar.id,
+              toStatus: "RETURNED_INSPECT",
+              actorUserId: driverId,
+              orderId,
+              notes: `Collected empty jar at doorstep from ${cust.fullName}`,
+            });
+            returnedEmpties.push(emptyJar.permanentJarCode);
+          }
+        })
+      );
     }
 
     // If driver entered numeric count of returned empty jars without scanning

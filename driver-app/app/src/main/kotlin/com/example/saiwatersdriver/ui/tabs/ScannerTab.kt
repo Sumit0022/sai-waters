@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
@@ -15,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,6 +43,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -69,6 +72,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -80,6 +84,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -102,7 +107,44 @@ import com.example.saiwatersdriver.ui.theme.WaterOnEmeraldContainer
 import com.example.saiwatersdriver.ui.theme.WaterRoseDanger
 import com.example.saiwatersdriver.ui.theme.WaterTextPrimary
 import com.example.saiwatersdriver.ui.theme.WaterTextSecondary
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.launch
+
+/**
+ * Generate a standard UPI QR code bitmap using ZXing
+ * Formats: upi://pay?pa=<upi_id>&pn=<payee>&am=<amount>&cu=INR
+ * Scannable by any UPI app in India (PhonePe, Google Pay, Paytm, BHIM)
+ */
+fun generateUpiQrBitmap(upiId: String, payeeName: String, amountRupees: Int): Bitmap? {
+    return try {
+        val cleanUpi = upiId.trim()
+        if (cleanUpi.isBlank() || !cleanUpi.contains("@")) return null
+        val encodedName = Uri.encode(payeeName.ifBlank { "Sai Waters" })
+        val upiUri = if (amountRupees > 0) {
+            "upi://pay?pa=$cleanUpi&pn=$encodedName&am=$amountRupees&cu=INR&tn=Sai%20Waters%20Jar%20Delivery"
+        } else {
+            "upi://pay?pa=$cleanUpi&pn=$encodedName&cu=INR&tn=Sai%20Waters"
+        }
+        val size = 512
+        val hints = java.util.EnumMap<EncodeHintType, Any>(EncodeHintType::class.java).apply {
+            put(EncodeHintType.MARGIN, 1)
+        }
+        val bitMatrix = QRCodeWriter().encode(upiUri, BarcodeFormat.QR_CODE, size, size, hints)
+        val w = bitMatrix.width
+        val h = bitMatrix.height
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        for (x in 0 until w) {
+            for (y in 0 until h) {
+                bitmap.setPixel(x, y, if (bitMatrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+        }
+        bitmap
+    } catch (e: Exception) {
+        null
+    }
+}
 
 enum class DeliveryWorkflowStep {
     STEP1_CUSTOMER_SCAN,
@@ -125,6 +167,10 @@ fun ScannerTab(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // Live sync business settings from Admin Dashboard
+    val liveUpiId by repository.upiId.collectAsState()
+    val liveBusinessName by repository.businessName.collectAsState()
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -1058,21 +1104,180 @@ fun ScannerTab(
                                              )
                                          )
                                      } else if (paymentMode == PaymentMode.UPI_QR) {
-                                         Spacer(modifier = Modifier.height(12.dp))
+                                         Spacer(modifier = Modifier.height(14.dp))
                                          Surface(
-                                             shape = RoundedCornerShape(10.dp),
-                                             color = Color(0xFFEFF6FF),
-                                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                                             shape = RoundedCornerShape(16.dp),
+                                             color = Color(0xFFF0F9FF),
+                                             border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFBAE6FD)),
                                              modifier = Modifier.fillMaxWidth()
                                          ) {
-                                             Column(modifier = Modifier.padding(12.dp)) {
-                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                     Icon(imageVector = Icons.Default.QrCode, contentDescription = null, tint = Color(0xFF1D4ED8), modifier = Modifier.size(16.dp))
-                                                     Spacer(modifier = Modifier.width(6.dp))
-                                                     Text("Company UPI ID: saiwaters@upi", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF1E40AF))
+                                             Column(
+                                                 modifier = Modifier.padding(16.dp),
+                                                 horizontalAlignment = Alignment.CenterHorizontally
+                                             ) {
+                                                 // Header row with Live status
+                                                 Row(
+                                                     modifier = Modifier.fillMaxWidth(),
+                                                     horizontalArrangement = Arrangement.SpaceBetween,
+                                                     verticalAlignment = Alignment.CenterVertically
+                                                 ) {
+                                                     Row(verticalAlignment = Alignment.CenterVertically) {
+                                                         Icon(
+                                                             imageVector = Icons.Default.QrCode,
+                                                             contentDescription = null,
+                                                             tint = Color(0xFF0284C7),
+                                                             modifier = Modifier.size(18.dp)
+                                                         )
+                                                         Spacer(modifier = Modifier.width(6.dp))
+                                                         Text(
+                                                             text = "Scan & Pay via UPI",
+                                                             fontSize = 13.sp,
+                                                             fontWeight = FontWeight.Bold,
+                                                             color = Color(0xFF0369A1)
+                                                         )
+                                                     }
+                                                     Surface(
+                                                         shape = RoundedCornerShape(50),
+                                                         color = Color(0xFFDCFCE7),
+                                                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF86EFAC))
+                                                     ) {
+                                                         Text(
+                                                             text = "● LIVE SYNC",
+                                                             fontSize = 9.sp,
+                                                             fontWeight = FontWeight.ExtraBold,
+                                                             color = Color(0xFF15803D),
+                                                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                                         )
+                                                     }
                                                  }
-                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                 Text("Customer se ₹$totalBill transfer karwayein. Money goes directly to bank account (Driver cash in hand remains ₹0).", fontSize = 10.sp, color = Color(0xFF1E3A8A))
+
+                                                 Spacer(modifier = Modifier.height(14.dp))
+
+                                                 // Medium-sized QR Code Card
+                                                 val upiQrBitmap = remember(liveUpiId, liveBusinessName, totalBill) {
+                                                     generateUpiQrBitmap(liveUpiId, liveBusinessName, totalBill)
+                                                 }
+
+                                                 Surface(
+                                                     shape = RoundedCornerShape(16.dp),
+                                                     color = Color.White,
+                                                     border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE2E8F0)),
+                                                     shadowElevation = 3.dp
+                                                 ) {
+                                                     Box(
+                                                         modifier = Modifier.padding(14.dp),
+                                                         contentAlignment = Alignment.Center
+                                                     ) {
+                                                         if (upiQrBitmap != null) {
+                                                             Image(
+                                                                 bitmap = upiQrBitmap.asImageBitmap(),
+                                                                 contentDescription = "UPI Payment QR Code",
+                                                                 modifier = Modifier.size(190.dp)
+                                                             )
+                                                         } else {
+                                                             Column(
+                                                                 horizontalAlignment = Alignment.CenterHorizontally,
+                                                                 modifier = Modifier
+                                                                     .size(190.dp)
+                                                                     .padding(16.dp),
+                                                                 verticalArrangement = Arrangement.Center
+                                                             ) {
+                                                                 Icon(
+                                                                     imageVector = Icons.Default.QrCode,
+                                                                     contentDescription = null,
+                                                                     tint = Color(0xFF94A3B8),
+                                                                     modifier = Modifier.size(48.dp)
+                                                                 )
+                                                                 Spacer(modifier = Modifier.height(8.dp))
+                                                                 Text(
+                                                                     text = "UPI QR Code Taiyar Ho Raha Hai...",
+                                                                     fontSize = 11.sp,
+                                                                     color = Color(0xFF64748B),
+                                                                     textAlign = TextAlign.Center
+                                                                 )
+                                                             }
+                                                         }
+                                                     }
+                                                 }
+
+                                                 Spacer(modifier = Modifier.height(12.dp))
+
+                                                 // Amount to be paid
+                                                 Text(
+                                                     text = "₹" + totalBill,
+                                                     fontSize = 22.sp,
+                                                     fontWeight = FontWeight.Black,
+                                                     color = Color(0xFF0F172A)
+                                                 )
+
+                                                 Spacer(modifier = Modifier.height(8.dp))
+
+                                                 // Live UPI ID with One-Tap Copy
+                                                 Surface(
+                                                     shape = RoundedCornerShape(10.dp),
+                                                     color = Color.White,
+                                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                                                     modifier = Modifier
+                                                         .fillMaxWidth()
+                                                         .clickable {
+                                                             try {
+                                                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                                                 val clip = android.content.ClipData.newPlainText("UPI ID", liveUpiId)
+                                                                 clipboard.setPrimaryClip(clip)
+                                                                 triggerVibration(isError = false)
+                                                                 inScannerNotice = "UPI ID Copied: " + liveUpiId
+                                                             } catch (_: Exception) {}
+                                                         }
+                                                 ) {
+                                                     Row(
+                                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                         horizontalArrangement = Arrangement.SpaceBetween,
+                                                         verticalAlignment = Alignment.CenterVertically
+                                                     ) {
+                                                         Column {
+                                                             Text(
+                                                                 text = "UPI ID (" + (if (liveBusinessName.isNotBlank()) liveBusinessName else "Sai Waters") + ")",
+                                                                 fontSize = 9.sp,
+                                                                 color = Color(0xFF64748B),
+                                                                 fontWeight = FontWeight.Medium
+                                                             )
+                                                             Text(
+                                                                 text = liveUpiId,
+                                                                 fontSize = 13.sp,
+                                                                 fontWeight = FontWeight.Bold,
+                                                                 color = Color(0xFF0284C7)
+                                                             )
+                                                         }
+                                                         Surface(
+                                                             shape = RoundedCornerShape(6.dp),
+                                                             color = Color(0xFFE0F2FE)
+                                                         ) {
+                                                             Row(
+                                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                                 verticalAlignment = Alignment.CenterVertically
+                                                             ) {
+                                                                 Icon(
+                                                                     imageVector = Icons.Default.ContentCopy,
+                                                                     contentDescription = "Copy",
+                                                                     tint = Color(0xFF0284C7),
+                                                                     modifier = Modifier.size(13.dp)
+                                                                 )
+                                                                 Spacer(modifier = Modifier.width(4.dp))
+                                                                 Text("Copy", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0284C7))
+                                                             }
+                                                         }
+                                                     }
+                                                 }
+
+                                                 Spacer(modifier = Modifier.height(10.dp))
+
+                                                 Text(
+                                                     text = "Grahak kisi bhi app (Google Pay, PhonePe, Paytm, BHIM) se scan karein.\nPaisa sidha Company Bank Account (1130) mein jayega (Driver Cash = ₹0).",
+                                                     fontSize = 10.sp,
+                                                     color = Color(0xFF475569),
+                                                     textAlign = TextAlign.Center,
+                                                     lineHeight = 14.sp
+                                                 )
                                              }
                                          }
                                      } else {
