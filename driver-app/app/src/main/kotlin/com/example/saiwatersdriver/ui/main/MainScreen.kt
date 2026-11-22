@@ -8,6 +8,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -51,19 +52,17 @@ import com.example.saiwatersdriver.ui.tabs.CashTab
 import com.example.saiwatersdriver.ui.tabs.DeliveriesTab
 import com.example.saiwatersdriver.ui.tabs.ScannerTab
 import com.example.saiwatersdriver.ui.tabs.ShiftTab
-import com.example.saiwatersdriver.ui.theme.WaterBorderLight
 import com.example.saiwatersdriver.ui.theme.WaterCyanPrimary
-import com.example.saiwatersdriver.ui.theme.WaterNavyDark
-import com.example.saiwatersdriver.ui.theme.WaterTextPrimary
 import com.example.saiwatersdriver.ui.theme.WaterTextSecondary
 import kotlinx.coroutines.launch
 
 /**
  * Main Container Screen for Sai Waters Driver App
- * Material 3 layout with custom branded elements, live dispatch notifications, and smooth QR scanner
+ * Material 3 layout with live ERP sync, custom heads-up notifications, and CameraX scanner.
  */
 @Composable
 fun MainScreen(
+    onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -78,6 +77,8 @@ fun MainScreen(
     val scannedJars by repository.scannedJars.collectAsStateWithLifecycle()
     val cashCollections by repository.cashCollections.collectAsStateWithLifecycle()
     val lastScannedJar by repository.lastScannedJar.collectAsStateWithLifecycle()
+    val isRefreshing by repository.isRefreshing.collectAsStateWithLifecycle()
+    val networkError by repository.networkError.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var hasNotificationPermission by remember { mutableStateOf(notificationManager.hasNotificationPermission()) }
@@ -94,23 +95,18 @@ fun MainScreen(
         }
     }
 
-    // Runtime Permission Launcher for Camera
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (!isGranted) {
-            scope.launch {
-                snackbarHostState.showSnackbar("Camera permission is required to scan water jar QR codes.")
-            }
-        }
-    }
-
     // Auto-request notification permission on first launch if on Android 13+
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationManager.hasNotificationPermission()) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    // Show network errors if backend is unreachable
+    LaunchedEffect(networkError) {
+        networkError?.let { err ->
+            snackbarHostState.showSnackbar("Live Sync: $err")
+        }
     }
 
     val pendingOrdersCount = orders.count { it.status != DeliveryStatus.DELIVERED }
@@ -125,6 +121,12 @@ fun MainScreen(
                     scope.launch {
                         snackbarHostState.showSnackbar("💧 New Delivery Allotted! Notification triggered.")
                     }
+                },
+                onSyncClick = {
+                    repository.syncFromBackend()
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Refreshing live orders & cash records...")
+                    }
                 }
             )
         },
@@ -132,7 +134,9 @@ fun MainScreen(
             NavigationBar(
                 containerColor = Color.White,
                 tonalElevation = 6.dp,
-                modifier = Modifier.background(Color.White)
+                modifier = Modifier
+                    .background(Color.White)
+                    .navigationBarsPadding()
             ) {
                 // Tab 0: Deliveries
                 NavigationBarItem(
@@ -275,16 +279,20 @@ fun MainScreen(
             when (tabIndex) {
                 0 -> DeliveriesTab(
                     orders = orders,
+                    driverProfile = driverProfile,
                     hasNotificationPermission = hasNotificationPermission,
                     onRequestNotificationPermission = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     },
+                    onRefresh = {
+                        repository.syncFromBackend()
+                    },
                     onConfirmDelivery = { orderId, delJars, empJars, cashAmt, mode, notes ->
                         repository.completeDelivery(orderId, delJars, empJars, cashAmt, mode, notes)
                         scope.launch {
-                            snackbarHostState.showSnackbar("✅ Delivery confirmed! Receipt posted to ledger.")
+                            snackbarHostState.showSnackbar("✅ Delivery confirmed! Synced with ERP ledger.")
                         }
                     }
                 )
@@ -292,16 +300,16 @@ fun MainScreen(
                     scannedJars = scannedJars,
                     lastScannedJar = lastScannedJar,
                     onJarScanned = { qrToken, isReturnEmpty ->
-                        val result = repository.recordJarScan(qrToken, isReturnEmpty)
+                        repository.recordJarScan(qrToken, isReturnEmpty)
                         scope.launch {
                             snackbarHostState.showSnackbar(
-                                if (isReturnEmpty) "Empty jar recorded: ${result.jarCode}"
-                                else "Outgoing jar verified: ${result.jarCode}"
+                                if (isReturnEmpty) "Empty jar recorded: $qrToken"
+                                else "Outgoing jar verified: $qrToken"
                             )
                         }
                     },
                     onDismissScanNotice = {
-                        repository.clearLastScanNotice()
+                        repository.dismissLastScanNotice()
                     }
                 )
                 2 -> CashTab(
@@ -311,7 +319,14 @@ fun MainScreen(
                 3 -> ShiftTab(
                     driverProfile = driverProfile,
                     totalDeliveredJars = orders.filter { it.status == DeliveryStatus.DELIVERED }.sumOf { it.jarQuantity },
-                    totalEmptyCollected = orders.sumOf { it.collectedEmptyJars.size }
+                    totalEmptyCollected = orders.sumOf { it.collectedEmptyJars.size },
+                    onSyncClick = {
+                        repository.syncFromBackend()
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Live ERP data refreshed.")
+                        }
+                    },
+                    onLogoutClick = onLogout
                 )
             }
         }

@@ -81,50 +81,84 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const db = getDb();
-  const body = await request.json();
+  try {
+    const db = getDb();
+    const body = await request.json();
 
-  const countRes = await db.select().from(jarMasters);
-  const nextNum = countRes.length + 1;
-  const permanentJarCode = body.permanentJarCode || `JAR-20L-${String(nextNum).padStart(4, "0")}`;
-  const jarId = `jar_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const qrToken = body.qrToken || `urn:sw:j:q8x9f2m1-${String(nextNum).padStart(4, "0")}`;
-  const todayStr = body.acquisitionDate || getTodayIST();
+    const quantity = Math.max(1, Math.min(500, Number(body.quantity || body.numberOfJars) || 1));
+    const todayStr = body.acquisitionDate || getTodayIST();
+    const costPaise = body.acquisitionCostPaise || 18000;
 
-  // 1. Insert Master Jar
-  await db.insert(jarMasters).values({
-    id: jarId,
-    permanentJarCode,
-    acquisitionDate: todayStr,
-    acquisitionCostPaise: body.acquisitionCostPaise || 18000, // ₹180.00
-    currentStatus: "AVAILABLE",
-    totalUsageCycles: 0,
-    isActive: true,
-    notes: body.notes || null,
-  });
+    // Determine starting numeric index from existing jars
+    const allJars = await db.select({ permanentJarCode: jarMasters.permanentJarCode }).from(jarMasters);
+    let maxSuffix = 0;
+    for (const j of allJars) {
+      const match = j.permanentJarCode.match(/(\d+)$/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxSuffix) maxSuffix = n;
+      }
+    }
 
-  // 2. Insert QR Identifier
-  await db.insert(qrIdentifiers).values({
-    id: `qr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    jarId,
-    qrToken,
-    isActive: true,
-    issuedAt: new Date(),
-  });
+    const startNum = body.startingNumber ? Number(body.startingNumber) : (maxSuffix + 1);
+    const prefix = body.codePrefix || (quantity === 1 && body.permanentJarCode ? null : "JAR-20L-");
 
-  // 3. Set Initial Custody at Plant
-  await db.insert(jarCustodies).values({
-    jarId,
-    custodyType: "PLANT",
-    customerId: null,
-    holderUserId: null,
-    transferredAt: new Date(),
-  });
+    const createdJars: any[] = [];
 
-  return NextResponse.json({
-    success: true,
-    jar: { id: jarId, permanentJarCode, qrToken, currentStatus: "AVAILABLE" },
-  });
+    for (let i = 0; i < quantity; i++) {
+      const currentNum = startNum + i;
+      const permanentJarCode = (quantity === 1 && body.permanentJarCode?.trim())
+        ? body.permanentJarCode.trim()
+        : `${prefix || "JAR-20L-"}${String(currentNum).padStart(4, "0")}`;
+
+      const jarId = `jar_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`;
+      const qrToken = `urn:sw:j:q8x9f2m1-${String(currentNum).padStart(4, "0")}`;
+
+      // 1. Insert Master Jar
+      await db.insert(jarMasters).values({
+        id: jarId,
+        permanentJarCode,
+        acquisitionDate: todayStr,
+        acquisitionCostPaise: costPaise,
+        currentStatus: "AVAILABLE",
+        totalUsageCycles: 0,
+        isActive: true,
+        notes: body.notes || (quantity > 1 ? `Batch of ${quantity} jars registered` : null),
+      });
+
+      // 2. Insert QR Identifier
+      await db.insert(qrIdentifiers).values({
+        id: `qr_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+        jarId,
+        qrToken,
+        isActive: true,
+        issuedAt: new Date(),
+      });
+
+      // 3. Set Initial Custody at Plant
+      await db.insert(jarCustodies).values({
+        jarId,
+        custodyType: "PLANT",
+        customerId: null,
+        holderUserId: null,
+        transferredAt: new Date(),
+      });
+
+      createdJars.push({ id: jarId, permanentJarCode, qrToken, currentStatus: "AVAILABLE" });
+    }
+
+    return NextResponse.json({
+      success: true,
+      count: quantity,
+      jar: createdJars[0],
+      firstJar: createdJars[0],
+      lastJar: createdJars[createdJars.length - 1],
+      jars: createdJars,
+      message: `Successfully registered ${quantity} 20L Water Jars (${createdJars[0].permanentJarCode} to ${createdJars[createdJars.length - 1].permanentJarCode})`,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Failed to add jars" }, { status: 500 });
+  }
 }
 
 export async function PUT(request: Request) {

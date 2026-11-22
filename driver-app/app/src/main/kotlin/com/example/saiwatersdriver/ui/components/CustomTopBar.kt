@@ -11,15 +11,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
@@ -42,21 +41,23 @@ import com.example.saiwatersdriver.ui.theme.WaterCyanPrimary
 import com.example.saiwatersdriver.ui.theme.WaterEmeraldGreen
 import com.example.saiwatersdriver.ui.theme.WaterNavyDark
 import com.example.saiwatersdriver.ui.theme.WaterOnCyanContainer
-import com.example.saiwatersdriver.ui.theme.WaterTextPrimary
 import com.example.saiwatersdriver.ui.theme.WaterTextSecondary
 
 /**
  * Custom Material 3 Header Top Bar for Sai Waters Driver App
- * Custom branded header showing driver profile, vehicle badge, and simulated dispatch trigger.
+ * Includes statusBarsPadding to prevent Android status bar overlap.
  */
 @Composable
 fun CustomTopBar(
     driverProfile: DriverProfile,
     onSimulateDispatchClick: () -> Unit,
+    onSyncClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .statusBarsPadding(),
         color = Color.White,
         shadowElevation = 2.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, WaterBorderLight)
@@ -64,7 +65,7 @@ fun CustomTopBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -79,7 +80,7 @@ fun CustomTopBar(
                     // Custom Brand Avatar Icon
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
                             .background(WaterCyanPrimary),
                         contentAlignment = Alignment.Center
@@ -121,7 +122,7 @@ fun CustomTopBar(
                                             .background(WaterEmeraldGreen)
                                     )
                                     Text(
-                                        text = "ON TRIP",
+                                        text = "LIVE SYNC",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = Color(0xFF166534)
@@ -141,29 +142,49 @@ fun CustomTopBar(
                     }
                 }
 
-                // Right: 1-Tap "Simulate Dispatch" Alert Test Button
-                ElevatedButton(
-                    onClick = onSimulateDispatchClick,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.elevatedButtonColors(
-                        containerColor = WaterCyanContainer,
-                        contentColor = WaterOnCyanContainer
-                    ),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                // Right Actions
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.NotificationsActive,
-                        contentDescription = "Dispatch Alert",
-                        modifier = Modifier.size(16.dp),
-                        tint = WaterCyanPrimary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "+ New Order Alert",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = WaterOnCyanContainer
-                    )
+                    if (onSyncClick != null) {
+                        IconButton(
+                            onClick = onSyncClick,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = "Sync",
+                                tint = WaterCyanPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // 1-Tap "Simulate Dispatch" Alert Test Button
+                    ElevatedButton(
+                        onClick = onSimulateDispatchClick,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = WaterCyanContainer,
+                            contentColor = WaterOnCyanContainer
+                        ),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.NotificationsActive,
+                            contentDescription = "Dispatch Alert",
+                            modifier = Modifier.size(14.dp),
+                            tint = WaterCyanPrimary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "+ Alert",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WaterOnCyanContainer
+                        )
+                    }
                 }
             }
         }

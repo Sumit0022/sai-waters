@@ -63,6 +63,7 @@ export default function JarsPage() {
   const [scanError, setScanError] = useState("");
 
   // Form states - Register
+  const [newJarQuantity, setNewJarQuantity] = useState("1");
   const [newJarCode, setNewJarCode] = useState("");
   const [newJarDate, setNewJarDate] = useState(getTodayIST());
   const [newJarCost, setNewJarCost] = useState("180");
@@ -228,15 +229,17 @@ export default function JarsPage() {
     }
   };
 
-  // Register New Jar
+  // Register New Jar (Supports single or bulk batch)
   const handleRegisterJar = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const qty = Math.max(1, Math.min(500, parseInt(newJarQuantity, 10) || 1));
       const res = await fetch("/api/jars", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          permanentJarCode: newJarCode || undefined,
+          quantity: qty,
+          permanentJarCode: qty === 1 && newJarCode.trim() ? newJarCode.trim() : undefined,
           acquisitionDate: newJarDate,
           acquisitionCostPaise: Math.round(Number(newJarCost) * 100),
           notes: newJarNotes,
@@ -245,6 +248,7 @@ export default function JarsPage() {
       if (res.ok) {
         const data = await res.json();
         setRegisterOpen(false);
+        setNewJarQuantity("1");
         setNewJarCode("");
         setNewJarNotes("");
         loadJars();
@@ -827,74 +831,141 @@ export default function JarsPage() {
       {/* ========================================================================= */}
       {registerOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-900">+ Naya 20L Water Jar Jodein</h3>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">+ Naye 20L Water Jars Jodein</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Single ya Bulk batch ek saath register karein</p>
+              </div>
               <button onClick={() => setRegisterOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleRegisterJar} className="space-y-4">
+              {/* QUANTITY FIELD WITH PRESETS */}
+              <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-3.5">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-sky-600" />
+                    Kitne Jars Add Karne Hain? (Quantity)
+                  </label>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-sky-200/80 text-sky-800">
+                    {newJarQuantity || "1"} Jars
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={newJarQuantity}
+                    onChange={(e) => setNewJarQuantity(e.target.value)}
+                    className="w-28 px-3 py-2 bg-white border border-sky-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+                    placeholder="1"
+                    required
+                  />
+                  <div className="flex flex-wrap gap-1">
+                    {[1, 5, 10, 25, 50, 100].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setNewJarQuantity(preset.toString())}
+                        className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${
+                          newJarQuantity === preset.toString()
+                            ? "bg-sky-600 text-white shadow-xs"
+                            : "bg-white text-sky-700 hover:bg-sky-100 border border-sky-200"
+                        }`}
+                      >
+                        +{preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {parseInt(newJarQuantity, 10) > 1 && (
+                  <div className="text-[11px] text-sky-800 mt-2 pt-2 border-t border-sky-200/60 flex items-center justify-between">
+                    <span>
+                      Batch sequential codes auto-assign honge (e.g. <code>JAR-20L-XXXX</code> to <code>JAR-20L-YYYY</code>).
+                    </span>
+                    <span className="font-bold text-sky-900">
+                      Total Cost: ₹{(parseInt(newJarQuantity, 10) || 1) * (Number(newJarCost) || 0)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {parseInt(newJarQuantity, 10) <= 1 && (
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Jar Code (Khaali chhodne par auto-generate hoga)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. JAR-20L-0031"
+                    value={newJarCode}
+                    onChange={(e) => setNewJarCode(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Kharid Tariq (Purchase Date)</label>
+                  <input
+                    type="date"
+                    value={newJarDate}
+                    onChange={(e) => setNewJarDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Cost Per Jar (₹)</label>
+                  <input
+                    type="number"
+                    value={newJarCost}
+                    onChange={(e) => setNewJarCost(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Jar Code (Khaali chhodne par auto-generate hoga)
-                </label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Batch / Description Notes</label>
                 <input
                   type="text"
-                  placeholder="e.g. JAR-20L-0031"
-                  value={newJarCode}
-                  onChange={(e) => setNewJarCode(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Kharid Tariq (Purchase Date)</label>
-                <input
-                  type="date"
-                  value={newJarDate}
-                  onChange={(e) => setNewJarDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Acquisition Cost (₹)</label>
-                <input
-                  type="number"
-                  value={newJarCost}
-                  onChange={(e) => setNewJarCost(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Notes / Description</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Nayee batch, blue cap neck"
+                  placeholder="e.g. Nayee batch, blue cap neck, vendor XYZ"
                   value={newJarNotes}
                   onChange={(e) => setNewJarNotes(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setRegisterOpen(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow-sm"
-                >
-                  Save & Print QR
-                </button>
+              <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+                <span className="text-xs text-slate-500 font-medium">
+                  {parseInt(newJarQuantity, 10) > 1
+                    ? `${newJarQuantity} Jars will be added at Plant`
+                    : "1 Jar will be added at Plant"}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRegisterOpen(false)}
+                    className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+                  >
+                    {parseInt(newJarQuantity, 10) > 1
+                      ? `Register ${newJarQuantity} Jars in Bulk`
+                      : "Save & Print QR"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

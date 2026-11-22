@@ -22,8 +22,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -42,10 +46,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.saiwatersdriver.model.DeliveryOrder
 import com.example.saiwatersdriver.model.DeliveryStatus
+import com.example.saiwatersdriver.model.DriverProfile
 import com.example.saiwatersdriver.ui.components.DeliveryCard
 import com.example.saiwatersdriver.ui.components.DoorstepDeliveryDialog
 import com.example.saiwatersdriver.ui.components.NotificationPermissionCard
@@ -66,12 +72,15 @@ enum class DeliveryFilter {
 
 /**
  * Deliveries Tab: Assigned Orders & Trip Management
+ * Live synced with Sai Waters ERP Backend.
  */
 @Composable
 fun DeliveriesTab(
     orders: List<DeliveryOrder>,
+    driverProfile: DriverProfile,
     hasNotificationPermission: Boolean,
     onRequestNotificationPermission: () -> Unit,
+    onRefresh: () -> Unit,
     onConfirmDelivery: (
         orderId: String,
         deliveredJars: List<String>,
@@ -102,7 +111,7 @@ fun DeliveriesTab(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
         }
 
         // Notification Permission Alert (if not granted)
@@ -141,7 +150,7 @@ fun DeliveriesTab(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "TRIP #2026-1121",
+                                text = "TRIP #${driverProfile.activeTripId}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 13.sp,
                                 color = Color.White
@@ -176,12 +185,13 @@ fun DeliveriesTab(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Vehicle: UP-25-AT-4821",
+                            text = "Vehicle: ${driverProfile.vehicleNumber}",
                             fontSize = 11.sp,
                             color = Color(0xFF94A3B8)
                         )
+                        val remainingJars = orders.filter { it.status != DeliveryStatus.DELIVERED }.sumOf { it.jarQuantity }
                         Text(
-                            text = "${orders.filter { it.status != DeliveryStatus.DELIVERED }.sumOf { it.jarQuantity }} Jars Remaining",
+                            text = "$remainingJars Jars Remaining",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFE2E8F0)
@@ -221,21 +231,86 @@ fun DeliveriesTab(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isSelected) Color.White else WaterTextSecondary,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
             }
         }
 
-        // Deliveries List
-        items(filteredOrders, key = { it.id }) { order ->
-            DeliveryCard(
-                order = order,
-                onStartDelivery = { selectedOrder ->
-                    activeDeliveryOrder = selectedOrder
+        // Deliveries List or Empty State
+        if (filteredOrders.isEmpty()) {
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, WaterBorderLight)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFF1F5F9)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Inbox,
+                                contentDescription = null,
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = if (selectedFilter == DeliveryFilter.DELIVERED) "No Deliveries Completed Yet" else "No Deliveries Assigned",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WaterNavyDark
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "Deliveries allotted to you from Sai Waters Admin Portal will appear here live.",
+                            fontSize = 12.sp,
+                            color = WaterTextSecondary,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 16.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        Button(
+                            onClick = onRefresh,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = WaterCyanPrimary)
+                        ) {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Refresh Orders", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-            )
+            }
+        } else {
+            items(filteredOrders, key = { it.id }) { order ->
+                DeliveryCard(
+                    order = order,
+                    onStartDelivery = { selectedOrder ->
+                        activeDeliveryOrder = selectedOrder
+                    }
+                )
+            }
         }
 
         item {

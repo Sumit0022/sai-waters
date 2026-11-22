@@ -16,11 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Badge
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocalShipping
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.WaterDrop
@@ -61,8 +58,17 @@ fun ShiftTab(
     driverProfile: DriverProfile,
     totalDeliveredJars: Int,
     totalEmptyCollected: Int,
+    onSyncClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val initials = driverProfile.fullName
+        .split(" ")
+        .mapNotNull { it.firstOrNull()?.uppercase() }
+        .take(2)
+        .joinToString("")
+        .ifEmpty { "SW" }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -101,7 +107,7 @@ fun ShiftTab(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "RK",
+                                    text = initials,
                                     fontWeight = FontWeight.Black,
                                     color = Color.White,
                                     fontSize = 18.sp
@@ -229,7 +235,7 @@ fun ShiftTab(
         // Action: Sync with Sai Waters ERP Cloud
         item {
             Button(
-                onClick = { /* Force Sync */ },
+                onClick = onSyncClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -242,7 +248,30 @@ fun ShiftTab(
                 Icon(imageVector = Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Sync All Records to Sai Waters Cloud",
+                    text = "Sync All Records with ERP Cloud",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+        }
+
+        // Action: Sign Out / Switch Driver
+        item {
+            OutlinedButton(
+                onClick = onLogoutClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = WaterRoseDanger
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECDD3))
+            ) {
+                Icon(imageVector = Icons.Default.ExitToApp, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Sign Out (Switch Driver)",
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 )
