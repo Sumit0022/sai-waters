@@ -291,7 +291,7 @@ fun CustomersTab(
                     }
                 }
 
-                Divider(color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // Custody Jars Section
                 Text(
@@ -333,7 +333,7 @@ fun CustomersTab(
                     }
                 }
 
-                Divider(color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // Rate & Pricing Agreement
                 Row(
@@ -472,7 +472,7 @@ fun CustomerCard(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(10.dp))
 
             // Metrics row: Allotted rate & held count
@@ -509,6 +509,34 @@ fun CustomerCard(
                         fontWeight = FontWeight.Bold,
                         color = if (customer.heldJarsCount > 0) ApplePurpleAccent else AppleTextSecondary
                     )
+                }
+            }
+
+            // Visual Custody Jars Tags Preview on Card
+            if (customer.jarsInCustody.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(customer.jarsInCustody) { jar ->
+                        Box(
+                            modifier = Modifier
+                                .background(AppleCyanContainer, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 7.dp, vertical = 3.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Icon(Icons.Default.WaterDrop, contentDescription = null, tint = AppleAzureDark, modifier = Modifier.size(10.dp))
+                                Text(
+                                    text = jar.jarCode,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AppleAzureDark,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

@@ -149,6 +149,44 @@ data class ProfitAndLossSummary(
     val asOfDate: String = ""
 )
 
+data class InvoiceItem(
+    val id: String,
+    val invoiceNumber: String,
+    val customerId: String,
+    val customerName: String,
+    val customerPhone: String = "",
+    val customerCode: String = "",
+    val invoiceDate: String = "",
+    val dueDate: String = "",
+    val subtotalPaise: Long = 0L,
+    val taxPaise: Long = 0L,
+    val totalAmountPaise: Long = 0L,
+    val paidAmountPaise: Long = 0L,
+    val status: String = "ISSUED", // ISSUED, PAID, PARTIAL
+    val billingType: String = "MONTHLY_STATEMENT",
+    val orderQuantityJars: Int = 0
+)
+
+data class JournalLineItem(
+    val id: String,
+    val accountCode: String,
+    val accountName: String,
+    val accountType: String,
+    val debitPaise: Long,
+    val creditPaise: Long
+)
+
+data class JournalEntryItem(
+    val id: String,
+    val entryNumber: String,
+    val entryDate: String,
+    val sourceDocumentType: String,
+    val narration: String,
+    val isPosted: Boolean,
+    val postedBy: String,
+    val lines: List<JournalLineItem> = emptyList()
+)
+
 data class BackupItem(
     val id: String,
     val filename: String,

@@ -6,7 +6,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 
 class AdminRepository(private val context: Context) {
     private val sessionManager = AdminSessionManager.getInstance(context)
@@ -139,20 +138,52 @@ class AdminRepository(private val context: Context) {
                             continue
                         }
 
-                        val jarsArr = c.optJSONArray("jarsInCustody") ?: JSONArray()
+                        // Parse price accurately: pricePerJarPaise or customPrice
+                        val pricePaise = if (c.has("pricePerJarPaise")) {
+                            c.optLong("pricePerJarPaise", 3500L)
+                        } else {
+                            c.optJSONObject("customPrice")?.optLong("pricePerJarPaise", 3500L) ?: 3500L
+                        }
+
+                        // Parse custody jars accurately: custodyJars or jarsInCustody
+                        val jarsArr = c.optJSONArray("custodyJars") ?: c.optJSONArray("jarsInCustody") ?: JSONArray()
                         val custodyJars = mutableListOf<CustomerHeldJar>()
                         for (j in 0 until jarsArr.length()) {
                             val jObj = jarsArr.getJSONObject(j)
+                            val jarCode = if (jObj.has("permanentJarCode")) {
+                                jObj.optString("permanentJarCode")
+                            } else {
+                                jObj.optString("jarCode", "JAR-20L")
+                            }
                             custodyJars.add(
                                 CustomerHeldJar(
-                                    id = jObj.optString("id"),
-                                    jarCode = jObj.optString("jarCode"),
-                                    qrToken = jObj.optString("qrToken"),
+                                    id = jObj.optString("jarId", jObj.optString("id")),
+                                    jarCode = jarCode,
+                                    qrToken = jObj.optString("qrToken", ""),
                                     status = jObj.optString("status", "DELIVERED_CUSTOMER"),
-                                    assignedAt = jObj.optString("assignedAt", "")
+                                    assignedAt = jObj.optString("transferredAt", jObj.optString("assignedAt", ""))
                                 )
                             )
                         }
+
+                        val effectiveHeldCount = c.optInt("heldJarsCount", custodyJars.size)
+
+                        // Address parsing
+                        var addressStr = c.optString("deliveryAddress", "")
+                        if (addressStr.isBlank() && c.has("address")) {
+                            val addrObj = c.optJSONObject("address")
+                            if (addrObj != null) {
+                                val line1 = addrObj.optString("line1", "")
+                                val city = addrObj.optString("city", "")
+                                addressStr = "$line1, $city".trim().removePrefix(",").trim()
+                            }
+                        }
+
+                        // Schedule parsing
+                        val schedObj = c.optJSONObject("schedule")
+                        val dailyQuota = schedObj?.optInt("dailyQuotaJars", c.optInt("dailyQuota", 1)) ?: c.optInt("dailyQuota", 1)
+                        val freq = schedObj?.optString("deliveryFrequency", c.optString("deliveryFrequency", "DAILY")) ?: "DAILY"
+                        val payType = schedObj?.optString("paymentPreference", c.optString("paymentType", "MONTHLY_BILL")) ?: "MONTHLY_BILL"
 
                         list.add(
                             CustomerItem(
@@ -160,14 +191,14 @@ class AdminRepository(private val context: Context) {
                                 customerCode = code,
                                 fullName = name,
                                 phone = phone,
-                                deliveryAddress = c.optString("deliveryAddress", ""),
+                                deliveryAddress = addressStr,
                                 customerType = c.optString("customerType", "RESIDENTIAL"),
                                 isActive = c.optBoolean("isActive", true),
-                                jarPricePaise = c.optLong("jarPricePaise", 3500L),
-                                dailyQuota = c.optInt("dailyQuota", 1),
-                                deliveryFrequency = c.optString("deliveryFrequency", "DAILY"),
-                                paymentType = c.optString("paymentType", "MONTHLY_BILL"),
-                                heldJarsCount = c.optInt("heldJarsCount", custodyJars.size),
+                                jarPricePaise = pricePaise,
+                                dailyQuota = dailyQuota,
+                                deliveryFrequency = freq,
+                                paymentType = payType,
+                                heldJarsCount = effectiveHeldCount,
                                 jarsInCustody = custodyJars
                             )
                         )
@@ -218,10 +249,14 @@ class AdminRepository(private val context: Context) {
                     val list = mutableListOf<JarItem>()
                     for (i in 0 until array.length()) {
                         val j = array.getJSONObject(i)
-                        val code = j.optString("jarCode", "")
+                        val code = if (j.has("permanentJarCode")) j.optString("permanentJarCode") else j.optString("jarCode", "")
                         val qr = j.optString("qrToken", "")
                         val status = j.optString("currentStatus", "AVAILABLE")
-                        val holderName = j.optString("currentHolderName", "")
+                        val holderName = if (j.has("customerName") && j.optString("customerName").isNotBlank()) {
+                            "${j.optString("customerName")} (${j.optString("customerCode", "")})".trim()
+                        } else {
+                            j.optString("currentHolderName", "")
+                        }
 
                         if (statusFilter != "ALL" && !status.equals(statusFilter, ignoreCase = true)) {
                             continue
@@ -234,20 +269,24 @@ class AdminRepository(private val context: Context) {
                             continue
                         }
 
+                        val lifecycleObj = j.optJSONObject("lifecycle")
+                        val netVal = lifecycleObj?.optLong("netBookValuePaise") ?: j.optLong("netBookValuePaise", 38333L)
+                        val elapsed = lifecycleObj?.optInt("elapsedMonths") ?: j.optInt("lifecycleAgeMonths", 1)
+
                         list.add(
                             JarItem(
                                 id = j.optString("id"),
                                 jarCode = code,
                                 qrToken = qr,
                                 status = status,
-                                currentHolderType = j.optString("currentHolderType", ""),
+                                currentHolderType = j.optString("custodyType", j.optString("currentHolderType", "")),
                                 currentHolderId = j.optString("currentHolderId", ""),
                                 currentHolderName = holderName,
-                                lifecycleAgeMonths = j.optInt("lifecycleAgeMonths", 1),
-                                netBookValuePaise = j.optLong("netBookValuePaise", 38333L),
-                                originalCostPaise = j.optLong("originalCostPaise", 40000L),
-                                totalTripCycles = j.optInt("totalTripCycles", 0),
-                                isDamaged = j.optBoolean("isDamaged", false)
+                                lifecycleAgeMonths = elapsed,
+                                netBookValuePaise = netVal,
+                                originalCostPaise = j.optLong("acquisitionCostPaise", 40000L),
+                                totalTripCycles = j.optInt("totalUsageCycles", 0),
+                                isDamaged = status == "DAMAGED" || status == "CONFIRMED_LOST"
                             )
                         )
                     }
@@ -262,9 +301,8 @@ class AdminRepository(private val context: Context) {
 
     suspend fun addJarBatch(count: Int): Result<Boolean> = withContext(Dispatchers.IO) {
         val payload = JSONObject().apply {
-            put("action", "BATCH_ADD")
-            put("count", count)
-            put("costPaise", 40000L)
+            put("quantity", count)
+            put("acquisitionCostPaise", 18000L)
         }
         val url = "${getBaseUrl()}/api/jars"
         val res = AdminApiClient.postJson(url, payload.toString())
@@ -296,6 +334,123 @@ class AdminRepository(private val context: Context) {
         val res = AdminApiClient.postJson(url, payload.toString())
         res.fold(
             onSuccess = { Result.success(true) },
+            onFailure = { Result.failure(it) }
+        )
+    }
+
+    suspend fun fetchInvoices(customerId: String? = null): Result<List<InvoiceItem>> = withContext(Dispatchers.IO) {
+        val queryParam = if (!customerId.isNullOrBlank()) "?customerId=$customerId" else ""
+        val url = "${getBaseUrl()}/api/invoices$queryParam"
+        val res = AdminApiClient.get(url)
+        res.fold(
+            onSuccess = { responseText ->
+                try {
+                    val root = JSONObject(responseText)
+                    val array = root.optJSONArray("invoices") ?: JSONArray()
+                    val list = mutableListOf<InvoiceItem>()
+                    for (i in 0 until array.length()) {
+                        val inv = array.getJSONObject(i)
+                        list.add(
+                            InvoiceItem(
+                                id = inv.optString("id"),
+                                invoiceNumber = inv.optString("invoiceNumber"),
+                                customerId = inv.optString("customerId"),
+                                customerName = inv.optString("customerName", "Customer"),
+                                customerPhone = inv.optString("customerPhone", ""),
+                                customerCode = inv.optString("customerCode", ""),
+                                invoiceDate = inv.optString("invoiceDate", ""),
+                                dueDate = inv.optString("dueDate", ""),
+                                subtotalPaise = inv.optLong("subtotalPaise", 0L),
+                                taxPaise = inv.optLong("taxPaise", 0L),
+                                totalAmountPaise = inv.optLong("totalAmountPaise", 0L),
+                                paidAmountPaise = inv.optLong("paidAmountPaise", 0L),
+                                status = inv.optString("status", "ISSUED"),
+                                billingType = inv.optString("billingType", "MONTHLY_STATEMENT"),
+                                orderQuantityJars = inv.optInt("orderQuantityJars", 0)
+                            )
+                        )
+                    }
+                    Result.success(list)
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            },
+            onFailure = { Result.failure(it) }
+        )
+    }
+
+    suspend fun settleInvoice(invoiceId: String, amountPaise: Long, paymentMode: String = "CASH"): Result<Boolean> = withContext(Dispatchers.IO) {
+        val payload = JSONObject().apply {
+            put("invoiceId", invoiceId)
+            put("amountPaise", amountPaise)
+            put("paymentMode", paymentMode)
+            put("settledBy", "usr_owner_01")
+        }
+        val url = "${getBaseUrl()}/api/invoices/settle"
+        val res = AdminApiClient.postJson(url, payload.toString())
+        res.fold(
+            onSuccess = { Result.success(true) },
+            onFailure = { Result.failure(it) }
+        )
+    }
+
+    suspend fun triggerMonthlyBatchBilling(): Result<Boolean> = withContext(Dispatchers.IO) {
+        val payload = JSONObject().apply {
+            put("action", "GENERATE_ALL")
+        }
+        val url = "${getBaseUrl()}/api/invoices/monthly-batch"
+        val res = AdminApiClient.postJson(url, payload.toString())
+        res.fold(
+            onSuccess = { Result.success(true) },
+            onFailure = { Result.failure(it) }
+        )
+    }
+
+    suspend fun fetchJournalEntries(): Result<List<JournalEntryItem>> = withContext(Dispatchers.IO) {
+        val url = "${getBaseUrl()}/api/accounting/journal-entries"
+        val res = AdminApiClient.get(url)
+        res.fold(
+            onSuccess = { responseText ->
+                try {
+                    val root = JSONObject(responseText)
+                    val array = root.optJSONArray("entries") ?: JSONArray()
+                    val list = mutableListOf<JournalEntryItem>()
+                    for (i in 0 until array.length()) {
+                        val e = array.getJSONObject(i)
+                        val linesArr = e.optJSONArray("lines") ?: JSONArray()
+                        val lines = mutableListOf<JournalLineItem>()
+                        for (j in 0 until linesArr.length()) {
+                            val l = linesArr.getJSONObject(j)
+                            lines.add(
+                                JournalLineItem(
+                                    id = l.optString("id"),
+                                    accountCode = l.optString("accountCode"),
+                                    accountName = l.optString("accountName"),
+                                    accountType = l.optString("accountType"),
+                                    debitPaise = l.optLong("debitPaise", 0L),
+                                    creditPaise = l.optLong("creditPaise", 0L)
+                                )
+                            )
+                        }
+
+                        list.add(
+                            JournalEntryItem(
+                                id = e.optString("id"),
+                                entryNumber = e.optString("entryNumber"),
+                                entryDate = e.optString("entryDate"),
+                                sourceDocumentType = e.optString("sourceDocumentType"),
+                                narration = e.optString("narration"),
+                                isPosted = e.optBoolean("isPosted", true),
+                                postedBy = e.optString("postedBy", "System"),
+                                lines = lines
+                            )
+                        )
+                    }
+                    Result.success(list)
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            },
             onFailure = { Result.failure(it) }
         )
     }

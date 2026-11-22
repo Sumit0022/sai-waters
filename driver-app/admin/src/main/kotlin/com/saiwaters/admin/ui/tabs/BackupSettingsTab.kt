@@ -71,11 +71,12 @@ fun BackupSettingsTab(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
     ) {
-        // 1. Manual Backup & Restore Action Hero Card
+        // 1. Manual Backup & Restore Action Hero Card (Apple Light Refined)
         item {
             AppleCard(
-                containerColor = MaterialTheme.colorScheme.secondary,
-                borderColor = Color.Transparent
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = MaterialTheme.colorScheme.outline,
+                elevation = 1.dp
             ) {
                 Column(
                     modifier = Modifier
@@ -90,7 +91,7 @@ fun BackupSettingsTab(
                         Text(
                             text = "DATABASE SNAPSHOT & BACKUP",
                             style = MaterialTheme.typography.labelSmall,
-                            color = AppleWaterCyan,
+                            color = AppleAzurePrimary,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
@@ -98,7 +99,7 @@ fun BackupSettingsTab(
                         StatusPill(
                             text = "OFFLINE COMPATIBLE",
                             textColor = AppleEmeraldGreen,
-                            backgroundColor = AppleEmeraldContainer.copy(alpha = 0.2f)
+                            backgroundColor = AppleEmeraldContainer
                         )
                     }
 
@@ -107,14 +108,14 @@ fun BackupSettingsTab(
                     Text(
                         text = "Instant Disaster Recovery",
                         style = MaterialTheme.typography.headlineSmall,
-                        color = Color.White,
+                        color = AppleTextPrimary,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
                         text = "Take a full cryptographic snapshot of customers, 20L jars, double-entry accounting ledgers, and delivery logs. Saves directly to your phone as a JSON file.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.75f)
+                        color = AppleTextSecondary
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -130,17 +131,17 @@ fun BackupSettingsTab(
                             },
                             enabled = !isBackingUp,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppleWaterCyan),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppleAzurePrimary),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             if (isBackingUp) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AppleObsidianDark, strokeWidth = 2.dp)
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Backing up...", color = AppleObsidianDark, fontWeight = FontWeight.Bold)
+                                Text("Backing up...", color = Color.White, fontWeight = FontWeight.Bold)
                             } else {
-                                Icon(Icons.Default.Download, contentDescription = null, tint = AppleObsidianDark, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Backup Now", color = AppleObsidianDark, fontWeight = FontWeight.Bold)
+                                Text("Backup Now", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -148,8 +149,8 @@ fun BackupSettingsTab(
                             onClick = { filePickerLauncher.launch("application/json") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AppleTextPrimary)
                         ) {
                             Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
@@ -221,7 +222,7 @@ fun BackupSettingsTab(
                     }
 
                     if (autoBackupEnabled) {
-                        Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

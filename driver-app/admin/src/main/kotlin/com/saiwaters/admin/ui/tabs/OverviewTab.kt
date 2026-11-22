@@ -42,11 +42,12 @@ fun OverviewTab(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
     ) {
-        // 1. Hero KPI Banner: Logistics & Revenue
+        // 1. Hero KPI Banner: Logistics & Revenue (Apple Light Refined)
         item {
             AppleCard(
-                containerColor = MaterialTheme.colorScheme.secondary,
-                borderColor = Color.Transparent
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = MaterialTheme.colorScheme.outline,
+                elevation = 1.dp
             ) {
                 Column(
                     modifier = Modifier
@@ -61,7 +62,7 @@ fun OverviewTab(
                         Text(
                             text = "TODAY'S OPERATIONS",
                             style = MaterialTheme.typography.labelSmall,
-                            color = AppleWaterCyan,
+                            color = AppleAzurePrimary,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
@@ -70,13 +71,13 @@ fun OverviewTab(
                             StatusPill(
                                 text = "LEDGER BALANCED",
                                 textColor = AppleEmeraldGreen,
-                                backgroundColor = AppleEmeraldContainer.copy(alpha = 0.2f)
+                                backgroundColor = AppleEmeraldContainer
                             )
                         } else {
                             StatusPill(
                                 text = "TRIAL VARIANCE",
                                 textColor = AppleRoseDanger,
-                                backgroundColor = AppleRoseContainer.copy(alpha = 0.2f)
+                                backgroundColor = AppleRoseContainer
                             )
                         }
                     }
@@ -92,13 +93,13 @@ fun OverviewTab(
                             Text(
                                 text = "${stats.todayDelivered} / ${stats.todayTotalOrders}",
                                 style = MaterialTheme.typography.headlineLarge,
-                                color = Color.White,
+                                color = AppleTextPrimary,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = "Delivered / Scheduled Orders",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.7f)
+                                color = AppleTextSecondary
                             )
                         }
 
@@ -106,13 +107,13 @@ fun OverviewTab(
                             Text(
                                 text = "₹${stats.totalRevenuePaise / 100}",
                                 style = MaterialTheme.typography.headlineMedium,
-                                color = AppleWaterCyan,
+                                color = AppleAzurePrimary,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = "Gross Revenue",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.7f)
+                                color = AppleTextSecondary
                             )
                         }
                     }
@@ -129,8 +130,8 @@ fun OverviewTab(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp),
-                        color = AppleWaterCyan,
-                        trackColor = Color.White.copy(alpha = 0.2f),
+                        color = AppleAzurePrimary,
+                        trackColor = AppleSurfaceSubtle,
                     )
                 }
             }

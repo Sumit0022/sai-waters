@@ -3,11 +3,11 @@ package com.saiwaters.admin.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -28,6 +28,7 @@ import com.saiwaters.admin.ui.theme.*
 fun CustomAdminTopBar(
     adminName: String = "Sai (Owner)",
     isSyncing: Boolean = false,
+    onMenuClick: () -> Unit,
     onRefreshClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onOpenServerConfig: () -> Unit
@@ -64,7 +65,7 @@ fun CustomAdminTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -73,13 +74,25 @@ fun CustomAdminTopBar(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Hamburger Menu Button
+                    IconButton(
+                        onClick = onMenuClick,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Navigation Menu",
+                            tint = AppleTextPrimary
+                        )
+                    }
+
                     Image(
                         painter = painterResource(id = R.drawable.apple_admin_logo),
                         contentDescription = "Sai Waters Logo",
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(36.dp)
                             .clip(RoundedCornerShape(10.dp))
                     )
 
@@ -121,7 +134,7 @@ fun CustomAdminTopBar(
                                     .background(AppleEmeraldGreen.copy(alpha = pulseAlpha), CircleShape)
                             )
                             Text(
-                                text = "System Live • $adminName",
+                                text = "Live • $adminName",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                 color = AppleTextSecondary
                             )
@@ -131,7 +144,7 @@ fun CustomAdminTopBar(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     IconButton(
                         onClick = onRefreshClick,

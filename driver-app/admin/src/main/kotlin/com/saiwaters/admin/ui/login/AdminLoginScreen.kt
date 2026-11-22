@@ -14,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -46,15 +45,7 @@ fun AdminLoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF070B14),
-                        Color(0xFF0F172A),
-                        Color(0xFF070B14)
-                    )
-                )
-            ),
+            .background(Color(0xFFF8FAFC)),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -71,7 +62,7 @@ fun AdminLoginScreen(
                 modifier = Modifier
                     .size(90.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color.White.copy(alpha = 0.05f)),
+                    .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -86,23 +77,24 @@ fun AdminLoginScreen(
             Text(
                 text = "Sai Waters",
                 style = MaterialTheme.typography.headlineLarge,
-                color = Color.White,
+                color = AppleTextPrimary,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
                 text = "Plant ERP & Owner Operations Dashboard",
                 style = MaterialTheme.typography.bodyMedium,
-                color = AppleWaterCyan.copy(alpha = 0.9f)
+                color = AppleAzurePrimary
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // Login Card
+            // Clean Apple Light Login Card
             AppleCard(
-                containerColor = Color(0xFF1E293B).copy(alpha = 0.85f),
-                borderColor = Color.White.copy(alpha = 0.12f),
-                cornerRadius = 24.dp
+                containerColor = Color.White,
+                borderColor = Color(0xFFE2E8F0),
+                cornerRadius = 24.dp,
+                elevation = 2.dp
             ) {
                 Column(
                     modifier = Modifier
@@ -113,8 +105,8 @@ fun AdminLoginScreen(
                     if (!errorMessage.isNullOrBlank()) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = AppleRoseContainer.copy(alpha = 0.2f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, AppleRoseDanger)
+                            color = AppleRoseContainer,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, AppleRoseDanger.copy(alpha = 0.5f))
                         ) {
                             Row(
                                 modifier = Modifier
@@ -127,7 +119,8 @@ fun AdminLoginScreen(
                                 Text(
                                     text = errorMessage,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = AppleRoseDanger
+                                    color = AppleRoseDanger,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
@@ -136,16 +129,16 @@ fun AdminLoginScreen(
                     OutlinedTextField(
                         value = username,
                         onValueChange = { username = it },
-                        label = { Text("Admin Username", color = Color.White.copy(alpha = 0.7f)) },
-                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = AppleWaterCyan) },
+                        label = { Text("Admin Username") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = AppleAzurePrimary) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = AppleWaterCyan,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                            focusedTextColor = AppleTextPrimary,
+                            unfocusedTextColor = AppleTextPrimary,
+                            focusedBorderColor = AppleAzurePrimary,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
                         ),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                     )
@@ -153,14 +146,14 @@ fun AdminLoginScreen(
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
-                        label = { Text("Password", color = Color.White.copy(alpha = 0.7f)) },
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = AppleWaterCyan) },
+                        label = { Text("Password") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = AppleAzurePrimary) },
                         trailingIcon = {
                             IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                                 Icon(
                                     imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                     contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.6f)
+                                    tint = AppleTextSecondary
                                 )
                             }
                         },
@@ -169,10 +162,10 @@ fun AdminLoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = AppleWaterCyan,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                            focusedTextColor = AppleTextPrimary,
+                            unfocusedTextColor = AppleTextPrimary,
+                            focusedBorderColor = AppleAzurePrimary,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = {
@@ -214,12 +207,12 @@ fun AdminLoginScreen(
             TextButton(
                 onClick = { showServerDialog = true }
             ) {
-                Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Settings, contentDescription = null, tint = AppleTextSecondary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "Server: ${sessionManager.backendUrl}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.6f)
+                    color = AppleTextSecondary
                 )
             }
         }

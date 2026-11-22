@@ -1,9 +1,7 @@
 package com.saiwaters.admin.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -12,7 +10,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val LightColorScheme = lightColorScheme(
+// Apple Crisp Executive Light Color Scheme (Default)
+private val AppleLightColorScheme = lightColorScheme(
     primary = AppleAzurePrimary,
     onPrimary = Color.White,
     primaryContainer = AppleCyanContainer,
@@ -28,16 +27,16 @@ private val LightColorScheme = lightColorScheme(
     tertiaryContainer = AppleEmeraldContainer,
     onTertiaryContainer = AppleOnEmeraldContainer,
 
-    background = AppleBackgroundLight,
-    onBackground = AppleTextPrimary,
+    background = Color(0xFFF8FAFC),
+    onBackground = Color(0xFF0F172A),
 
-    surface = AppleCardLight,
-    onSurface = AppleTextPrimary,
-    surfaceVariant = AppleSurfaceSubtle,
-    onSurfaceVariant = AppleTextSecondary,
+    surface = Color.White,
+    onSurface = Color(0xFF0F172A),
+    surfaceVariant = Color(0xFFF1F5F9),
+    onSurfaceVariant = Color(0xFF475569),
 
-    outline = AppleBorderLight,
-    outlineVariant = AppleBorderSubtle,
+    outline = Color(0xFFE2E8F0),
+    outlineVariant = Color(0xFFF1F5F9),
 
     error = AppleRoseDanger,
     onError = Color.White,
@@ -45,52 +44,18 @@ private val LightColorScheme = lightColorScheme(
     onErrorContainer = AppleOnRoseContainer
 )
 
-private val DarkColorScheme = darkColorScheme(
-    primary = AppleWaterCyan,
-    onPrimary = AppleObsidianDark,
-    primaryContainer = AppleAzureDark,
-    onPrimaryContainer = Color.White,
-
-    secondary = AppleSurfaceSubtle,
-    onSecondary = AppleObsidianDark,
-    secondaryContainer = AppleSlateCardDark,
-    onSecondaryContainer = Color.White,
-
-    tertiary = AppleEmeraldGreen,
-    onTertiary = Color.White,
-    tertiaryContainer = AppleOnEmeraldContainer,
-    onTertiaryContainer = AppleEmeraldContainer,
-
-    background = AppleObsidianDark,
-    onBackground = Color.White,
-
-    surface = AppleTitaniumDark,
-    onSurface = Color.White,
-    surfaceVariant = AppleSlateCardDark,
-    onSurfaceVariant = AppleTextMuted,
-
-    outline = Color(0xFF334155),
-    outlineVariant = Color(0xFF1E293B),
-
-    error = AppleRoseDanger,
-    onError = Color.White,
-    errorContainer = AppleOnRoseContainer,
-    onErrorContainer = AppleRoseContainer
-)
-
 @Composable
 fun SaiWatersAdminTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = AppleLightColorScheme
     val view = LocalView.current
 
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            window.statusBarColor = Color.White.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
         }
     }
 
