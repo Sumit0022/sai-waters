@@ -300,6 +300,135 @@ class DriverRepository(private val context: Context) {
     }
 
     /**
+     * Step 1 Logic: Resolve Customer by QR Token or Manual Code
+     * Includes vice-versa guard to reject jar QR codes.
+     */
+    suspend fun resolveCustomerByQrOrCode(rawInput: String): Result<com.example.saiwatersdriver.model.ResolvedCustomer> {
+        val raw = rawInput.trim()
+        if (raw.isBlank()) return Result.failure(Exception("Customer QR or code is required"))
+
+        // VICE-VERSA GUARD: Reject if driver scans a Jar QR while in Customer step
+        val isJarQr = raw.startsWith("urn:sw:j:") ||
+                raw.uppercase().startsWith("JAR-") ||
+                raw.lowercase().startsWith("jar_") ||
+                raw.contains("20L")
+
+        if (isJarQr) {
+            return Result.failure(
+                Exception("Galat QR Code! Ye 20L Water Jar ka QR sticker hai.\nPehle Grahak ka Customer Station QR sticker scan karein.")
+            )
+        }
+
+        val clean = raw.replace("urn:sw:c:", "").trim()
+        val baseUrl = sessionManager.backendUrl.trimEnd('/')
+        val url = "$baseUrl/api/customers?customerId=${clean}"
+
+        val res = ApiClient.get(url)
+        return res.mapCatching { responseText ->
+            val root = JSONObject(responseText)
+            if (!root.has("customer")) {
+                throw Exception(root.optString("error", "Customer '$clean' not found in system."))
+            }
+            val custObj = root.getJSONObject("customer")
+            val id = custObj.getString("id")
+            val customerCode = custObj.optString("customerCode", "CUST-${id.takeLast(4)}")
+            val fullName = custObj.getString("fullName")
+            val phone = custObj.optString("phone", "")
+            val billingCycle = custObj.optString("billingCycle", "DAILY_SPOT")
+            val ratePaise = custObj.optLong("ratePerJarPaise", 3500L)
+            val defaultQty = custObj.optInt("defaultQuantity", 2)
+
+            var street = ""
+            var locality = ""
+            var city = "Bareilly"
+            if (custObj.has("primaryAddress")) {
+                val addr = custObj.getJSONObject("primaryAddress")
+                street = addr.optString("streetAddress", "")
+                locality = addr.optString("locality", "")
+                city = addr.optString("city", "Bareilly")
+            }
+
+            com.example.saiwatersdriver.model.ResolvedCustomer(
+                id = id,
+                customerCode = customerCode,
+                fullName = fullName,
+                phone = phone,
+                streetAddress = street,
+                locality = locality,
+                city = city,
+                ratePerJarPaise = ratePaise,
+                defaultQuantity = defaultQty,
+                billingCycle = billingCycle
+            )
+        }
+    }
+
+    /**
+     * Step 3 Logic: Submit Complete Doorstep Delivery
+     * Calls POST /api/driver/deliver and updates local state & cash collections
+     */
+    suspend fun submitDoorstepDelivery(
+        customer: com.example.saiwatersdriver.model.ResolvedCustomer,
+        jarCodes: List<String>,
+        emptyJarsCount: Int,
+        cashCollectedPaise: Long,
+        paymentMode: PaymentMode
+    ): Result<com.example.saiwatersdriver.model.DeliverySuccessReceipt> {
+        val baseUrl = sessionManager.backendUrl.trimEnd('/')
+        val endpoint = "$baseUrl/api/driver/deliver"
+
+        val payload = JSONObject().apply {
+            put("driverId", _driverProfile.value.driverId)
+            put("customerIdentifier", customer.id)
+            put("jarCodes", JSONArray(jarCodes))
+            put("emptyJarsCount", emptyJarsCount)
+            put("cashCollectedPaise", cashCollectedPaise)
+            put("unitPricePaise", customer.ratePerJarPaise)
+        }.toString()
+
+        val res = ApiClient.postJson(endpoint, payload)
+        return res.mapCatching { responseText ->
+            val root = JSONObject(responseText)
+            if (!root.optBoolean("success", false) && !root.has("orderNumber")) {
+                throw Exception(root.optString("error", "Delivery recording rejected by server"))
+            }
+
+            val orderNumber = root.optString("orderNumber", "ORD-" + System.currentTimeMillis().toString().takeLast(6))
+            val totalPaise = root.optLong("totalAmountPaise", jarCodes.size * customer.ratePerJarPaise)
+            val receiptNumber = root.optString("cashReceiptNumber", root.optString("receiptNumber", "RCP-${System.currentTimeMillis().toString().takeLast(6)}"))
+
+            // Record in Cash Collection if cash was collected
+            if (cashCollectedPaise > 0) {
+                val entry = CashCollectionEntry(
+                    id = "csh_${System.currentTimeMillis()}",
+                    orderNumber = orderNumber,
+                    customerName = customer.fullName,
+                    amountPaise = cashCollectedPaise,
+                    mode = paymentMode,
+                    timestamp = System.currentTimeMillis()
+                )
+                _cashCollections.update { listOf(entry) + it }
+            }
+
+            // Sync timeline and orders in background
+            syncFromBackend()
+
+            com.example.saiwatersdriver.model.DeliverySuccessReceipt(
+                orderNumber = orderNumber,
+                customerName = customer.fullName,
+                jarsDelivered = jarCodes.size,
+                jarCodes = jarCodes,
+                emptyJarsCollected = emptyJarsCount,
+                totalAmountPaise = totalPaise,
+                cashCollectedPaise = cashCollectedPaise,
+                receiptNumber = receiptNumber,
+                paymentMode = paymentMode,
+                timestamp = System.currentTimeMillis()
+            )
+        }
+    }
+
+    /**
      * Record a scanned jar code and verify with backend
      */
     fun recordJarScan(qrToken: String, isReturnEmpty: Boolean) {

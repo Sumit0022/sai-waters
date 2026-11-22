@@ -35,6 +35,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FlipCameraAndroid
@@ -87,6 +89,7 @@ fun CameraScannerView(
     modifier: Modifier = Modifier,
     scannerTitle: String = "Scan 20L Water Jar QR",
     scannerSubtitle: String = "Align QR code inside the viewfinder",
+    onCloseClick: (() -> Unit)? = null,
     onBarcodeDetected: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -215,44 +218,95 @@ fun CameraScannerView(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Top Header Controls
+        // Top Header Controls with statusBarsPadding
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 40.dp, start = 20.dp, end = 20.dp),
+                .statusBarsPadding()
+                .padding(top = 12.dp, start = 16.dp, end = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Surface(
-                color = Color(0xCC0F172A),
-                shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x4038BDF8))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.QrCodeScanner,
-                        contentDescription = null,
-                        tint = Color(0xFF38BDF8),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = scannerTitle,
-                        style = MaterialTheme.typography.titleSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                if (onCloseClick != null) {
+                    IconButton(
+                        onClick = onCloseClick,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xBB0F172A))
+                            .border(1.dp, Color(0x40FFFFFF), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close Camera",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
                         )
-                    )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.size(42.dp))
+                }
+
+                Surface(
+                    color = Color(0xCC0F172A),
+                    shape = RoundedCornerShape(20.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x4038BDF8))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = scannerTitle,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 13.sp
+                            )
+                        )
+                    }
+                }
+
+                if (hasFlash) {
+                    IconButton(
+                        onClick = {
+                            isFlashOn = !isFlashOn
+                            cameraInstance?.cameraControl?.enableTorch(isFlashOn)
+                        },
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(if (isFlashOn) Color(0xFF0284C7) else Color(0xBB0F172A))
+                            .border(1.dp, Color(0x40FFFFFF), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = if (isFlashOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                            contentDescription = "Torch",
+                            tint = if (isFlashOn) Color.White else Color(0xFFCBD5E1),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.size(42.dp))
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = scannerSubtitle,
-                color = Color(0xCCFFFFFF),
+                color = Color(0xEEFFFFFF),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center

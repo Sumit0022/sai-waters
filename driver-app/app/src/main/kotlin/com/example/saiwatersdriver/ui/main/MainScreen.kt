@@ -297,20 +297,7 @@ fun MainScreen(
                     }
                 )
                 1 -> ScannerTab(
-                    scannedJars = scannedJars,
-                    lastScannedJar = lastScannedJar,
-                    onJarScanned = { qrToken, isReturnEmpty ->
-                        repository.recordJarScan(qrToken, isReturnEmpty)
-                        scope.launch {
-                            snackbarHostState.showSnackbar(
-                                if (isReturnEmpty) "Empty jar recorded: $qrToken"
-                                else "Outgoing jar verified: $qrToken"
-                            )
-                        }
-                    },
-                    onDismissScanNotice = {
-                        repository.dismissLastScanNotice()
-                    }
+                    repository = repository
                 )
                 2 -> CashTab(
                     cashCollections = cashCollections,

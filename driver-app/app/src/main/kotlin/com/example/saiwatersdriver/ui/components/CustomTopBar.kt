@@ -77,21 +77,15 @@ fun CustomTopBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Custom Brand Avatar Icon
-                    Box(
+                    // Apple-Style Brand Avatar Icon
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.example.saiwatersdriver.R.drawable.apple_water_logo),
+                        contentDescription = "Sai Waters",
                         modifier = Modifier
                             .size(40.dp)
-                            .clip(CircleShape)
-                            .background(WaterCyanPrimary),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.WaterDrop,
-                            contentDescription = "Sai Waters",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                            .clip(RoundedCornerShape(10.dp))
+                            .border(1.dp, Color(0x3338BDF8), RoundedCornerShape(10.dp))
+                    )
 
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {

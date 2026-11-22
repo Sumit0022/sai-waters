@@ -168,26 +168,15 @@ fun LoginScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Brand Header with Icon
-            Box(
+            // Apple-Style Brand Logo Header
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.example.saiwatersdriver.R.drawable.apple_water_logo),
+                contentDescription = "Sai Waters",
                 modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF0284C7), Color(0xFF0369A1))
-                        )
-                    )
-                    .border(3.dp, Color(0xFFBAE6FD), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.WaterDrop,
-                    contentDescription = "Sai Waters",
-                    tint = Color.White,
-                    modifier = Modifier.size(46.dp)
-                )
-            }
+                    .size(86.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .border(1.dp, Color(0x4038BDF8), RoundedCornerShape(20.dp))
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 

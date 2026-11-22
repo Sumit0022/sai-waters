@@ -65,6 +65,46 @@ data class DeliveryOrder(
 }
 
 /**
+ * Resolved Customer details from Station QR scan
+ */
+@Serializable
+data class ResolvedCustomer(
+    val id: String,
+    val customerCode: String,
+    val fullName: String,
+    val phone: String = "",
+    val streetAddress: String = "",
+    val locality: String = "",
+    val city: String = "Bareilly",
+    val ratePerJarPaise: Long = 3500L,
+    val defaultQuantity: Int = 2,
+    val billingCycle: String = "DAILY_SPOT"
+) {
+    val ratePerJarRupees: Double get() = ratePerJarPaise / 100.0
+    val fullAddress: String get() = listOf(streetAddress, locality, city).filter { it.isNotBlank() }.joinToString(", ").ifEmpty { "Bareilly" }
+}
+
+/**
+ * Delivery confirmation receipt after completing transaction
+ */
+@Serializable
+data class DeliverySuccessReceipt(
+    val orderNumber: String,
+    val customerName: String,
+    val jarsDelivered: Int,
+    val jarCodes: List<String>,
+    val emptyJarsCollected: Int,
+    val totalAmountPaise: Long,
+    val cashCollectedPaise: Long,
+    val receiptNumber: String? = null,
+    val paymentMode: PaymentMode = PaymentMode.CASH,
+    val timestamp: Long = System.currentTimeMillis()
+) {
+    val totalAmountRupees: Double get() = totalAmountPaise / 100.0
+    val cashCollectedRupees: Double get() = cashCollectedPaise / 100.0
+}
+
+/**
  * Result of scanning a 20L Water Jar barcode/QR
  */
 @Serializable
