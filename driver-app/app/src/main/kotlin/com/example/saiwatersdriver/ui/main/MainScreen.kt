@@ -322,12 +322,13 @@ fun MainScreen(
                 3 -> CashTab(
                     cashCollections = cashCollections,
                     totalCashInHandPaise = repository.totalCashInHandPaise,
-                    onHandoverClick = { amountPaise, notes ->
+                    onHandoverClick = { amountPaise, targetAccountId, notes ->
                         scope.launch {
-                            val res = repository.handoverCashToPlant(amountPaise, notes)
+                            val res = repository.handoverCashToPlant(amountPaise, targetAccountId, notes)
                             res.fold(
                                 onSuccess = {
-                                    snackbarHostState.showSnackbar("✅ Cash successfully handed over to Plant Vault (A/C 1110)!")
+                                    val accName = if (targetAccountId == 1130) "Company Bank A/C 1130 via UPI" else "Central Plant Vault (A/C 1110)"
+                                    snackbarHostState.showSnackbar("✅ Handover recorded! Transferred to $accName.")
                                 },
                                 onFailure = { err ->
                                     snackbarHostState.showSnackbar("❌ Handover failed: ${err.message}")

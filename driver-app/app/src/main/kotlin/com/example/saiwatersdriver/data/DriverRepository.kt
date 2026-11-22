@@ -76,7 +76,7 @@ class DriverRepository(private val context: Context) {
             _networkError.value = null
             try {
                 fetchLiveOrders()
-                fetchLiveTimeline()
+                fetchLiveCash()
             } catch (e: Exception) {
                 Log.e("DriverRepository", "Sync failed: ${e.message}", e)
                 _networkError.value = e.message ?: "Failed to sync with backend"
@@ -267,7 +267,11 @@ class DriverRepository(private val context: Context) {
         }
     }
 
-    suspend fun handoverCashToPlant(amountPaise: Long, notes: String = "Handover to Plant Vault"): Result<Boolean> {
+    suspend fun handoverCashToPlant(
+        amountPaise: Long,
+        targetAccountId: Int = 1110,
+        notes: String = "Handover to Plant Vault"
+    ): Result<Boolean> {
         val baseUrl = sessionManager.backendUrl.trimEnd('/')
         val url = "$baseUrl/api/cash"
         val payload = JSONObject().apply {
@@ -275,7 +279,7 @@ class DriverRepository(private val context: Context) {
             put("driverId", _driverProfile.value.driverId)
             put("totalDeclaredPaise", amountPaise)
             put("totalVerifiedPaise", amountPaise)
-            put("targetAccountId", 1110)
+            put("targetAccountId", targetAccountId)
             put("notes", notes)
         }.toString()
         val res = ApiClient.postJson(url, payload)
@@ -284,58 +288,67 @@ class DriverRepository(private val context: Context) {
             if (!root.optBoolean("success", false) && !root.has("handover")) {
                 throw Exception(root.optString("error", "Handover failed"))
             }
+            // 1. Immediately mark all local collections as handed over (drops balance to 0)
             _cashCollections.update { list ->
                 list.map { it.copy(isHandedOver = true) }
             }
-            syncFromBackend()
+            // 2. Fetch updated records from backend
+            fetchLiveCash()
             true
         }
     }
 
     /**
-     * Fetch timeline and collections from GET /api/driver/timeline?driverId=...
+     * Fetch authentic cash collections and handover status from GET /api/cash?driverId=...
      */
-    private suspend fun fetchLiveTimeline() {
+    suspend fun fetchLiveCash() {
         val baseUrl = sessionManager.backendUrl.trimEnd('/')
         val driverId = _driverProfile.value.driverId
-        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        val url = "$baseUrl/api/driver/timeline?driverId=$driverId&date=$todayStr"
+        val url = "$baseUrl/api/cash?driverId=$driverId"
 
         val result = ApiClient.get(url)
         result.onSuccess { responseText ->
             try {
                 val root = JSONObject(responseText)
-                if (root.optBoolean("success", false) && root.has("timeline")) {
-                    val timeline = root.getJSONArray("timeline")
-                    val cashList = mutableListOf<CashCollectionEntry>()
+                val subArray = root.optJSONArray("submissions") ?: root.optJSONArray("allSubmissions") ?: JSONArray()
+                val list = mutableListOf<CashCollectionEntry>()
 
-                    for (i in 0 until timeline.length()) {
-                        val item = timeline.getJSONObject(i)
-                        val cashPaise = item.optLong("cashCollectedPaise", 0L)
-                        val orderNum = item.optString("orderNumber", "")
-                        val custName = item.optString("customerName", "Customer")
-                        val timeStr = item.optString("time", "")
+                for (i in 0 until subArray.length()) {
+                    val s = subArray.getJSONObject(i)
+                    val id = s.optString("id", "csh_$i")
+                    val orderNum = s.optString("orderNumber", "-")
+                    val custName = s.optString("customerName", "Customer")
+                    val amtPaise = s.optLong("amountCollectedPaise", 0L)
+                    val isHandedOver = s.optBoolean("isHandedOver", false)
 
-                        if (cashPaise > 0) {
-                            cashList.add(
-                                CashCollectionEntry(
-                                    id = "live_csh_${i}_${System.currentTimeMillis()}",
-                                    orderNumber = orderNum,
-                                    customerName = custName,
-                                    amountPaise = cashPaise,
-                                    mode = PaymentMode.CASH,
-                                    timestamp = System.currentTimeMillis()
-                                )
-                            )
-                        }
+                    val iso = s.optString("collectedAt", "")
+                    val timeMillis = try {
+                        if (iso.isNotBlank()) {
+                            val cleanIso = iso.substringBefore("Z").substringBefore(".")
+                            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).parse(cleanIso)?.time ?: System.currentTimeMillis()
+                        } else System.currentTimeMillis()
+                    } catch (e: Exception) {
+                        System.currentTimeMillis()
                     }
 
-                    if (cashList.isNotEmpty()) {
-                        _cashCollections.value = cashList
+                    if (amtPaise > 0) {
+                        list.add(
+                            CashCollectionEntry(
+                                id = id,
+                                orderNumber = orderNum,
+                                customerName = custName,
+                                amountPaise = amtPaise,
+                                mode = PaymentMode.CASH,
+                                timestamp = timeMillis,
+                                isHandedOver = isHandedOver
+                            )
+                        )
                     }
                 }
+
+                _cashCollections.value = list
             } catch (e: Exception) {
-                Log.e("DriverRepository", "Failed parsing timeline: ${e.message}")
+                Log.e("DriverRepository", "Failed parsing /api/cash: ${e.message}")
             }
         }
     }
@@ -521,8 +534,8 @@ class DriverRepository(private val context: Context) {
             val totalPaise = root.optLong("totalAmountPaise", jarCodes.size * customer.ratePerJarPaise)
             val receiptNumber = root.optString("cashReceiptNumber", root.optString("receiptNumber", "RCP-${System.currentTimeMillis().toString().takeLast(6)}"))
 
-            // Record in Cash Collection if cash was collected
-            if (cashCollectedPaise > 0) {
+            // Record in Cash Collection ONLY if physical cash was collected
+            if (paymentMode == PaymentMode.CASH && cashCollectedPaise > 0) {
                 val entry = CashCollectionEntry(
                     id = "csh_${System.currentTimeMillis()}",
                     orderNumber = orderNumber,

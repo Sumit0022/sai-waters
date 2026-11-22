@@ -1017,10 +1017,10 @@ fun ScannerTab(
                                                     .weight(1f)
                                                     .clickable {
                                                         paymentMode = mode
-                                                        if (mode == PaymentMode.MONTHLY_CREDIT) {
-                                                            cashCollectedRupees = "0"
-                                                        } else {
+                                                        if (mode == PaymentMode.CASH) {
                                                             cashCollectedRupees = totalBill.toString()
+                                                        } else {
+                                                            cashCollectedRupees = "0"
                                                         }
                                                     },
                                                 shape = RoundedCornerShape(10.dp),
@@ -1042,22 +1042,54 @@ fun ScannerTab(
                                     if (paymentMode == PaymentMode.CASH) {
                                         Spacer(modifier = Modifier.height(14.dp))
                                         OutlinedTextField(
-                                            value = cashCollectedRupees,
-                                            onValueChange = { cashCollectedRupees = it },
-                                            label = { Text("Cash Collected at Doorstep (₹)") },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(10.dp),
-                                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Bold),
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedTextColor = Color(0xFF0F172A),
-                                                unfocusedTextColor = Color(0xFF0F172A),
-                                                focusedContainerColor = Color.White,
-                                                unfocusedContainerColor = Color.White,
-                                                cursorColor = WaterCyanPrimary
-                                            )
-                                        )
-                                    }
+                                             value = cashCollectedRupees,
+                                             onValueChange = { cashCollectedRupees = it },
+                                             label = { Text("Cash Collected at Doorstep (₹)") },
+                                             modifier = Modifier.fillMaxWidth(),
+                                             singleLine = true,
+                                             shape = RoundedCornerShape(10.dp),
+                                             textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                                             colors = OutlinedTextFieldDefaults.colors(
+                                                 focusedTextColor = Color(0xFF0F172A),
+                                                 unfocusedTextColor = Color(0xFF0F172A),
+                                                 focusedContainerColor = Color.White,
+                                                 unfocusedContainerColor = Color.White,
+                                                 cursorColor = WaterCyanPrimary
+                                             )
+                                         )
+                                     } else if (paymentMode == PaymentMode.UPI_QR) {
+                                         Spacer(modifier = Modifier.height(12.dp))
+                                         Surface(
+                                             shape = RoundedCornerShape(10.dp),
+                                             color = Color(0xFFEFF6FF),
+                                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                                             modifier = Modifier.fillMaxWidth()
+                                         ) {
+                                             Column(modifier = Modifier.padding(12.dp)) {
+                                                 Row(verticalAlignment = Alignment.CenterVertically) {
+                                                     Icon(imageVector = Icons.Default.QrCode, contentDescription = null, tint = Color(0xFF1D4ED8), modifier = Modifier.size(16.dp))
+                                                     Spacer(modifier = Modifier.width(6.dp))
+                                                     Text("Company UPI ID: saiwaters@upi", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF1E40AF))
+                                                 }
+                                                 Spacer(modifier = Modifier.height(4.dp))
+                                                 Text("Customer se ₹$totalBill transfer karwayein. Money goes directly to bank account (Driver cash in hand remains ₹0).", fontSize = 10.sp, color = Color(0xFF1E3A8A))
+                                             }
+                                         }
+                                     } else {
+                                         Spacer(modifier = Modifier.height(12.dp))
+                                         Surface(
+                                             shape = RoundedCornerShape(10.dp),
+                                             color = Color(0xFFF0FDF4),
+                                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0)),
+                                             modifier = Modifier.fillMaxWidth()
+                                         ) {
+                                             Column(modifier = Modifier.padding(12.dp)) {
+                                                 Text("Monthly Khata (Account Billing)", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF166534))
+                                                 Spacer(modifier = Modifier.height(4.dp))
+                                                 Text("Doorstep cash: ₹0 • ₹$totalBill customer ke monthly ledger hisaab mein judega.", fontSize = 10.sp, color = Color(0xFF14532D))
+                                             }
+                                         }
+                                     }
                                 }
                             }
                         }

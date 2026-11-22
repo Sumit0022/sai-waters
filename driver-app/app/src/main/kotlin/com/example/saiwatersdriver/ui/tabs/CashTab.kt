@@ -23,11 +23,11 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -66,19 +67,21 @@ import java.util.Locale
 
 /**
  * Cash Tab: Driver Clearing Account (1120) & Daily Cash Book
- * Includes functional Handover to Plant Vault (Account 1110).
+ * Real-time ledger sync with zero-balance on handover.
+ * Supports Cash Handover to Central Vault (A/C 1110) or UPI Transfer to Bank (A/C 1130).
  */
 @Composable
 fun CashTab(
     cashCollections: List<CashCollectionEntry>,
     totalCashInHandPaise: Long,
-    onHandoverClick: (amountPaise: Long, notes: String) -> Unit = { _, _ -> },
+    onHandoverClick: (amountPaise: Long, targetAccountId: Int, notes: String) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val totalRupees = totalCashInHandPaise / 100.0
     var showHandoverDialog by remember { mutableStateOf(false) }
     var handoverAmountText by remember { mutableStateOf("") }
-    var handoverNotes by remember { mutableStateOf("Evening cash deposit to plant vault") }
+    var handoverTargetAccountId by remember { mutableIntStateOf(1110) } // 1110 = Cash Vault, 1130 = Bank / UPI
+    var handoverNotes by remember { mutableStateOf("Evening cash deposit to plant") }
     var handoverNotice by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
@@ -119,14 +122,14 @@ fun CashTab(
 
                         Surface(
                             shape = RoundedCornerShape(50),
-                            color = Color(0x3338BDF8)
+                            color = if (totalCashInHandPaise > 0) Color(0x3338BDF8) else Color(0x3310B981)
                         ) {
                             Text(
-                                text = "A/C 1120 CLEARING",
+                                text = if (totalCashInHandPaise > 0) "A/C 1120 IN-TRANSIT" else "VAULT CLEAR (₹0)",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFE0F2FE)
+                                color = if (totalCashInHandPaise > 0) Color(0xFFE0F2FE) else Color(0xFF86EFAC)
                             )
                         }
                     }
@@ -145,7 +148,7 @@ fun CashTab(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = if (totalRupees > 0) "Held in physical custody • Deposit to plant vault" else "All collected cash is settled with plant vault.",
+                        text = if (totalRupees > 0) "Physical cash in custody • Handover to Plant Vault (1110) or via UPI (1130)" else "All collections are settled. Current cash in hand is ₹0.00.",
                         fontSize = 11.sp,
                         color = Color(0xFF94A3B8)
                     )
@@ -158,14 +161,17 @@ fun CashTab(
                                 handoverAmountText = String.format(Locale.US, "%.0f", totalRupees)
                                 showHandoverDialog = true
                             } else {
-                                handoverNotice = "Vault is clear! No uncleared cash in hand."
+                                handoverNotice = "Vault is clear! No pending cash in custody."
                             }
                         },
+                        enabled = totalCashInHandPaise > 0,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (totalRupees > 0) Color(0xFF0284C7) else Color(0xFF334155),
-                            contentColor = Color.White
+                            disabledContainerColor = Color(0xFF1E293B),
+                            contentColor = Color.White,
+                            disabledContentColor = Color(0xFF64748B)
                         )
                     ) {
                         Icon(
@@ -175,7 +181,7 @@ fun CashTab(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (totalRupees > 0) "Handover Cash to Plant Vault" else "Cash Already Settled",
+                            text = if (totalRupees > 0) "Handover Cash to Plant" else "Cash Already Settled (₹0)",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )
@@ -195,7 +201,7 @@ fun CashTab(
             }
         }
 
-        // Section Title: Today's Doorstep Collections
+        // Section Title: Doorstep Collections Log
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -203,7 +209,7 @@ fun CashTab(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "COLLECTIONS TODAY (${cashCollections.size})",
+                    text = "COLLECTIONS LOG (${cashCollections.size})",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = WaterTextSecondary
@@ -238,14 +244,14 @@ fun CashTab(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "No Cash Collections Yet Today",
+                            text = "No Cash Collections Yet",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = WaterNavyDark
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Doorstep cash collected during delivery drops will appear here automatically.",
+                            text = "Doorstep spot cash collections will automatically appear here.",
                             fontSize = 11.sp,
                             color = WaterTextSecondary,
                             textAlign = TextAlign.Center
@@ -278,14 +284,14 @@ fun CashTab(
                                     .size(40.dp)
                                     .clip(CircleShape)
                                     .background(
-                                        if (item.mode == PaymentMode.CASH) WaterEmeraldContainer else Color(0xFFE0F2FE)
+                                        if (item.isHandedOver) Color(0xFFF1F5F9) else WaterEmeraldContainer
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = if (item.mode == PaymentMode.CASH) Icons.Default.Payments else Icons.Default.CreditCard,
                                     contentDescription = null,
-                                    tint = if (item.mode == PaymentMode.CASH) WaterEmeraldGreen else Color(0xFF0284C7),
+                                    tint = if (item.isHandedOver) Color(0xFF64748B) else WaterEmeraldGreen,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -295,7 +301,7 @@ fun CashTab(
                                     text = item.customerName,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
-                                    color = WaterTextPrimary
+                                    color = if (item.isHandedOver) Color(0xFF64748B) else WaterTextPrimary
                                 )
                                 Text(
                                     text = "${item.orderNumber} • ${SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(item.timestamp))}",
@@ -310,14 +316,20 @@ fun CashTab(
                                 text = String.format(Locale.US, "+₹%.0f", item.amountRupees),
                                 fontWeight = FontWeight.Black,
                                 fontSize = 16.sp,
-                                color = WaterEmeraldGreen
+                                color = if (item.isHandedOver) Color(0xFF64748B) else WaterEmeraldGreen
                             )
-                            Text(
-                                text = if (item.isHandedOver) "Deposited to Plant" else (if (item.mode == PaymentMode.CASH) "Cash in Transit" else "UPI Instant"),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (item.isHandedOver) Color(0xFF0284C7) else WaterTextSecondary
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = if (item.isHandedOver) Color(0xFFF1F5F9) else Color(0xFFFEF3C7)
+                            ) {
+                                Text(
+                                    text = if (item.isHandedOver) "✓ Handed Over to Plant" else "In Transit (Handover Pending)",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (item.isHandedOver) Color(0xFF0369A1) else Color(0xFF92400E),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -330,13 +342,13 @@ fun CashTab(
     }
 
     // =========================================================================
-    // HANDOVER CASH TO PLANT CONFIRMATION DIALOG
+    // HANDOVER CASH TO PLANT CONFIRMATION DIALOG (CASH OR UPI)
     // =========================================================================
     if (showHandoverDialog) {
         Dialog(onDismissRequest = { showHandoverDialog = false }) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(22.dp),
                 color = Color.White,
                 shadowElevation = 8.dp
             ) {
@@ -345,6 +357,7 @@ fun CashTab(
                         .fillMaxWidth()
                         .padding(20.dp)
                 ) {
+                    // Dialog Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -374,9 +387,10 @@ fun CashTab(
                                     color = WaterNavyDark
                                 )
                                 Text(
-                                    text = "Target: Plant Vault (A/C 1110)",
+                                    text = if (handoverTargetAccountId == 1110) "Target: Central Vault (A/C 1110)" else "Target: Company Bank / UPI (A/C 1130)",
                                     fontSize = 10.sp,
-                                    color = WaterTextSecondary
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (handoverTargetAccountId == 1110) Color(0xFF0284C7) else Color(0xFF059669)
                                 )
                             }
                         }
@@ -386,7 +400,7 @@ fun CashTab(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Current Cash in Hand Indicator
                     Surface(
@@ -403,7 +417,7 @@ fun CashTab(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Current Transit Balance:",
+                                text = "Current Transit Custody:",
                                 fontSize = 12.sp,
                                 color = WaterTextSecondary
                             )
@@ -418,7 +432,117 @@ fun CashTab(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Deposit Amount Input Field (Explicit Visible Dark Text!)
+                    // Handover Method Toggle: Physical Cash vs UPI Transfer
+                    Text(
+                        text = "HANDOVER METHOD / MODE",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WaterTextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Cash Option (Vault 1110)
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    handoverTargetAccountId = 1110
+                                    handoverNotes = "Cash handover to plant central vault"
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (handoverTargetAccountId == 1110) WaterNavyDark else Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (handoverTargetAccountId == 1110) WaterNavyDark else Color(0xFFE2E8F0)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Payments,
+                                    contentDescription = null,
+                                    tint = if (handoverTargetAccountId == 1110) Color.White else WaterTextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "💵 Physical Cash",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (handoverTargetAccountId == 1110) Color.White else WaterTextSecondary
+                                )
+                            }
+                        }
+
+                        // UPI / Bank Option (Bank 1130)
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    handoverTargetAccountId = 1130
+                                    handoverNotes = "UPI transfer to Sai Waters bank account"
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (handoverTargetAccountId == 1130) Color(0xFF047857) else Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (handoverTargetAccountId == 1130) Color(0xFF047857) else Color(0xFFE2E8F0)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.QrCode,
+                                    contentDescription = null,
+                                    tint = if (handoverTargetAccountId == 1130) Color.White else WaterTextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "📱 UPI Transfer",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (handoverTargetAccountId == 1130) Color.White else WaterTextSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    if (handoverTargetAccountId == 1130) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFECFDF5),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Transfer to Company UPI: saiwaters@upi\n(Credits Bank A/C 1130 & clears Driver Custody)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF065F46)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Deposit Amount Input Field
                     Text(
                         text = "DEPOSIT AMOUNT (₹)",
                         fontSize = 11.sp,
@@ -450,7 +574,7 @@ fun CashTab(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Deposit Notes Input Field (Explicit Visible Dark Text!)
+                    // Deposit Notes Input Field
                     Text(
                         text = "NOTES / REMARKS",
                         fontSize = 11.sp,
@@ -498,16 +622,22 @@ fun CashTab(
                             onClick = {
                                 val amtDouble = handoverAmountText.toDoubleOrNull() ?: totalRupees
                                 val amtPaise = (amtDouble * 100).toLong()
-                                onHandoverClick(amtPaise, handoverNotes)
+                                onHandoverClick(amtPaise, handoverTargetAccountId, handoverNotes)
                                 showHandoverDialog = false
                             },
                             modifier = Modifier.weight(1.5f),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = WaterEmeraldGreen)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (handoverTargetAccountId == 1130) Color(0xFF059669) else WaterEmeraldGreen
+                            )
                         ) {
                             Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Confirm Deposit", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (handoverTargetAccountId == 1130) "Confirm UPI Transfer" else "Confirm Vault Deposit",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }

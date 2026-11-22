@@ -31,11 +31,13 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
@@ -74,6 +76,7 @@ import com.example.saiwatersdriver.model.DeliveryOrder
 import com.example.saiwatersdriver.model.DeliveryStatus
 import com.example.saiwatersdriver.model.DriverProfile
 import com.example.saiwatersdriver.model.OrderBillingType
+import com.example.saiwatersdriver.model.PaymentMode
 import com.example.saiwatersdriver.ui.components.NotificationPermissionCard
 import com.example.saiwatersdriver.ui.theme.WaterBorderLight
 import com.example.saiwatersdriver.ui.theme.WaterCyanPrimary
@@ -659,6 +662,9 @@ fun BulkDeliverySettlementDialog(
     val isPrepaid = order.paymentType == "PREPAID"
     val dueBalanceRupees = if (isPrepaid) 0.0 else (finalBillRupees - advanceRupees).coerceAtLeast(0.0)
 
+    var paymentMode by remember {
+        mutableStateOf(if (isPrepaid || dueBalanceRupees == 0.0) PaymentMode.MONTHLY_CREDIT else PaymentMode.CASH)
+    }
     var cashCollectedText by remember { mutableStateOf(String.format(Locale.US, "%.0f", dueBalanceRupees)) }
     var isSubmitting by remember { mutableStateOf(false) }
 
@@ -761,52 +767,136 @@ fun BulkDeliverySettlementDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Cash Collected Input Field (Explicit Visible Dark Text)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "CASH COLLECTED AT VENUE (₹)",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = WaterTextSecondary
-                    )
-                    Text(
-                        text = "Set Due ₹${dueBalanceRupees.toInt()}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = WaterCyanPrimary,
-                        modifier = Modifier.clickable {
-                            cashCollectedText = String.format(Locale.US, "%.0f", dueBalanceRupees)
-                        }
-                    )
-                }
-
+                // Payment Mode Selector Tabs
+                Text(
+                    text = "PAYMENT MODE AT VENUE",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = WaterTextSecondary
+                )
                 Spacer(modifier = Modifier.height(6.dp))
 
-                OutlinedTextField(
-                    value = cashCollectedText,
-                    onValueChange = { cashCollectedText = it },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    textStyle = TextStyle(
-                        color = Color(0xFF0F172A),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF0F172A),
-                        unfocusedTextColor = Color(0xFF0F172A),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        focusedBorderColor = WaterCyanPrimary,
-                        unfocusedBorderColor = Color(0xFFCBD5E1),
-                        cursorColor = WaterCyanPrimary
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val modes = listOf(
+                        PaymentMode.CASH to "💵 Cash",
+                        PaymentMode.UPI_QR to "📱 UPI QR",
+                        PaymentMode.MONTHLY_CREDIT to "📝 Khata"
                     )
-                )
+                    modes.forEach { (mode, label) ->
+                        val isSelected = paymentMode == mode
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    paymentMode = mode
+                                    if (mode == PaymentMode.CASH) {
+                                        cashCollectedText = String.format(Locale.US, "%.0f", dueBalanceRupees)
+                                    } else {
+                                        cashCollectedText = "0"
+                                    }
+                                },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) WaterNavyDark else Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSelected) WaterNavyDark else Color(0xFFE2E8F0)
+                            )
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color.White else WaterTextSecondary,
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (paymentMode == PaymentMode.CASH) {
+                    // Cash Input Field
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Cash Collected at Venue (₹):",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WaterNavyDark
+                        )
+                        Text(
+                            text = "Set Due ₹${dueBalanceRupees.toInt()}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WaterCyanPrimary,
+                            modifier = Modifier.clickable {
+                                cashCollectedText = String.format(Locale.US, "%.0f", dueBalanceRupees)
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    OutlinedTextField(
+                        value = cashCollectedText,
+                        onValueChange = { cashCollectedText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        textStyle = TextStyle(
+                            color = Color(0xFF0F172A),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF0F172A),
+                            unfocusedTextColor = Color(0xFF0F172A),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            focusedBorderColor = WaterCyanPrimary,
+                            unfocusedBorderColor = Color(0xFFCBD5E1),
+                            cursorColor = WaterCyanPrimary
+                        )
+                    )
+                } else if (paymentMode == PaymentMode.UPI_QR) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFEFF6FF),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(imageVector = Icons.Default.QrCode, contentDescription = null, tint = Color(0xFF1D4ED8), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Company UPI: saiwaters@upi", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF1E40AF))
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Customer se ₹${dueBalanceRupees.toInt()} UPI se transfer karwayein (Driver cash in transit: ₹0).", fontSize = 10.sp, color = Color(0xFF1E3A8A))
+                        }
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF0FDF4),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("Event Khata / Bill Settlement", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF166534))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Doorstep cash: ₹0 • Due balance customer ke final billing hisaab mein settle hoga.", fontSize = 10.sp, color = Color(0xFF14532D))
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(18.dp))
 
@@ -826,7 +916,11 @@ fun BulkDeliverySettlementDialog(
                     Button(
                         onClick = {
                             isSubmitting = true
-                            val cashAmt = ((cashCollectedText.toDoubleOrNull() ?: dueBalanceRupees) * 100).toLong()
+                            val cashAmt = if (paymentMode == PaymentMode.CASH) {
+                                ((cashCollectedText.toDoubleOrNull() ?: dueBalanceRupees) * 100).toLong()
+                            } else {
+                                0L
+                            }
                             onConfirmSettle(order.id, undeliveredJarCodes, cashAmt)
                         },
                         enabled = !isSubmitting,
