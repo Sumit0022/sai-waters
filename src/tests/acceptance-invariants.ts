@@ -26,6 +26,27 @@ async function runAcceptanceTests() {
     }
   }
 
+  // Ensure test fixture customer exists
+  const db = await getDb();
+  await db.insert(customers).values([
+    {
+      id: "cust_001",
+      customerCode: "TEST-CUST-001",
+      fullName: "Test Customer 1 (Automated)",
+      phone: "9999999991",
+      customerType: "RESIDENTIAL",
+      billingFrequency: "MONTHLY",
+    },
+    {
+      id: "cust_002",
+      customerCode: "TEST-CUST-002",
+      fullName: "Test Customer 2 (Automated)",
+      phone: "9999999992",
+      customerType: "RESIDENTIAL",
+      billingFrequency: "MONTHLY",
+    }
+  ]).onConflictDoNothing();
+
   // TEST 1: Double-Entry Trial Balance Invariant (Sum Dr == Sum Cr)
   const tbInitial = await getTrialBalance();
   assert(
@@ -165,7 +186,6 @@ async function runAcceptanceTests() {
   );
 
   // TEST 10: Authorized Jar Loss Charge (Owner sets custom fee)
-  const db = await getDb();
   const testJarId = `jar_test_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   await db.insert(jarMasters).values({
     id: testJarId,
