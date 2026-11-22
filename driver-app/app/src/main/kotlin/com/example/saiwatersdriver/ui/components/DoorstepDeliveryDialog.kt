@@ -401,9 +401,15 @@ fun DoorstepDeliveryDialog(
                     label = { Text("Amount Collected (₹)") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Bold),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color(0xFF0F172A),
+                        unfocusedTextColor = Color(0xFF0F172A),
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
                         focusedBorderColor = WaterCyanPrimary,
-                        unfocusedBorderColor = WaterBorderLight
+                        unfocusedBorderColor = WaterBorderLight,
+                        cursorColor = WaterCyanPrimary
                     ),
                     singleLine = true
                 )

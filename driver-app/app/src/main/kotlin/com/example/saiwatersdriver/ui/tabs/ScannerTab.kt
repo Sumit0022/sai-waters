@@ -65,6 +65,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -201,8 +202,15 @@ fun ScannerTab(
                     customerInfo = cust
                     emptyJarsCount = cust.defaultQuantity
                     scannedJars = emptyList()
-                    val total = cust.defaultQuantity * (cust.ratePerJarRupees.toInt())
-                    cashCollectedRupees = total.toString()
+                    val isBulkEvent = cust.billingCycle.uppercase().contains("EVENT") || cust.billingCycle.uppercase().contains("ONE_TIME")
+                    if (!isBulkEvent) {
+                        // Recurring & Daily customers default to Monthly Khata (Account ledger)
+                        paymentMode = PaymentMode.MONTHLY_CREDIT
+                        cashCollectedRupees = "0"
+                    } else {
+                        paymentMode = PaymentMode.CASH
+                        cashCollectedRupees = (cust.defaultQuantity * (cust.ratePerJarRupees.toInt())).toString()
+                    }
                     currentStep = DeliveryWorkflowStep.STEP2_JARS_AND_PAYMENT
                     isCameraActive = false
                 },
@@ -241,9 +249,11 @@ fun ScannerTab(
         val updated = scannedJars + clean
         scannedJars = updated
 
-        // Recalculate default cash amount
-        val unitRate = customerInfo?.ratePerJarRupees?.toInt() ?: 35
-        cashCollectedRupees = (updated.size * unitRate).toString()
+        // Recalculate cash amount only if in cash mode
+        if (paymentMode == PaymentMode.CASH) {
+            val unitRate = customerInfo?.ratePerJarRupees?.toInt() ?: 35
+            cashCollectedRupees = (updated.size * unitRate).toString()
+        }
         inScannerNotice = "✅ Jar '$clean' added! (${updated.size} Jars Total)"
         return true
     }
@@ -650,10 +660,18 @@ fun ScannerTab(
                                                 manualCustomerInput = it
                                                 customerError = null
                                             },
-                                            placeholder = { Text("e.g. CUST-001 or 98370...", fontSize = 12.sp) },
+                                            placeholder = { Text("e.g. CUST-001 or 98370...", fontSize = 12.sp, color = Color(0xFF94A3B8)) },
                                             modifier = Modifier.weight(1f),
                                             singleLine = true,
-                                            shape = RoundedCornerShape(10.dp)
+                                            shape = RoundedCornerShape(10.dp),
+                                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 13.sp),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = Color(0xFF0F172A),
+                                                unfocusedTextColor = Color(0xFF0F172A),
+                                                focusedContainerColor = Color.White,
+                                                unfocusedContainerColor = Color.White,
+                                                cursorColor = WaterCyanPrimary
+                                            )
                                         )
                                         Button(
                                             onClick = { resolveCustomer(manualCustomerInput) },
@@ -1029,7 +1047,15 @@ fun ScannerTab(
                                             label = { Text("Cash Collected at Doorstep (₹)") },
                                             modifier = Modifier.fillMaxWidth(),
                                             singleLine = true,
-                                            shape = RoundedCornerShape(10.dp)
+                                            shape = RoundedCornerShape(10.dp),
+                                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = Color(0xFF0F172A),
+                                                unfocusedTextColor = Color(0xFF0F172A),
+                                                focusedContainerColor = Color.White,
+                                                unfocusedContainerColor = Color.White,
+                                                cursorColor = WaterCyanPrimary
+                                            )
                                         )
                                     }
                                 }
@@ -1237,9 +1263,17 @@ fun ScannerTab(
                         OutlinedTextField(
                             value = manualJarInput,
                             onValueChange = { manualJarInput = it },
-                            placeholder = { Text("e.g. JAR-20L-0035") },
+                            placeholder = { Text("e.g. JAR-20L-0035", color = Color(0xFF94A3B8)) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 13.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color(0xFF0F172A),
+                                unfocusedTextColor = Color(0xFF0F172A),
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                cursorColor = WaterCyanPrimary
+                            )
                         )
                     }
                 },

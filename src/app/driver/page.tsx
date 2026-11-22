@@ -1283,14 +1283,20 @@ export default function DriverAppPage() {
                         </span>
                         <div>
                           <h4 className="font-black text-slate-900 text-sm leading-tight">
-                            {item.customerName}
+                            {item.type === "CASH_HANDOVER" ? "Cash Handed Over to Plant Vault" : item.customerName}
                           </h4>
                           <span className="text-[10px] text-slate-400">({item.customerCode})</span>
                         </div>
                       </div>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                        {item.quantityJars} Jars
-                      </span>
+                      {item.type === "CASH_HANDOVER" ? (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black">
+                          🏦 Vault Handover
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                          {item.quantityJars} Jars
+                        </span>
+                      )}
                     </div>
 
                     {item.address && (
@@ -1316,10 +1322,11 @@ export default function DriverAppPage() {
 
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                       <span className="text-slate-500">
-                        Bill: <strong>{formatINR(item.totalAmountPaise)}</strong>
+                        {item.type === "CASH_HANDOVER" ? "Account: 1110 (Plant Vault)" : `Bill: `}
+                        {item.type !== "CASH_HANDOVER" && <strong>{formatINR(item.totalAmountPaise)}</strong>}
                       </span>
-                      <span className="text-emerald-700 font-black">
-                        Cash Mila: {formatINR(item.cashCollectedPaise)}
+                      <span className={item.type === "CASH_HANDOVER" ? "text-amber-700 font-black" : "text-emerald-700 font-black"}>
+                        {item.type === "CASH_HANDOVER" ? `Handover: ${formatINR(item.cashCollectedPaise)}` : `Cash Mila: ${formatINR(item.cashCollectedPaise)}`}
                       </span>
                     </div>
                   </div>

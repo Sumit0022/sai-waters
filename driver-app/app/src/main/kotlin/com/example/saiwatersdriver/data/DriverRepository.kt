@@ -3,12 +3,14 @@ package com.example.saiwatersdriver.data
 import android.content.Context
 import android.util.Log
 import com.example.saiwatersdriver.model.CashCollectionEntry
+import com.example.saiwatersdriver.model.DayTimelineSummary
 import com.example.saiwatersdriver.model.DeliveryOrder
 import com.example.saiwatersdriver.model.DeliveryStatus
 import com.example.saiwatersdriver.model.DriverProfile
 import com.example.saiwatersdriver.model.OrderBillingType
 import com.example.saiwatersdriver.model.PaymentMode
 import com.example.saiwatersdriver.model.ScannedJar
+import com.example.saiwatersdriver.model.TimelineItem
 import com.example.saiwatersdriver.notification.SaiNotificationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -106,54 +108,7 @@ class DriverRepository(private val context: Context) {
 
                     val parsedList = mutableListOf<DeliveryOrder>()
                     for (i in 0 until ordersArray.length()) {
-                        val item = ordersArray.getJSONObject(i)
-                        val id = item.optString("id", "")
-                        val orderNum = item.optString("orderNumber", "ORD-${i + 1}")
-                        val custId = item.optString("customerId", "")
-                        val custName = item.optString("customerName", "Customer")
-                        val custPhone = item.optString("customerPhone", "")
-                        val street = item.optString("streetAddress", "")
-                        val locality = item.optString("locality", "")
-                        val city = item.optString("city", "")
-                        val address = listOf(street, locality, city).filter { it.isNotBlank() }.joinToString(", ")
-                        val jarQty = item.optInt("quantityJars", 1)
-                        val ratePaise = item.optLong("unitPricePaise", 3500L)
-                        val totalPaise = item.optLong("totalAmountPaise", jarQty * ratePaise)
-                        val statusStr = item.optString("status", "IN_TRANSIT")
-                        val orderType = item.optString("orderType", "DAILY_SPOT")
-
-                        val status = when (statusStr.uppercase()) {
-                            "DELIVERED" -> DeliveryStatus.DELIVERED
-                            "CANCELLED", "FAILED" -> DeliveryStatus.FAILED
-                            else -> DeliveryStatus.IN_TRANSIT
-                        }
-
-                        val billingType = when (orderType.uppercase()) {
-                            "ONE_TIME_EVENT", "BULK_EVENT" -> OrderBillingType.BULK_EVENT
-                            "MONTHLY_SUBSCRIPTION", "REGULAR_MONTHLY" -> OrderBillingType.REGULAR_MONTHLY
-                            else -> OrderBillingType.DAILY_SPOT
-                        }
-
-                        parsedList.add(
-                            DeliveryOrder(
-                                id = id,
-                                orderNumber = orderNum,
-                                customerId = custId,
-                                customerName = custName,
-                                customerPhone = custPhone,
-                                address = if (address.isNotBlank()) address else "Bareilly City Center",
-                                area = if (locality.isNotBlank()) locality else "Bareilly",
-                                jarQuantity = jarQty,
-                                ratePerJarPaise = ratePaise,
-                                totalAmountPaise = totalPaise,
-                                alreadyPaidPaise = 0L,
-                                netDuePaise = totalPaise,
-                                emptyJarsDue = jarQty,
-                                status = status,
-                                billingType = billingType,
-                                allocatedJars = emptyList()
-                            )
-                        )
+                        parsedList.add(parseOrderJson(ordersArray.getJSONObject(i)))
                     }
 
                     // Keep existing delivered orders if any
@@ -166,6 +121,175 @@ class DriverRepository(private val context: Context) {
                 Log.w("DriverRepository", "API /api/orders unreachable: ${error.message}")
             }
         )
+    }
+
+    private fun parseOrderJson(item: JSONObject): DeliveryOrder {
+        val id = item.optString("id", "")
+        val orderNum = item.optString("orderNumber", "ORD-${id.takeLast(4)}")
+        val custId = item.optString("customerId", "")
+        val custName = item.optString("customerName", "Customer")
+        val custPhone = item.optString("customerPhone", "")
+        val street = item.optString("streetAddress", "")
+        val locality = item.optString("locality", "")
+        val city = item.optString("city", "")
+        val address = listOf(street, locality, city).filter { it.isNotBlank() }.joinToString(", ")
+        val jarQty = item.optInt("quantityJars", 1)
+        val ratePaise = item.optLong("unitPricePaise", 3500L)
+        val totalPaise = item.optLong("totalAmountPaise", jarQty * ratePaise)
+        val statusStr = item.optString("status", "IN_TRANSIT")
+        val orderType = item.optString("orderType", "DAILY_SPOT")
+        val scheduledDate = item.optString("scheduledDate", "")
+        val eventName = if (item.has("eventName") && !item.isNull("eventName")) item.getString("eventName") else null
+
+        val advancePaid = item.optLong("advanceReceivedPaise", 0L)
+        val balanceDue = item.optLong("balanceDuePaise", (totalPaise - advancePaid).coerceAtLeast(0L))
+        val paymentType = item.optString("paymentType", "PAY_ON_DELIVERY")
+
+        val dispatchedArray = item.optJSONArray("dispatchedJars") ?: JSONArray()
+        val dispatchedList = (0 until dispatchedArray.length()).map { dispatchedArray.getString(it) }
+
+        val status = when (statusStr.uppercase()) {
+            "DELIVERED" -> DeliveryStatus.DELIVERED
+            "CANCELLED", "FAILED" -> DeliveryStatus.FAILED
+            else -> DeliveryStatus.IN_TRANSIT
+        }
+
+        val billingType = when (orderType.uppercase()) {
+            "ONE_TIME_EVENT", "BULK_EVENT" -> OrderBillingType.BULK_EVENT
+            "MONTHLY_SUBSCRIPTION", "REGULAR_MONTHLY" -> OrderBillingType.REGULAR_MONTHLY
+            else -> OrderBillingType.DAILY_SPOT
+        }
+
+        return DeliveryOrder(
+            id = id,
+            orderNumber = orderNum,
+            customerId = custId,
+            customerName = custName,
+            customerPhone = custPhone,
+            address = if (address.isNotBlank()) address else "Bareilly City Center",
+            area = if (locality.isNotBlank()) locality else "Bareilly",
+            jarQuantity = jarQty,
+            ratePerJarPaise = ratePaise,
+            totalAmountPaise = totalPaise,
+            alreadyPaidPaise = advancePaid,
+            netDuePaise = balanceDue,
+            emptyJarsDue = jarQty,
+            status = status,
+            billingType = billingType,
+            allocatedJars = dispatchedList,
+            scheduledDate = scheduledDate,
+            advanceReceivedPaise = advancePaid,
+            balanceDuePaise = balanceDue,
+            paymentType = paymentType,
+            dispatchedJars = dispatchedList,
+            eventName = eventName
+        )
+    }
+
+    suspend fun fetchBulkOrdersForDate(date: String): Result<List<DeliveryOrder>> {
+        val baseUrl = sessionManager.backendUrl.trimEnd('/')
+        val url = "$baseUrl/api/orders?bulk=true&date=$date"
+        val result = ApiClient.get(url)
+        return result.mapCatching { responseText ->
+            val root = JSONObject(responseText)
+            val ordersArray = if (root.has("orders")) root.getJSONArray("orders") else JSONArray(responseText)
+            val list = mutableListOf<DeliveryOrder>()
+            for (i in 0 until ordersArray.length()) {
+                list.add(parseOrderJson(ordersArray.getJSONObject(i)))
+            }
+            list
+        }
+    }
+
+    suspend fun deliverBulkOrder(
+        orderId: String,
+        undeliveredJarCodes: List<String>,
+        cashCollectedPaise: Long
+    ): Result<Boolean> {
+        val baseUrl = sessionManager.backendUrl.trimEnd('/')
+        val url = "$baseUrl/api/orders/deliver"
+        val payload = JSONObject().apply {
+            put("orderId", orderId)
+            put("undeliveredJarCodes", JSONArray(undeliveredJarCodes))
+            put("cashCollectedPaise", cashCollectedPaise)
+            put("approvedBy", _driverProfile.value.driverId)
+        }.toString()
+        val res = ApiClient.postJson(url, payload)
+        return res.mapCatching { responseText ->
+            val root = JSONObject(responseText)
+            if (!root.optBoolean("success", false)) {
+                throw Exception(root.optString("error", "Failed to deliver bulk order"))
+            }
+            syncFromBackend()
+            true
+        }
+    }
+
+    suspend fun fetchTimelineForDate(date: String): Result<DayTimelineSummary> {
+        val baseUrl = sessionManager.backendUrl.trimEnd('/')
+        val driverId = _driverProfile.value.driverId
+        val url = "$baseUrl/api/driver/timeline?driverId=$driverId&date=$date"
+        val res = ApiClient.get(url)
+        return res.mapCatching { responseText ->
+            val root = JSONObject(responseText)
+            val rawTimeline = root.optJSONArray("timeline") ?: JSONArray()
+            val items = mutableListOf<TimelineItem>()
+            for (i in 0 until rawTimeline.length()) {
+                val item = rawTimeline.getJSONObject(i)
+                val jarCodesArr = item.optJSONArray("jarCodes") ?: JSONArray()
+                val jarCodes = (0 until jarCodesArr.length()).map { jarCodesArr.getString(it) }
+                items.add(
+                    TimelineItem(
+                        id = item.optString("orderId", "tl_$i"),
+                        type = item.optString("type", "DELIVERY"),
+                        time = item.optString("time", ""),
+                        timestamp = if (item.has("timestamp") && !item.isNull("timestamp")) item.getString("timestamp") else null,
+                        customerName = item.optString("customerName", "Customer"),
+                        customerCode = item.optString("customerCode", ""),
+                        address = item.optString("address", ""),
+                        quantityJars = item.optInt("quantityJars", 0),
+                        jarCodes = jarCodes,
+                        totalAmountPaise = item.optLong("totalAmountPaise", 0L),
+                        cashCollectedPaise = item.optLong("cashCollectedPaise", 0L),
+                        status = item.optString("status", "DELIVERED"),
+                        notes = item.optString("notes", "")
+                    )
+                )
+            }
+            DayTimelineSummary(
+                date = root.optString("date", date),
+                driverId = root.optString("driverId", driverId),
+                totalDeliveries = root.optInt("totalDeliveries", 0),
+                totalJars = root.optInt("totalJars", 0),
+                totalCashCollectedPaise = root.optLong("totalCashCollectedPaise", 0L),
+                timeline = items
+            )
+        }
+    }
+
+    suspend fun handoverCashToPlant(amountPaise: Long, notes: String = "Handover to Plant Vault"): Result<Boolean> {
+        val baseUrl = sessionManager.backendUrl.trimEnd('/')
+        val url = "$baseUrl/api/cash"
+        val payload = JSONObject().apply {
+            put("action", "HANDOVER")
+            put("driverId", _driverProfile.value.driverId)
+            put("totalDeclaredPaise", amountPaise)
+            put("totalVerifiedPaise", amountPaise)
+            put("targetAccountId", 1110)
+            put("notes", notes)
+        }.toString()
+        val res = ApiClient.postJson(url, payload)
+        return res.mapCatching { responseText ->
+            val root = JSONObject(responseText)
+            if (!root.optBoolean("success", false) && !root.has("handover")) {
+                throw Exception(root.optString("error", "Handover failed"))
+            }
+            _cashCollections.update { list ->
+                list.map { it.copy(isHandedOver = true) }
+            }
+            syncFromBackend()
+            true
+        }
     }
 
     /**
@@ -460,38 +584,6 @@ class DriverRepository(private val context: Context) {
     fun clearScannedJars() {
         _scannedJars.value = emptyList()
         _lastScannedJar.value = null
-    }
-
-    /**
-     * Simulate a new task allotment trigger to test custom heads-up notifications
-     */
-    fun simulateNewTaskAllotment() {
-        val nextIndex = _orders.value.size + 1
-        val newOrderNo = "ORD-2026-${String.format(Locale.US, "%04d", 41 + nextIndex)}"
-        val jarCount = 2
-        val totalPaise = jarCount * 3500L
-
-        val newOrder = DeliveryOrder(
-            id = "ord_live_${System.currentTimeMillis()}",
-            orderNumber = newOrderNo,
-            customerId = "cust_${nextIndex}",
-            customerName = "Live Order #$nextIndex",
-            customerPhone = "+91 98370 0000$nextIndex",
-            address = "Civil Lines Market, Bareilly",
-            area = "Civil Lines",
-            jarQuantity = jarCount,
-            ratePerJarPaise = 3500L,
-            totalAmountPaise = totalPaise,
-            alreadyPaidPaise = 0L,
-            netDuePaise = totalPaise,
-            emptyJarsDue = jarCount,
-            status = DeliveryStatus.IN_TRANSIT,
-            billingType = OrderBillingType.DAILY_SPOT,
-            allocatedJars = (1..jarCount).map { "JAR-20L-${String.format(Locale.US, "%04d", 100 + it)}" }
-        )
-
-        _orders.update { listOf(newOrder) + it }
-        notificationManager.notifyNewOrderAllotted(newOrder)
     }
 
     /**

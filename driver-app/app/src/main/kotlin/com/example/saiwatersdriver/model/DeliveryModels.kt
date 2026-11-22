@@ -56,7 +56,13 @@ data class DeliveryOrder(
     val paymentCollectedPaise: Long = 0L,
     val paymentMode: PaymentMode = PaymentMode.CASH,
     val deliveredAt: String? = null,
-    val notes: String = ""
+    val notes: String = "",
+    val scheduledDate: String = "",
+    val advanceReceivedPaise: Long = 0L,
+    val balanceDuePaise: Long = 0L,
+    val paymentType: String = "PAY_ON_DELIVERY",
+    val dispatchedJars: List<String> = emptyList(),
+    val eventName: String? = null
 ) {
     val totalAmountRupees: Double get() = totalAmountPaise / 100.0
     val netDueRupees: Double get() = netDuePaise / 100.0
@@ -157,3 +163,41 @@ data class DispatchNotification(
     val timestamp: Long = System.currentTimeMillis(),
     val isRead: Boolean = false
 )
+
+/**
+ * Individual Activity in Daily Timeline
+ */
+@Serializable
+data class TimelineItem(
+    val id: String = "",
+    val type: String = "DELIVERY", // "DELIVERY" or "CASH_HANDOVER"
+    val time: String = "",
+    val timestamp: String? = null,
+    val customerName: String = "",
+    val customerCode: String = "",
+    val address: String = "",
+    val quantityJars: Int = 0,
+    val jarCodes: List<String> = emptyList(),
+    val totalAmountPaise: Long = 0L,
+    val cashCollectedPaise: Long = 0L,
+    val status: String = "DELIVERED",
+    val notes: String = ""
+) {
+    val totalAmountRupees: Double get() = totalAmountPaise / 100.0
+    val cashCollectedRupees: Double get() = cashCollectedPaise / 100.0
+}
+
+/**
+ * Full Day Timeline Summary from GET /api/driver/timeline
+ */
+@Serializable
+data class DayTimelineSummary(
+    val date: String = "",
+    val driverId: String = "",
+    val totalDeliveries: Int = 0,
+    val totalJars: Int = 0,
+    val totalCashCollectedPaise: Long = 0L,
+    val timeline: List<TimelineItem> = emptyList()
+) {
+    val totalCashRupees: Double get() = totalCashCollectedPaise / 100.0
+}

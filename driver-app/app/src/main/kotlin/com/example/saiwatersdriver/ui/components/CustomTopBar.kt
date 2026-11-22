@@ -50,7 +50,6 @@ import com.example.saiwatersdriver.ui.theme.WaterTextSecondary
 @Composable
 fun CustomTopBar(
     driverProfile: DriverProfile,
-    onSimulateDispatchClick: () -> Unit,
     onSyncClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -153,31 +152,6 @@ fun CustomTopBar(
                                 modifier = Modifier.size(20.dp)
                             )
                         }
-                    }
-
-                    // 1-Tap "Simulate Dispatch" Alert Test Button
-                    ElevatedButton(
-                        onClick = onSimulateDispatchClick,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = WaterCyanContainer,
-                            contentColor = WaterOnCyanContainer
-                        ),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.NotificationsActive,
-                            contentDescription = "Dispatch Alert",
-                            modifier = Modifier.size(14.dp),
-                            tint = WaterCyanPrimary
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "+ Alert",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = WaterOnCyanContainer
-                        )
                     }
                 }
             }

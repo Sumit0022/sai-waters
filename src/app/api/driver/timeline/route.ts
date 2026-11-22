@@ -7,6 +7,7 @@ import {
   jarMovementEvents,
   jarMasters,
   cashCollectionSubmissions,
+  cashHandovers,
   receipts,
 } from "@/db/schema";
 import { eq, desc, and, or, sql } from "drizzle-orm";
@@ -125,6 +126,7 @@ export async function GET(request: Request) {
       return {
         orderId: o.orderId,
         orderNumber: o.orderNumber,
+        type: "DELIVERY",
         time: formattedTime,
         timestamp: o.createdAt,
         customerName: o.customerName,
@@ -136,6 +138,41 @@ export async function GET(request: Request) {
         cashCollectedPaise: cashCollected,
         status: o.status,
       };
+    });
+
+    // 4b. Fetch Cash Handovers for this driver on this date
+    const dayHandovers = await db
+      .select()
+      .from(cashHandovers)
+      .where(
+        and(
+          eq(cashHandovers.driverId, driverId),
+          sql`TO_CHAR(${cashHandovers.handoverTimestamp} AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') = ${dateParam}`
+        )
+      )
+      .orderBy(desc(cashHandovers.handoverTimestamp));
+
+    const handoverTimelineItems = dayHandovers.map((h: any) => ({
+      orderId: h.id,
+      orderNumber: `HO-${h.id.slice(-6).toUpperCase()}`,
+      type: "CASH_HANDOVER",
+      time: formatTimeIST(h.handoverTimestamp),
+      timestamp: h.handoverTimestamp,
+      customerName: "Plant Vault (Account 1110)",
+      customerCode: "VAULT-HANDOVER",
+      address: "Sai Waters Plant, Bareilly",
+      quantityJars: 0,
+      jarCodes: [],
+      totalAmountPaise: h.totalVerifiedPaise,
+      cashCollectedPaise: h.totalVerifiedPaise,
+      status: h.status || "VERIFIED",
+      notes: h.notes || "Handover to Plant Vault",
+    }));
+
+    const combinedTimeline = [...timeline, ...handoverTimelineItems].sort((a: any, b: any) => {
+      const timeA = new Date(a.timestamp || 0).getTime();
+      const timeB = new Date(b.timestamp || 0).getTime();
+      return timeB - timeA;
     });
 
     // Check today's total from cash submissions
@@ -166,7 +203,7 @@ export async function GET(request: Request) {
       totalDeliveries: dayOrders.length,
       totalJars,
       totalCashCollectedPaise: finalTotalCash,
-      timeline,
+      timeline: combinedTimeline,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -46,12 +47,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.saiwatersdriver.data.DriverRepository
 import com.example.saiwatersdriver.model.DeliveryStatus
+import com.example.saiwatersdriver.model.OrderBillingType
 import com.example.saiwatersdriver.notification.SaiNotificationManager
 import com.example.saiwatersdriver.ui.components.CustomTopBar
 import com.example.saiwatersdriver.ui.tabs.CashTab
 import com.example.saiwatersdriver.ui.tabs.DeliveriesTab
 import com.example.saiwatersdriver.ui.tabs.ScannerTab
 import com.example.saiwatersdriver.ui.tabs.ShiftTab
+import com.example.saiwatersdriver.ui.tabs.TimelineTab
 import com.example.saiwatersdriver.ui.theme.WaterCyanPrimary
 import com.example.saiwatersdriver.ui.theme.WaterTextSecondary
 import kotlinx.coroutines.launch
@@ -74,10 +77,7 @@ fun MainScreen(
 
     val driverProfile by repository.driverProfile.collectAsStateWithLifecycle()
     val orders by repository.orders.collectAsStateWithLifecycle()
-    val scannedJars by repository.scannedJars.collectAsStateWithLifecycle()
     val cashCollections by repository.cashCollections.collectAsStateWithLifecycle()
-    val lastScannedJar by repository.lastScannedJar.collectAsStateWithLifecycle()
-    val isRefreshing by repository.isRefreshing.collectAsStateWithLifecycle()
     val networkError by repository.networkError.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -109,19 +109,15 @@ fun MainScreen(
         }
     }
 
-    val pendingOrdersCount = orders.count { it.status != DeliveryStatus.DELIVERED }
+    val pendingBulkOrdersCount = orders.count {
+        it.billingType == OrderBillingType.BULK_EVENT && it.status != DeliveryStatus.DELIVERED
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             CustomTopBar(
                 driverProfile = driverProfile,
-                onSimulateDispatchClick = {
-                    repository.simulateNewTaskAllotment()
-                    scope.launch {
-                        snackbarHostState.showSnackbar("💧 New Delivery Allotted! Notification triggered.")
-                    }
-                },
                 onSyncClick = {
                     repository.syncFromBackend()
                     scope.launch {
@@ -138,19 +134,19 @@ fun MainScreen(
                     .background(Color.White)
                     .navigationBarsPadding()
             ) {
-                // Tab 0: Deliveries
+                // Tab 0: Deliveries (Bulk Orders)
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = {
                         BadgedBox(
                             badge = {
-                                if (pendingOrdersCount > 0) {
+                                if (pendingBulkOrdersCount > 0) {
                                     Badge(
                                         containerColor = Color(0xFFDC2626),
                                         contentColor = Color.White
                                     ) {
-                                        Text("$pendingOrdersCount")
+                                        Text("$pendingBulkOrdersCount")
                                     }
                                 }
                             }
@@ -165,7 +161,7 @@ fun MainScreen(
                         Text(
                             text = "Deliveries",
                             fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 11.sp
+                            fontSize = 10.sp
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
@@ -177,7 +173,7 @@ fun MainScreen(
                     )
                 )
 
-                // Tab 1: Scanner (Hero Action)
+                // Tab 1: Scanner (Doorstep Deliveries)
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
@@ -199,9 +195,9 @@ fun MainScreen(
                     },
                     label = {
                         Text(
-                            text = "QR Scanner",
+                            text = "QR Scan",
                             fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 11.sp
+                            fontSize = 10.sp
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
@@ -213,21 +209,21 @@ fun MainScreen(
                     )
                 )
 
-                // Tab 2: Cash Book
+                // Tab 2: Timeline (Day-wise Activity Feed & Past Dates)
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
                     icon = {
                         Icon(
-                            imageVector = Icons.Default.Payments,
-                            contentDescription = "Cash Book"
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = "Timeline"
                         )
                     },
                     label = {
                         Text(
-                            text = "Cash Book",
+                            text = "Timeline",
                             fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 11.sp
+                            fontSize = 10.sp
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
@@ -239,10 +235,36 @@ fun MainScreen(
                     )
                 )
 
-                // Tab 3: Shift / Vehicle
+                // Tab 3: Cash Book
                 NavigationBarItem(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Payments,
+                            contentDescription = "Cash Book"
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = "Cash Book",
+                            fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 10.sp
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = WaterCyanPrimary,
+                        selectedTextColor = WaterCyanPrimary,
+                        indicatorColor = Color(0xFFE0F2FE),
+                        unselectedIconColor = WaterTextSecondary,
+                        unselectedTextColor = WaterTextSecondary
+                    )
+                )
+
+                // Tab 4: Shift / Profile
+                NavigationBarItem(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
                     icon = {
                         Icon(
                             imageVector = Icons.Default.Badge,
@@ -252,8 +274,8 @@ fun MainScreen(
                     label = {
                         Text(
                             text = "My Shift",
-                            fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 11.sp
+                            fontWeight = if (selectedTab == 4) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 10.sp
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
@@ -280,6 +302,7 @@ fun MainScreen(
                 0 -> DeliveriesTab(
                     orders = orders,
                     driverProfile = driverProfile,
+                    repository = repository,
                     hasNotificationPermission = hasNotificationPermission,
                     onRequestNotificationPermission = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -288,22 +311,32 @@ fun MainScreen(
                     },
                     onRefresh = {
                         repository.syncFromBackend()
-                    },
-                    onConfirmDelivery = { orderId, delJars, empJars, cashAmt, mode, notes ->
-                        repository.completeDelivery(orderId, delJars, empJars, cashAmt, mode, notes)
-                        scope.launch {
-                            snackbarHostState.showSnackbar("✅ Delivery confirmed! Synced with ERP ledger.")
-                        }
                     }
                 )
                 1 -> ScannerTab(
                     repository = repository
                 )
-                2 -> CashTab(
-                    cashCollections = cashCollections,
-                    totalCashInHandPaise = repository.totalCashInHandPaise
+                2 -> TimelineTab(
+                    repository = repository
                 )
-                3 -> ShiftTab(
+                3 -> CashTab(
+                    cashCollections = cashCollections,
+                    totalCashInHandPaise = repository.totalCashInHandPaise,
+                    onHandoverClick = { amountPaise, notes ->
+                        scope.launch {
+                            val res = repository.handoverCashToPlant(amountPaise, notes)
+                            res.fold(
+                                onSuccess = {
+                                    snackbarHostState.showSnackbar("✅ Cash successfully handed over to Plant Vault (A/C 1110)!")
+                                },
+                                onFailure = { err ->
+                                    snackbarHostState.showSnackbar("❌ Handover failed: ${err.message}")
+                                }
+                            )
+                        }
+                    }
+                )
+                4 -> ShiftTab(
                     driverProfile = driverProfile,
                     totalDeliveredJars = orders.filter { it.status == DeliveryStatus.DELIVERED }.sumOf { it.jarQuantity },
                     totalEmptyCollected = orders.sumOf { it.collectedEmptyJars.size },

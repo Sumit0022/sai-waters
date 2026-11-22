@@ -1,10 +1,7 @@
 package com.example.saiwatersdriver.ui.theme
 
 import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -13,7 +10,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val SaiWatersLightColorScheme = lightColorScheme(
+private val SaiWatersColorScheme = lightColorScheme(
     primary = WaterCyanPrimary,
     onPrimary = Color.White,
     primaryContainer = WaterCyanContainer,
@@ -29,16 +26,16 @@ private val SaiWatersLightColorScheme = lightColorScheme(
     tertiaryContainer = WaterEmeraldContainer,
     onTertiaryContainer = WaterOnEmeraldContainer,
 
-    background = WaterSlateBackground,
-    onBackground = WaterTextPrimary,
+    background = Color(0xFFF8FAFC),
+    onBackground = Color(0xFF0F172A),
 
-    surface = WaterWhiteCard,
-    onSurface = WaterTextPrimary,
-    surfaceVariant = WaterBorderSubtle,
-    onSurfaceVariant = WaterTextSecondary,
+    surface = Color.White,
+    onSurface = Color(0xFF0F172A),
+    surfaceVariant = Color(0xFFF1F5F9),
+    onSurfaceVariant = Color(0xFF475569),
 
-    outline = WaterBorderLight,
-    outlineVariant = WaterBorderSubtle,
+    outline = Color(0xFFCBD5E1),
+    outlineVariant = Color(0xFFE2E8F0),
 
     error = WaterRoseDanger,
     onError = Color.White,
@@ -46,56 +43,21 @@ private val SaiWatersLightColorScheme = lightColorScheme(
     onErrorContainer = WaterOnRoseContainer
 )
 
-private val SaiWatersDarkColorScheme = darkColorScheme(
-    primary = WaterCyanLight,
-    onPrimary = WaterNavyDark,
-    primaryContainer = WaterNavyCard,
-    onPrimaryContainer = WaterCyanLight,
-
-    secondary = Color.White,
-    onSecondary = WaterNavyDark,
-    secondaryContainer = WaterNavyCard,
-    onSecondaryContainer = Color.White,
-
-    tertiary = WaterEmeraldGreen,
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFF064E3B),
-    onTertiaryContainer = WaterEmeraldContainer,
-
-    background = WaterNavyDark,
-    onBackground = Color.White,
-
-    surface = WaterNavyCard,
-    onSurface = Color.White,
-    surfaceVariant = Color(0xFF1E293B),
-    onSurfaceVariant = Color(0xFF94A3B8),
-
-    outline = Color(0xFF334155),
-    outlineVariant = Color(0xFF1E293B),
-
-    error = WaterRoseDanger,
-    onError = Color.White,
-    errorContainer = Color(0xFF881337),
-    onErrorContainer = WaterRoseContainer
-)
-
 @Composable
 fun SaiWatersDriverTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) SaiWatersDarkColorScheme else SaiWatersLightColorScheme
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            window.statusBarColor = Color.White.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
         }
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = SaiWatersColorScheme,
         typography = Typography,
         content = content
     )

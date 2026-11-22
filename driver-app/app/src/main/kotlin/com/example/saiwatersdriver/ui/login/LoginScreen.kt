@@ -282,9 +282,15 @@ fun LoginScreen(
                             imeAction = ImeAction.Next
                         ),
                         shape = RoundedCornerShape(12.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 14.sp),
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF0F172A),
+                            unfocusedTextColor = Color(0xFF0F172A),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
                             focusedBorderColor = WaterCyanPrimary,
-                            unfocusedBorderColor = Color(0xFFCBD5E1)
+                            unfocusedBorderColor = Color(0xFFCBD5E1),
+                            cursorColor = WaterCyanPrimary
                         )
                     )
 
@@ -324,9 +330,15 @@ fun LoginScreen(
                         ),
                         keyboardActions = KeyboardActions(onDone = { doLogin() }),
                         shape = RoundedCornerShape(12.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 14.sp),
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF0F172A),
+                            unfocusedTextColor = Color(0xFF0F172A),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
                             focusedBorderColor = WaterCyanPrimary,
-                            unfocusedBorderColor = Color(0xFFCBD5E1)
+                            unfocusedBorderColor = Color(0xFFCBD5E1),
+                            cursorColor = WaterCyanPrimary
                         )
                     )
 
@@ -401,7 +413,16 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(10.dp),
-                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 12.sp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF0F172A),
+                            unfocusedTextColor = Color(0xFF0F172A),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            focusedBorderColor = WaterCyanPrimary,
+                            unfocusedBorderColor = Color(0xFFCBD5E1),
+                            cursorColor = WaterCyanPrimary
+                        )
                     )
                 }
             }
