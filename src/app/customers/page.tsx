@@ -529,9 +529,25 @@ export default function CustomersPage() {
                     </div>
                     <div>
                       <span className="text-[10px] font-bold text-slate-500 block uppercase">Jars in Custody</span>
-                      <span className="font-black text-purple-700">{cust.heldJarsCount || 0} Jars</span>
+                      <span className="font-black text-purple-700">{(cust.heldJarsCount || cust.custodyJars?.length || 0)} Jars</span>
                     </div>
                   </div>
+
+                  {/* Active Held Jars preview tags */}
+                  {cust.custodyJars && cust.custodyJars.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {cust.custodyJars.slice(0, 3).map((j: any) => (
+                        <span key={j.jarId} className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200">
+                          {j.permanentJarCode}
+                        </span>
+                      ))}
+                      {cust.custodyJars.length > 3 && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                          +{cust.custodyJars.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions Footer */}
@@ -677,6 +693,44 @@ export default function CustomersPage() {
                     {netBalanceDuePaise > 0 ? "Outstanding" : "✓ Fully Paid"}
                   </span>
                 </div>
+              </div>
+
+              {/* Active Jars in Custody Section */}
+              <div className="p-3.5 bg-purple-50/70 border border-purple-200/80 rounded-2xl">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>💧 Current 20L Jars in Custody</span>
+                      <span className="px-2 py-0.5 rounded-full bg-purple-200/80 text-purple-900 text-[11px] font-black">
+                        {(activeLedger?.customer?.custodyJars?.length ?? activeCustomer?.custodyJars?.length ?? activeCustomer?.heldJarsCount ?? 0)} Jars
+                      </span>
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-purple-700 font-semibold">
+                    Live Custody Tracking
+                  </span>
+                </div>
+                {((activeLedger?.customer?.custodyJars?.length ?? activeCustomer?.custodyJars?.length ?? 0) > 0) ? (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(activeLedger?.customer?.custodyJars || activeCustomer?.custodyJars || []).map((j: any) => (
+                      <div
+                        key={j.jarId}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-purple-200 shadow-xs text-xs"
+                      >
+                        <span className="font-mono font-black text-purple-950">{j.permanentJarCode}</span>
+                        {j.transferredAt && (
+                          <span className="text-[10px] text-slate-400">
+                            • {new Date(j.transferredAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-purple-800/80 italic pt-0.5">
+                    No active jars currently held with this customer. (All containers safely returned to warehouse stock).
+                  </p>
+                )}
               </div>
 
               {/* Navigation Tabs */}

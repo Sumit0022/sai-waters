@@ -218,9 +218,9 @@ fun ScannerTab(
 
     // Step 2: Jars & Payment State
     var scannedJars by remember { mutableStateOf<List<String>>(emptyList()) }
-    var emptyJarsCount by remember { mutableIntStateOf(2) }
+    var emptyJarsCount by remember { mutableIntStateOf(0) }
     var paymentMode by remember { mutableStateOf(PaymentMode.CASH) }
-    var cashCollectedRupees by remember { mutableStateOf("70") }
+    var cashCollectedRupees by remember { mutableStateOf("0") }
     var showManualJarDialog by remember { mutableStateOf(false) }
     var manualJarInput by remember { mutableStateOf("") }
     var isSubmittingDelivery by remember { mutableStateOf(false) }
@@ -247,7 +247,7 @@ fun ScannerTab(
         if (cached != null) {
             triggerVibration(isError = false)
             customerInfo = cached
-            emptyJarsCount = cached.defaultQuantity
+            emptyJarsCount = 0
             scannedJars = emptyList()
             val isBulkEvent = cached.billingCycle.uppercase().contains("EVENT") || cached.billingCycle.uppercase().contains("ONE_TIME")
             if (!isBulkEvent) {
@@ -277,7 +277,7 @@ fun ScannerTab(
                 onSuccess = { cust ->
                     triggerVibration(isError = false)
                     customerInfo = cust
-                    emptyJarsCount = cust.defaultQuantity
+                    emptyJarsCount = 0
                     scannedJars = emptyList()
                     val isBulkEvent = cust.billingCycle.uppercase().contains("EVENT") || cust.billingCycle.uppercase().contains("ONE_TIME")
                     if (!isBulkEvent) {
@@ -1525,8 +1525,8 @@ fun ScannerTab(
                                 onClick = {
                                     customerInfo = null
                                     scannedJars = emptyList()
-                                    emptyJarsCount = 2
-                                    cashCollectedRupees = "70"
+                                    emptyJarsCount = 0
+                                    cashCollectedRupees = "0"
                                     successReceipt = null
                                     currentStep = DeliveryWorkflowStep.STEP1_CUSTOMER_SCAN
                                 },
@@ -1584,7 +1584,10 @@ fun ScannerTab(
                         onClick = {
                             val input = manualJarInput.trim()
                             if (input.isNotBlank()) {
-                                val full = if (!input.startsWith("JAR-")) "JAR-20L-$input" else input
+                                val full = if (!input.startsWith("JAR-")) {
+                                    val digits = input.filter { it.isDigit() }
+                                    if (digits.isNotBlank()) "JAR-20L-${digits.padStart(4, '0')}" else input
+                                } else input
                                 addJarCode(full)
                             }
                             showManualJarDialog = false

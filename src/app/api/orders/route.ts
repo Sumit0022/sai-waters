@@ -235,12 +235,39 @@ export async function POST(request: Request) {
       notes: body.deliveryNotes || null,
     };
 
+    // Ensure valid customer address exists (prevent orders_address_id_fkey violation)
+    if (!addressId && customerId) {
+      const [addr] = await db
+        .select()
+        .from(customerAddresses)
+        .where(eq(customerAddresses.customerId, customerId))
+        .limit(1);
+      if (addr) {
+        addressId = addr.id;
+      } else {
+        addressId = `addr_${customerId}_default`;
+        await db
+          .insert(customerAddresses)
+          .values({
+            id: addressId,
+            customerId,
+            label: "Main Address",
+            streetAddress: "Bareilly Delivery Point",
+            locality: "Bareilly",
+            city: "Bareilly",
+            pincode: "243001",
+            isDefault: true,
+          })
+          .onConflictDoNothing();
+      }
+    }
+
     // 1. Insert Order Record
     await db.insert(orders).values({
       id: orderId,
       orderNumber,
       customerId,
-      addressId: addressId || "addr_default",
+      addressId: addressId || `addr_${customerId}_default`,
       orderType: body.orderType || "ONE_TIME_EVENT",
       scheduledDate: body.scheduledDate || getTodayIST(),
       quantityJars,

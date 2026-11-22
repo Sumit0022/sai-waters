@@ -242,6 +242,33 @@ export async function GET(request: Request) {
       }))
       .sort((a, b) => b.month.localeCompare(a.month));
 
+    // Fetch active jars currently held in custody by this customer
+    const customerCustodyJars = await db
+      .select({
+        jarId: jarCustodies.jarId,
+        permanentJarCode: jarMasters.permanentJarCode,
+        transferredAt: jarCustodies.transferredAt,
+        usageCycles: jarMasters.totalUsageCycles,
+        currentStatus: jarMasters.currentStatus,
+      })
+      .from(jarCustodies)
+      .innerJoin(jarMasters, eq(jarCustodies.jarId, jarMasters.id))
+      .where(
+        and(
+          eq(jarCustodies.customerId, cust.id),
+          eq(jarCustodies.custodyType, "WITH_CUSTOMER")
+        )
+      )
+      .orderBy(desc(jarCustodies.transferredAt));
+
+    const effectiveHeldJarsCount = Math.max(cust.heldJarsCount || 0, customerCustodyJars.length);
+    if (cust.heldJarsCount !== effectiveHeldJarsCount) {
+      await db
+        .update(customers)
+        .set({ heldJarsCount: effectiveHeldJarsCount })
+        .where(eq(customers.id, cust.id));
+    }
+
     // QR Token for this customer
     const qrToken = `urn:sw:c:${cust.customerCode}`;
     const pricePerJarPaise = priceAgreement[0]?.pricePerJarPaise ?? deliveryOrders[0]?.unitPricePaise ?? 2000;
@@ -250,6 +277,8 @@ export async function GET(request: Request) {
       success: true,
       customer: {
         ...cust,
+        heldJarsCount: effectiveHeldJarsCount,
+        custodyJars: customerCustodyJars,
         qrToken,
         address: addresses[0] || null,
         customPrice: priceAgreement[0] || null,
@@ -257,6 +286,7 @@ export async function GET(request: Request) {
         pricePerJarPaise,
         schedule: schedule[0] || null,
       },
+      custodyJars: customerCustodyJars,
       deliveries: enrichedDeliveries,
       payments,
       invoices: customerInvoices,
@@ -275,15 +305,32 @@ export async function GET(request: Request) {
   const allSchedules = await db.select().from(recurringSchedules);
   const allOrders = await db.select().from(orders).orderBy(desc(orders.createdAt));
 
+  // Query all active custody jars to reconcile heldJarsCount across all customers
+  const allCustodies = await db
+    .select({
+      customerId: jarCustodies.customerId,
+      jarId: jarCustodies.jarId,
+      permanentJarCode: jarMasters.permanentJarCode,
+      transferredAt: jarCustodies.transferredAt,
+      usageCycles: jarMasters.totalUsageCycles,
+    })
+    .from(jarCustodies)
+    .innerJoin(jarMasters, eq(jarCustodies.jarId, jarMasters.id))
+    .where(eq(jarCustodies.custodyType, "WITH_CUSTOMER"));
+
   const enriched = allCustomers.map((c: any) => {
     const custPrice = allPrices.find((p: any) => p.customerId === c.id);
     const custAgreements = allPrices.filter((p: any) => p.customerId === c.id);
     const custOrders = allOrders.filter((o: any) => o.customerId === c.id);
     const latestOrder = custOrders[0];
     const pricePerJarPaise = custPrice?.pricePerJarPaise ?? latestOrder?.unitPricePaise ?? 2000;
+    const custodyJars = allCustodies.filter((cj) => cj.customerId === c.id);
+    const effectiveHeldJarsCount = Math.max(c.heldJarsCount || 0, custodyJars.length);
 
     return {
       ...c,
+      heldJarsCount: effectiveHeldJarsCount,
+      custodyJars,
       qrToken: `urn:sw:c:${c.customerCode}`,
       address: allAddresses.find((a: any) => a.customerId === c.id) || null,
       addresses: allAddresses.filter((a: any) => a.customerId === c.id),

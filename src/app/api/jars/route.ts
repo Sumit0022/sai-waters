@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { jarMasters, qrIdentifiers, jarCustodies, customers, jarMovementEvents } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getTodayIST } from "@/lib/date-utils";
+import { transitionJarState, JarStatus } from "@/lib/jars";
 
 function calculateJarLifecycleMetrics(jar: any) {
   const acqDate = jar.acquisitionDate ? new Date(jar.acquisitionDate) : new Date();
@@ -176,9 +177,24 @@ export async function PUT(request: Request) {
     if (acquisitionCostPaise !== undefined) updates.acquisitionCostPaise = acquisitionCostPaise;
     if (acquisitionDate) updates.acquisitionDate = acquisitionDate;
     if (notes !== undefined) updates.notes = notes;
-    if (currentStatus) updates.currentStatus = currentStatus;
 
-    await db.update(jarMasters).set(updates).where(eq(jarMasters.id, id));
+    if (currentStatus) {
+      try {
+        await transitionJarState({
+          jarId: id,
+          toStatus: currentStatus as JarStatus,
+          actorUserId: "usr_owner_01",
+          notes: notes || "Status updated via Admin Dashboard",
+        });
+      } catch (err: any) {
+        // Fallback to direct status update if custom state
+        updates.currentStatus = currentStatus;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await db.update(jarMasters).set(updates).where(eq(jarMasters.id, id));
+    }
 
     return NextResponse.json({ success: true, message: "Jar details updated successfully" });
   } catch (err: any) {
@@ -196,13 +212,30 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Missing jar id" }, { status: 400 });
     }
 
-    // Mark as retired
+    // Safely transition jar through state machine to relieve any customer liabilities
+    try {
+      await transitionJarState({
+        jarId: id,
+        toStatus: "RETIRED",
+        actorUserId: "usr_owner_01",
+        notes: "Retired and removed from active pool by Administrator",
+      });
+    } catch (e) {
+      // Direct set if transition fails
+      await db
+        .update(jarMasters)
+        .set({
+          currentStatus: "RETIRED",
+          notes: "Retired and removed from active pool by Administrator",
+        })
+        .where(eq(jarMasters.id, id));
+    }
+
+    // Mark as inactive
     await db
       .update(jarMasters)
       .set({
-        currentStatus: "RETIRED",
         isActive: false,
-        notes: "Retired and removed from active pool by Administrator",
       })
       .where(eq(jarMasters.id, id));
 

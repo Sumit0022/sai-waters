@@ -67,6 +67,24 @@ export async function lookupJar(query: string) {
 
   if (byCode.length > 0) return byCode[0];
 
+  // 1b. Padded numeric suffix matching (e.g., "25" or "0025" -> "JAR-20L-0025")
+  const numericMatch = stripped.match(/^\d+$/);
+  if (numericMatch) {
+    const padded = stripped.padStart(4, "0");
+    const formattedCode = `JAR-20L-${padded}`;
+    const byPadded = await db
+      .select()
+      .from(jarMasters)
+      .where(
+        or(
+          eq(jarMasters.permanentJarCode, formattedCode),
+          sql`LOWER(${jarMasters.permanentJarCode}) = LOWER(${formattedCode})`
+        )
+      )
+      .limit(1);
+    if (byPadded.length > 0) return byPadded[0];
+  }
+
   // 2. QR token lookup (with or without urn prefix, case-insensitive)
   const byToken = await db
     .select({
@@ -168,6 +186,20 @@ export async function transitionJarState(params: {
     });
   }
 
+  // 4. Returned/inspected jar directly delivered: RETURNED_INSPECT -> DELIVERED_CUSTOMER
+  if (fromStatus === "RETURNED_INSPECT" && params.toStatus === "DELIVERED_CUSTOMER") {
+    await transitionJarState({
+      ...params,
+      toStatus: "AVAILABLE",
+      notes: "Stock sanitized and ready for delivery",
+    });
+    return await transitionJarState({
+      ...params,
+      toStatus: "DELIVERED_CUSTOMER",
+      notes: params.notes || "Delivered to customer doorstep",
+    });
+  }
+
   if (!isValidTransition(fromStatus, params.toStatus)) {
     throw new Error(
       `Illegal State Transition for jar ${jar.permanentJarCode}: cannot transition from '${fromStatus}' to '${params.toStatus}'`
@@ -202,6 +234,14 @@ export async function transitionJarState(params: {
 
   // 3. Update Custody Table & Customer Held Jars Count
   if (params.toStatus === "DELIVERED_CUSTOMER" && params.customerId) {
+    // If jar was previously with another customer, decrement that customer's held count
+    const existingCustody = (await db.select().from(jarCustodies).where(eq(jarCustodies.jarId, params.jarId)).limit(1))[0];
+    if (existingCustody && existingCustody.customerId && existingCustody.customerId !== params.customerId) {
+      await db.execute(sql`
+        UPDATE customers SET held_jars_count = GREATEST(0, held_jars_count - 1) WHERE id = ${existingCustody.customerId};
+      `);
+    }
+
     await db
       .insert(jarCustodies)
       .values({
@@ -225,7 +265,7 @@ export async function transitionJarState(params: {
     await db.execute(sql`
       UPDATE customers SET held_jars_count = held_jars_count + 1 WHERE id = ${params.customerId};
     `);
-  } else if (params.toStatus === "RETURNED_INSPECT" || params.toStatus === "AVAILABLE") {
+  } else if (["RETURNED_INSPECT", "AVAILABLE", "UNDER_REPAIR", "CONFIRMED_LOST", "RETIRED"].includes(params.toStatus)) {
     // If jar was with a customer, decrement customer custody count (relieve customer liability)
     const existingCustody = (await db.select().from(jarCustodies).where(eq(jarCustodies.jarId, params.jarId)).limit(1))[0];
     if (existingCustody && existingCustody.customerId) {
@@ -234,11 +274,18 @@ export async function transitionJarState(params: {
       `);
     }
 
+    const newCustodyType =
+      params.toStatus === "RETIRED" || params.toStatus === "CONFIRMED_LOST"
+        ? "RETIRED"
+        : params.toStatus === "UNDER_REPAIR"
+        ? "REPAIR"
+        : "PLANT";
+
     await db
       .insert(jarCustodies)
       .values({
         jarId: params.jarId,
-        custodyType: "PLANT",
+        custodyType: newCustodyType,
         customerId: null,
         holderUserId: null,
         transferredAt: new Date(),
@@ -246,7 +293,7 @@ export async function transitionJarState(params: {
       .onConflictDoUpdate({
         target: jarCustodies.jarId,
         set: {
-          custodyType: "PLANT",
+          custodyType: newCustodyType,
           customerId: null,
           holderUserId: null,
           transferredAt: new Date(),
@@ -352,4 +399,56 @@ export async function authorizeJarLoss(params: {
   }
 
   return { success: true, jarId: params.jarId, agreedChargePaise: params.agreedChargePaise };
+}
+
+/**
+ * Reconciles and self-heals any discrepancies between jar_masters, jar_custodies, and customers.held_jars_count
+ */
+export async function reconcileJarCustodies(): Promise<{ success: boolean; message: string }> {
+  const db = getDb();
+  try {
+    // 1. Any jar that is RETIRED or CONFIRMED_LOST should have custodyType = 'RETIRED' and customerId = null
+    await db.execute(sql`
+      UPDATE jar_custodies 
+      SET custody_type = 'RETIRED', customer_id = NULL 
+      WHERE jar_id IN (
+        SELECT id FROM jar_masters WHERE current_status IN ('RETIRED', 'CONFIRMED_LOST')
+      ) AND (custody_type != 'RETIRED' OR customer_id IS NOT NULL);
+    `);
+
+    // 2. Any jar that is AVAILABLE, RETURNED_INSPECT, or UNDER_REPAIR should NOT be with a customer
+    await db.execute(sql`
+      UPDATE jar_custodies 
+      SET custody_type = CASE 
+        WHEN (SELECT current_status FROM jar_masters WHERE id = jar_custodies.jar_id) = 'UNDER_REPAIR' THEN 'REPAIR'
+        ELSE 'PLANT'
+      END, customer_id = NULL 
+      WHERE jar_id IN (
+        SELECT id FROM jar_masters WHERE current_status IN ('AVAILABLE', 'RETURNED_INSPECT', 'UNDER_REPAIR')
+      ) AND customer_id IS NOT NULL;
+    `);
+
+    // 3. Any jar marked WITH_CUSTOMER must have status DELIVERED_CUSTOMER
+    await db.execute(sql`
+      UPDATE jar_masters 
+      SET current_status = 'DELIVERED_CUSTOMER' 
+      WHERE id IN (
+        SELECT jar_id FROM jar_custodies WHERE custody_type = 'WITH_CUSTOMER' AND customer_id IS NOT NULL
+      ) AND current_status NOT IN ('DELIVERED_CUSTOMER', 'CONFIRMED_LOST', 'RETIRED');
+    `);
+
+    // 4. Reconcile customers held_jars_count to match actual custody jars
+    await db.execute(sql`
+      UPDATE customers c
+      SET held_jars_count = (
+        SELECT COUNT(*) FROM jar_custodies jc 
+        WHERE jc.customer_id = c.id AND jc.custody_type = 'WITH_CUSTOMER'
+      );
+    `);
+
+    return { success: true, message: "Jar custodies reconciled successfully" };
+  } catch (err: any) {
+    console.error("reconcileJarCustodies error:", err);
+    return { success: false, message: err?.message || "Reconciliation failed" };
+  }
 }

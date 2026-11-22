@@ -13,7 +13,7 @@ import {
   invoices,
   offlineSyncEvents,
 } from "@/db/schema";
-import { eq, or, sql, desc } from "drizzle-orm";
+import { eq, or, sql, desc, and } from "drizzle-orm";
 import { lookupJar, transitionJarState } from "@/lib/jars";
 import { recordFieldCashCollection } from "@/lib/cash";
 import { createAndPostInvoice } from "@/lib/billing";
@@ -175,7 +175,31 @@ export async function POST(req: Request) {
       : (body.unitPricePaise ? Number(body.unitPricePaise) : 3500);
     const totalAmountPaise = unitPricePaise * cleanJars.length;
 
-    const addrRow = addrRows[0];
+    let addrRow = addrRows[0];
+    if (!addrRow) {
+      const defaultAddrId = `addr_${cust.id}_default`;
+      await db
+        .insert(customerAddresses)
+        .values({
+          id: defaultAddrId,
+          customerId: cust.id,
+          label: "Primary Delivery Address",
+          streetAddress: "Bareilly Delivery Point",
+          locality: "Bareilly",
+          city: "Bareilly",
+          pincode: "243001",
+          isDefault: true,
+        })
+        .onConflictDoNothing();
+
+      const [recheck] = await db
+        .select()
+        .from(customerAddresses)
+        .where(eq(customerAddresses.customerId, cust.id))
+        .limit(1);
+      addrRow = recheck || { id: defaultAddrId };
+    }
+
     const todayStr = getTodayIST();
     const orderNumber = `ORD-REC-${Date.now().toString().slice(-6)}`;
     const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -185,7 +209,7 @@ export async function POST(req: Request) {
       id: orderId,
       orderNumber,
       customerId: cust.id,
-      addressId: addrRow ? addrRow.id : "addr_default",
+      addressId: addrRow.id,
       orderType: "RECURRING",
       scheduledDate: todayStr,
       quantityJars: cleanJars.length,
@@ -246,9 +270,37 @@ export async function POST(req: Request) {
     const totalNumericEmpties = Number(emptyJarsCount || 0);
     const unScannedEmptiesCount = Math.max(0, totalNumericEmpties - returnedEmpties.length);
     if (unScannedEmptiesCount > 0) {
-      await db.execute(sql`
-        UPDATE customers SET held_jars_count = GREATEST(0, held_jars_count - ${unScannedEmptiesCount}) WHERE id = ${cust.id};
-      `);
+      // Find the oldest jars currently held by this customer in jarCustodies to relieve them
+      const heldCustodyJars = await db
+        .select({ jarId: jarCustodies.jarId })
+        .from(jarCustodies)
+        .where(
+          and(
+            eq(jarCustodies.customerId, cust.id),
+            eq(jarCustodies.custodyType, "WITH_CUSTOMER")
+          )
+        )
+        .orderBy(jarCustodies.transferredAt)
+        .limit(unScannedEmptiesCount);
+
+      // Relieve custody for these oldest jars through transitionJarState (which auto-decrements held count)
+      for (const h of heldCustodyJars) {
+        await transitionJarState({
+          jarId: h.jarId,
+          toStatus: "RETURNED_INSPECT",
+          actorUserId: driverId,
+          orderId,
+          notes: `Doorstep empty jar return (numeric count) from ${cust.fullName}`,
+        });
+      }
+
+      // If customer had fewer tracked jars in custody than the numeric empties returned, decrement remainder directly
+      const remainingUntrackedEmpties = unScannedEmptiesCount - heldCustodyJars.length;
+      if (remainingUntrackedEmpties > 0) {
+        await db.execute(sql`
+          UPDATE customers SET held_jars_count = GREATEST(0, held_jars_count - ${remainingUntrackedEmpties}) WHERE id = ${cust.id};
+        `);
+      }
     }
 
     // 7. Commercial Invoicing Policy:
