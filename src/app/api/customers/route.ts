@@ -22,10 +22,12 @@ import {
 } from "@/db/schema";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 import { formatTimeIST, getDateStrIST, formatDateTimeIST } from "@/lib/date-utils";
+import { reconcileJarCustodies } from "@/lib/jars";
 
 export async function GET(request: Request) {
   await ensureDatabaseReady();
   const db = getDb();
+  await reconcileJarCustodies();
   const url = new URL(request.url);
   const rawQuery = url.searchParams.get("customerId") || url.searchParams.get("code") || url.searchParams.get("q");
 
@@ -324,7 +326,7 @@ export async function GET(request: Request) {
     const custOrders = allOrders.filter((o: any) => o.customerId === c.id);
     const latestOrder = custOrders[0];
     const pricePerJarPaise = custPrice?.pricePerJarPaise ?? latestOrder?.unitPricePaise ?? 2000;
-    const custodyJars = allCustodies.filter((cj) => cj.customerId === c.id);
+    const custodyJars = allCustodies.filter((cj: any) => cj.customerId === c.id);
     const effectiveHeldJarsCount = Math.max(c.heldJarsCount || 0, custodyJars.length);
 
     return {
