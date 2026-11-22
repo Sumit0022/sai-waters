@@ -62,7 +62,18 @@ export default function BackupPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage({ type: "success", text: `✅ Backup snapshot '${data.backup.filename}' created successfully!` });
+        setMessage({ type: "success", text: `✅ Backup snapshot '${data.backup.filename}' created & downloaded successfully!` });
+        if (data.backupData) {
+          const blob = new Blob([JSON.stringify(data.backupData, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = data.backup.filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
         loadData();
       } else {
         setMessage({ type: "error", text: `❌ Backup creation failed: ${data.error}` });

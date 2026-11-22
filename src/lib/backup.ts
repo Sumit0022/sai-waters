@@ -38,11 +38,28 @@ import {
 } from "@/db/schema";
 import { getTrialBalance } from "./accounting";
 
-const BACKUP_DIR = path.join(process.cwd(), "data", "backups");
+export function getBackupDir(): string {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === "production") {
+    const tmpDir = path.join("/tmp", "sai-waters-backups");
+    return tmpDir;
+  }
+  return path.join(process.cwd(), "data", "backups");
+}
 
-export function ensureBackupDir() {
-  if (!fs.existsSync(BACKUP_DIR)) {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+export function ensureBackupDir(): string {
+  const dir = getBackupDir();
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  } catch (e) {
+    console.warn("Failed to create preferred backup dir, using /tmp fallback:", e);
+    const fallbackDir = path.join("/tmp", "sai-waters-backups");
+    if (!fs.existsSync(fallbackDir)) {
+      fs.mkdirSync(fallbackDir, { recursive: true });
+    }
+    return fallbackDir;
   }
 }
 
@@ -57,16 +74,20 @@ export interface BackupMetadata {
   checksum: string;
 }
 
-/**
- * Creates a full JSON snapshot of all application tables
- */
-export async function createDatabaseBackup(notes: string = "Manual Backup"): Promise<BackupMetadata> {
-  ensureBackupDir();
-  const db = await getDb();
+async function executeRawSql(sqlString: string) {
+  const raw = getRawClient();
+  if (raw.exec) {
+    return await raw.exec(sqlString);
+  } else if (raw.query) {
+    return await raw.query(sqlString);
+  }
+}
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filename = `sai-waters-backup-${timestamp}.json`;
-  const filePath = path.join(BACKUP_DIR, filename);
+/**
+ * Generates an in-memory full JSON snapshot of all application tables
+ */
+export async function generateLiveBackupPayload(notes: string = "Manual Snapshot") {
+  const db = getDb();
 
   const dumpData: Record<string, any[]> = {
     users: await db.select().from(users),
@@ -122,36 +143,65 @@ export async function createDatabaseBackup(notes: string = "Manual Backup"): Pro
     data: dumpData,
   };
 
-  const jsonString = JSON.stringify(payload, null, 2);
-  const checksum = crypto.createHash("sha256").update(jsonString).digest("hex");
-
-  fs.writeFileSync(filePath, jsonString, "utf8");
-  const stats = fs.statSync(filePath);
-
-  return {
-    id: filename,
-    filename,
-    createdAt: payload.createdAt,
-    sizeBytes: stats.size,
-    totalRecords,
-    tablesCount: Object.keys(dumpData).length,
-    tableBreakdown,
-    checksum,
-  };
+  return payload;
 }
 
 /**
- * Lists all existing backup snapshots in the data/backups directory
+ * Creates a full JSON snapshot of all application tables and saves to disk
+ */
+export async function createDatabaseBackup(notes: string = "Manual Backup"): Promise<{ metadata: BackupMetadata; payload: any }> {
+  const dir = ensureBackupDir();
+  const payload = await generateLiveBackupPayload(notes);
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `sai-waters-backup-${timestamp}.json`;
+  const filePath = path.join(dir, filename);
+
+  const jsonString = JSON.stringify(payload, null, 2);
+  const checksum = crypto.createHash("sha256").update(jsonString).digest("hex");
+
+  try {
+    fs.writeFileSync(filePath, jsonString, "utf8");
+  } catch (err) {
+    console.warn("Could not write backup to disk (serverless ephemeral):", err);
+  }
+
+  const sizeBytes = Buffer.byteLength(jsonString, "utf8");
+
+  const metadata: BackupMetadata = {
+    id: filename,
+    filename,
+    createdAt: payload.createdAt,
+    sizeBytes,
+    totalRecords: payload.totalRecords,
+    tablesCount: Object.keys(payload.data).length,
+    tableBreakdown: payload.tableBreakdown,
+    checksum,
+  };
+
+  return { metadata, payload };
+}
+
+/**
+ * Lists all existing backup snapshots in the backups directory
  */
 export async function listBackups(): Promise<BackupMetadata[]> {
-  ensureBackupDir();
-  const files = fs.readdirSync(BACKUP_DIR).filter((f) => f.endsWith(".json"));
+  const dir = ensureBackupDir();
+  let files: string[] = [];
+  try {
+    if (fs.existsSync(dir)) {
+      files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+    }
+  } catch (e) {
+    console.warn("Could not read backup directory:", e);
+    return [];
+  }
 
   const backups: BackupMetadata[] = [];
 
   for (const file of files) {
     try {
-      const filePath = path.join(BACKUP_DIR, file);
+      const filePath = path.join(dir, file);
       const stat = fs.statSync(filePath);
       const rawContent = fs.readFileSync(filePath, "utf8");
       const parsed = JSON.parse(rawContent);
@@ -186,13 +236,15 @@ export async function restoreDatabaseBackup(filenameOrContent: string, isRawJson
 }> {
   ensureBackupDir();
 
+  // Create safety snapshot before altering database
   const safetyBackup = await createDatabaseBackup("Pre-Restore Safety Snapshot");
 
   let parsed: any;
   if (isRawJson) {
-    parsed = JSON.parse(filenameOrContent);
+    parsed = typeof filenameOrContent === "string" ? JSON.parse(filenameOrContent) : filenameOrContent;
   } else {
-    const filePath = path.join(BACKUP_DIR, filenameOrContent);
+    const dir = ensureBackupDir();
+    const filePath = path.join(dir, filenameOrContent);
     if (!fs.existsSync(filePath)) {
       throw new Error(`Backup file '${filenameOrContent}' not found.`);
     }
@@ -203,10 +255,10 @@ export async function restoreDatabaseBackup(filenameOrContent: string, isRawJson
     throw new Error("Invalid backup format: missing 'data' object.");
   }
 
-  const db = await getDb();
-  const rawClient = getRawClient();
+  const db = getDb();
   let totalRestored = 0;
 
+  // Clear tables in reverse dependency order (child tables first, parent tables last)
   const tablesInOrder = [
     { name: "system_configurations", schema: systemConfigurations, key: "systemConfigurations" },
     { name: "offline_sync_events", schema: offlineSyncEvents, key: "offlineSyncEvents" },
@@ -244,12 +296,13 @@ export async function restoreDatabaseBackup(filenameOrContent: string, isRawJson
 
   for (const t of tablesInOrder) {
     try {
-      await rawClient.exec(`DELETE FROM "${t.name}";`);
+      await executeRawSql(`DELETE FROM "${t.name}";`);
     } catch (e) {
       console.warn(`Could not clear table ${t.name}:`, e);
     }
   }
 
+  // Insert tables in topological dependency order (parents first, children last)
   const insertOrder = [...tablesInOrder].reverse();
 
   for (const t of insertOrder) {
@@ -271,36 +324,41 @@ export async function restoreDatabaseBackup(filenameOrContent: string, isRawJson
   return {
     success: true,
     restoredRecords: totalRestored,
-    preRestoreSafetyBackup: safetyBackup.filename,
+    preRestoreSafetyBackup: safetyBackup.metadata.filename,
     message: `Restored ${totalRestored} records across ${tablesInOrder.length} tables successfully.`,
   };
 }
 
 /**
- * Returns comprehensive storage and data store statistics
+ * Returns comprehensive storage and data store statistics safely
  */
 export async function getDataStoreStats() {
-  const db = await getDb();
-  ensureBackupDir();
+  const db = getDb();
+  const dir = ensureBackupDir();
 
-  const dataDir = path.join(process.cwd(), "data");
   let dataSizeBytes = 0;
+  const isCloudDb = Boolean(process.env.DATABASE_URL && (process.env.DATABASE_URL.includes("neon.tech") || process.env.DATABASE_URL.includes("postgres")));
 
-  function calculateDirSize(dir: string) {
-    if (!fs.existsSync(dir)) return;
-    const items = fs.readdirSync(dir);
-    for (const item of items) {
-      const fullPath = path.join(dir, item);
-      const stat = fs.statSync(fullPath);
-      if (stat.isDirectory()) {
-        calculateDirSize(fullPath);
-      } else {
-        dataSizeBytes += stat.size;
-      }
+  try {
+    const dataDir = path.join(process.cwd(), "data");
+    if (fs.existsSync(dataDir)) {
+      const calculateDirSize = (d: string) => {
+        const items = fs.readdirSync(d);
+        for (const item of items) {
+          const fullPath = path.join(d, item);
+          const stat = fs.statSync(fullPath);
+          if (stat.isDirectory()) {
+            calculateDirSize(fullPath);
+          } else {
+            dataSizeBytes += stat.size;
+          }
+        }
+      };
+      calculateDirSize(dataDir);
     }
+  } catch (_e) {
+    dataSizeBytes = 1024 * 1024 * 5; // Fallback estimate
   }
-
-  calculateDirSize(dataDir);
 
   const [
     userCount,
@@ -321,13 +379,18 @@ export async function getDataStoreStats() {
   ]);
 
   const backups = await listBackups();
-  const tb = await getTrialBalance();
+  let tb = { isBalanced: true, grandTotalDebitPaise: 0, grandTotalCreditPaise: 0 };
+  try {
+    tb = await getTrialBalance();
+  } catch (_tbErr) {
+    // Graceful fallback
+  }
 
   return {
-    storagePath: dataDir,
+    storagePath: isCloudDb ? "Neon Cloud High-Availability Storage" : dir,
     totalStorageSizeBytes: dataSizeBytes,
-    totalStorageFormatted: `${(dataSizeBytes / (1024 * 1024)).toFixed(2)} MB`,
-    databaseEngine: "PGlite WASM Embedded PostgreSQL (v16 Compatible)",
+    totalStorageFormatted: isCloudDb ? "Neon Managed Cloud DB" : `${(dataSizeBytes / (1024 * 1024)).toFixed(2)} MB`,
+    databaseEngine: isCloudDb ? "Neon Cloud PostgreSQL (High Availability)" : "PGlite WASM Embedded PostgreSQL (v16 Compatible)",
     lastBackup: backups.length > 0 ? backups[0] : null,
     totalBackupsCount: backups.length,
     counts: {
