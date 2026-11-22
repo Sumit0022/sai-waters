@@ -79,6 +79,8 @@ fun MainScreen(
     val orders by repository.orders.collectAsStateWithLifecycle()
     val cashCollections by repository.cashCollections.collectAsStateWithLifecycle()
     val networkError by repository.networkError.collectAsStateWithLifecycle()
+    val pendingSyncCount by repository.pendingSyncCount.collectAsStateWithLifecycle()
+    val isOnline by repository.isOnline.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var hasNotificationPermission by remember { mutableStateOf(notificationManager.hasNotificationPermission()) }
@@ -118,10 +120,14 @@ fun MainScreen(
         topBar = {
             CustomTopBar(
                 driverProfile = driverProfile,
+                pendingSyncCount = pendingSyncCount,
+                isOnline = isOnline,
                 onSyncClick = {
                     repository.syncFromBackend()
                     scope.launch {
-                        snackbarHostState.showSnackbar("Refreshing live orders & cash records...")
+                        snackbarHostState.showSnackbar(
+                            if (pendingSyncCount > 0) "Auto-syncing $pendingSyncCount deliveries..." else "Refreshing live records..."
+                        )
                     }
                 }
             )

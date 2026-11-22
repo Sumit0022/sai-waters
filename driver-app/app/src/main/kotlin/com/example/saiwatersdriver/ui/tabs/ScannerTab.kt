@@ -168,9 +168,11 @@ fun ScannerTab(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Live sync business settings from Admin Dashboard
+    // Live sync business settings & offline status from DriverRepository
     val liveUpiId by repository.upiId.collectAsState()
     val liveBusinessName by repository.businessName.collectAsState()
+    val pendingSyncCount by repository.pendingSyncCount.collectAsState()
+    val isOnline by repository.isOnline.collectAsState()
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -230,14 +232,43 @@ fun ScannerTab(
     // Toast/Notice state during multi-jar camera scanning
     var inScannerNotice by remember { mutableStateOf<String?>(null) }
 
-    // Logic: Resolve Customer by QR or Code
+    // Logic: Resolve Customer by QR or Code with 0ms Offline Cache First & Instant Screen Transition
     fun resolveCustomer(raw: String) {
         val code = raw.trim()
-        if (code.isBlank()) return
+        if (code.isBlank() || isResolvingCustomer) return
 
+        // 1. Immediately dismiss camera so scanner never stays stuck!
+        isCameraActive = false
         isResolvingCustomer = true
         customerError = null
 
+        // 2. Instant 0ms memory & disk cache resolution
+        val cached = repository.findCachedCustomer(code)
+        if (cached != null) {
+            triggerVibration(isError = false)
+            customerInfo = cached
+            emptyJarsCount = cached.defaultQuantity
+            scannedJars = emptyList()
+            val isBulkEvent = cached.billingCycle.uppercase().contains("EVENT") || cached.billingCycle.uppercase().contains("ONE_TIME")
+            if (!isBulkEvent) {
+                // Recurring & Daily customers default to Monthly Khata (Account ledger)
+                paymentMode = PaymentMode.MONTHLY_CREDIT
+                cashCollectedRupees = "0"
+            } else {
+                paymentMode = PaymentMode.CASH
+                cashCollectedRupees = (cached.defaultQuantity * (cached.ratePerJarRupees.toInt())).toString()
+            }
+            currentStep = DeliveryWorkflowStep.STEP2_JARS_AND_PAYMENT
+            isResolvingCustomer = false
+
+            // Refresh latest data in background if connected
+            scope.launch {
+                repository.refreshCustomerInBackground(code)
+            }
+            return
+        }
+
+        // 3. Fallback resolution via repository (includes provisional fallback so driver is never blocked)
         scope.launch {
             val result = repository.resolveCustomerByQrOrCode(code)
             isResolvingCustomer = false
@@ -250,7 +281,6 @@ fun ScannerTab(
                     scannedJars = emptyList()
                     val isBulkEvent = cust.billingCycle.uppercase().contains("EVENT") || cust.billingCycle.uppercase().contains("ONE_TIME")
                     if (!isBulkEvent) {
-                        // Recurring & Daily customers default to Monthly Khata (Account ledger)
                         paymentMode = PaymentMode.MONTHLY_CREDIT
                         cashCollectedRupees = "0"
                     } else {
@@ -258,11 +288,11 @@ fun ScannerTab(
                         cashCollectedRupees = (cust.defaultQuantity * (cust.ratePerJarRupees.toInt())).toString()
                     }
                     currentStep = DeliveryWorkflowStep.STEP2_JARS_AND_PAYMENT
-                    isCameraActive = false
                 },
                 onFailure = { err ->
                     triggerVibration(isError = true)
                     customerError = err.message ?: "Customer could not be resolved"
+                    currentStep = DeliveryWorkflowStep.STEP1_CUSTOMER_SCAN
                 }
             )
         }
@@ -355,6 +385,7 @@ fun ScannerTab(
                     } else {
                         "Scan jar QR sticker on cap or neck • ${scannedJars.size} Jars recorded"
                     },
+                    autoDismissOnScan = scanTarget == "CUSTOMER",
                     onCloseClick = {
                         isCameraActive = false
                         inScannerNotice = null
@@ -1391,12 +1422,46 @@ fun ScannerTab(
 
                             Spacer(modifier = Modifier.height(6.dp))
 
+                            val paymentLabel = when (receipt.paymentMode) {
+                                PaymentMode.CASH -> "₹${receipt.cashCollectedRupees.toInt()} Paid via Cash (Driver A/C 1120)"
+                                PaymentMode.UPI_QR -> "Paid via UPI / Online (Company Bank A/C 1130)"
+                                PaymentMode.MONTHLY_CREDIT -> "Added to Monthly Khata (Customer Ledger)"
+                            }
+
                             Text(
-                                text = "₹${receipt.cashCollectedRupees.toInt()} Paid via Cash (Driver A/C 1120)",
-                                fontSize = 16.sp,
+                                text = paymentLabel,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = WaterEmeraldGreen
+                                color = if (receipt.paymentMode == PaymentMode.CASH) WaterEmeraldGreen else WaterCyanPrimary
                             )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Sync Status Pill
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = if (pendingSyncCount > 0) Color(0xFFFEF3C7) else Color(0xFFDCFCE7),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (pendingSyncCount > 0) Color(0xFFFDE68A) else Color(0xFF86EFAC))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(if (pendingSyncCount > 0) Color(0xFFD97706) else WaterEmeraldGreen)
+                                    )
+                                    Text(
+                                        text = if (pendingSyncCount > 0) "Saved in Cache • Auto-Sync Active" else "Synced Live with ERP Server",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (pendingSyncCount > 0) Color(0xFF92400E) else Color(0xFF166534)
+                                    )
+                                }
+                            }
 
                             Spacer(modifier = Modifier.height(24.dp))
 

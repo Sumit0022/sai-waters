@@ -50,6 +50,8 @@ import com.example.saiwatersdriver.ui.theme.WaterTextSecondary
 @Composable
 fun CustomTopBar(
     driverProfile: DriverProfile,
+    pendingSyncCount: Int = 0,
+    isOnline: Boolean = true,
     onSyncClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -97,11 +99,37 @@ fun CustomTopBar(
                                 )
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            // Status Pill
+                            // Status Pill (Dynamically reflects Live Sync / Offline Queue)
+                            val pillBg = when {
+                                pendingSyncCount > 0 -> Color(0xFFFEF3C7)
+                                isOnline -> Color(0xFFDCFCE7)
+                                else -> Color(0xFFE0F2FE)
+                            }
+                            val pillBorder = when {
+                                pendingSyncCount > 0 -> Color(0xFFFDE68A)
+                                isOnline -> Color(0xFF86EFAC)
+                                else -> Color(0xFFBAE6FD)
+                            }
+                            val pillDot = when {
+                                pendingSyncCount > 0 -> Color(0xFFD97706)
+                                isOnline -> WaterEmeraldGreen
+                                else -> Color(0xFF0284C7)
+                            }
+                            val pillText = when {
+                                pendingSyncCount > 0 -> "SYNCING ($pendingSyncCount)"
+                                isOnline -> "LIVE SYNC"
+                                else -> "OFFLINE READY"
+                            }
+                            val pillTextColor = when {
+                                pendingSyncCount > 0 -> Color(0xFF92400E)
+                                isOnline -> Color(0xFF166534)
+                                else -> Color(0xFF0369A1)
+                            }
+
                             Surface(
                                 shape = RoundedCornerShape(50),
-                                color = Color(0xFFDCFCE7),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF86EFAC))
+                                color = pillBg,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, pillBorder)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -112,13 +140,13 @@ fun CustomTopBar(
                                         modifier = Modifier
                                             .size(6.dp)
                                             .clip(CircleShape)
-                                            .background(WaterEmeraldGreen)
+                                            .background(pillDot)
                                     )
                                     Text(
-                                        text = "LIVE SYNC",
+                                        text = pillText,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFF166534)
+                                        color = pillTextColor
                                     )
                                 }
                             }

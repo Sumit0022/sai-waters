@@ -11,6 +11,7 @@ import {
   cashCollectionSubmissions,
   users,
   invoices,
+  offlineSyncEvents,
 } from "@/db/schema";
 import { eq, or, sql, desc } from "drizzle-orm";
 import { lookupJar, transitionJarState } from "@/lib/jars";
@@ -27,7 +28,25 @@ export async function POST(req: Request) {
     const db = getDb();
     const body = await req.json();
 
-    const { driverId, customerIdentifier, jarCodes, cashCollectedPaise, emptyJarsCount, emptyJarCodes } = body;
+    const { driverId, customerIdentifier, jarCodes, cashCollectedPaise, emptyJarsCount, emptyJarCodes, clientEventId } = body;
+
+    // 0. Idempotency Check: Skip duplicate execution if this clientEventId was already processed
+    if (clientEventId) {
+      const [existingEvent] = await db
+        .select()
+        .from(offlineSyncEvents)
+        .where(eq(offlineSyncEvents.clientEventId, clientEventId))
+        .limit(1);
+
+      if (existingEvent) {
+        return NextResponse.json({
+          success: true,
+          message: "Delivery already processed (idempotent duplicate skipped)",
+          clientEventId,
+          alreadyProcessed: true,
+        });
+      }
+    }
 
     if (!driverId || !customerIdentifier || !jarCodes || !Array.isArray(jarCodes) || jarCodes.length === 0) {
       return NextResponse.json(
@@ -272,9 +291,25 @@ export async function POST(req: Request) {
         orderId,
         customerId: cust.id,
         amountCollectedPaise: cashCollectedPaise,
-        clientEventId: `cash_${Date.now()}`,
+        clientEventId: clientEventId ? `cash_${clientEventId}` : `cash_${Date.now()}`,
       });
       receiptNumber = rec.receiptNumber;
+    }
+
+    // 9. Record Offline Sync Event for idempotent audit
+    if (clientEventId) {
+      await db
+        .insert(offlineSyncEvents)
+        .values({
+          id: `ose_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          clientEventId,
+          userId: driverId,
+          eventType: "DELIVERY_CONFIRM",
+          payloadJson: JSON.stringify(body),
+          syncStatus: "PROCESSED",
+          processedAt: new Date(),
+        })
+        .catch(() => {});
     }
 
     return NextResponse.json({

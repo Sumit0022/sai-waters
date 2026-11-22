@@ -89,6 +89,7 @@ fun CameraScannerView(
     modifier: Modifier = Modifier,
     scannerTitle: String = "Scan 20L Water Jar QR",
     scannerSubtitle: String = "Align QR code inside the viewfinder",
+    autoDismissOnScan: Boolean = false,
     onCloseClick: (() -> Unit)? = null,
     onBarcodeDetected: (String) -> Unit
 ) {
@@ -101,6 +102,7 @@ fun CameraScannerView(
     var cameraInstance by remember { mutableStateOf<Camera?>(null) }
     var lastScannedCode by remember { mutableStateOf<String?>(null) }
     var lastScannedTimestamp by remember { mutableStateOf(0L) }
+    var isBarcodeHandled by remember { mutableStateOf(false) }
 
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
     val barcodeScanner = remember {
@@ -173,10 +175,12 @@ fun CameraScannerView(
                                             for (barcode in barcodes) {
                                                 val rawValue = barcode.rawValue ?: continue
                                                 val now = System.currentTimeMillis()
-                                                // 2.0s Debounce on identical barcode to prevent duplicate fires
-                                                if (rawValue != lastScannedCode || (now - lastScannedTimestamp) > 2000L) {
+                                                if (!isBarcodeHandled && (rawValue != lastScannedCode || (now - lastScannedTimestamp) > 1500L)) {
                                                     lastScannedCode = rawValue
                                                     lastScannedTimestamp = now
+                                                    if (autoDismissOnScan) {
+                                                        isBarcodeHandled = true
+                                                    }
                                                     triggerHapticFeedback()
                                                     onBarcodeDetected(rawValue)
                                                 }

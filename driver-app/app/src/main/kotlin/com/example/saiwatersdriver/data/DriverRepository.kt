@@ -64,8 +64,19 @@ class DriverRepository(private val context: Context) {
     private val _businessName = MutableStateFlow("Sai Waters")
     val businessName: StateFlow<String> = _businessName.asStateFlow()
 
+    // Enterprise Offline-First Store & Forward Engine
+    val offlineManager = OfflineSyncManager(context)
+    val pendingSyncCount: StateFlow<Int> = offlineManager.pendingSyncCount
+    val isOnline: StateFlow<Boolean> = offlineManager.isOnline
+
     init {
-        // Automatically sync live data on initialization
+        // Automatically sync live data on initialization and listen for auto-sync events
+        offlineManager.setAutoSyncCallback {
+            scope.launch {
+                triggerOfflineQueueSync()
+                syncFromBackend()
+            }
+        }
         syncFromBackend()
     }
 
@@ -85,6 +96,8 @@ class DriverRepository(private val context: Context) {
                 fetchLiveOrders()
                 fetchLiveCash()
                 fetchBusinessSettings()
+                fetchAndCacheAllCustomers()
+                triggerOfflineQueueSync()
             } catch (e: Exception) {
                 Log.e("DriverRepository", "Sync failed: ${e.message}", e)
                 _networkError.value = e.message ?: "Failed to sync with backend"
@@ -469,7 +482,8 @@ class DriverRepository(private val context: Context) {
 
     /**
      * Step 1 Logic: Resolve Customer by QR Token or Manual Code
-     * Includes vice-versa guard to reject jar QR codes.
+     * Offline-First: Checks local cache in 0ms, falls back to API, and provides provisional resolution
+     * so driver is NEVER blocked at a customer's gate.
      */
     suspend fun resolveCustomerByQrOrCode(rawInput: String): Result<com.example.saiwatersdriver.model.ResolvedCustomer> {
         val raw = rawInput.trim()
@@ -488,62 +502,187 @@ class DriverRepository(private val context: Context) {
         }
 
         val clean = raw.replace("urn:sw:c:", "").trim()
+
+        // 1. Instant 0ms Local Cache Check
+        val cached = offlineManager.findCachedCustomer(clean)
+        if (cached != null) {
+            scope.launch {
+                refreshCustomerInBackground(clean)
+            }
+            return Result.success(cached)
+        }
+
+        // 2. Fetch from backend if online
         val baseUrl = sessionManager.backendUrl.trimEnd('/')
         val url = "$baseUrl/api/customers?customerId=${clean}"
-
         val res = ApiClient.get(url)
-        return res.mapCatching { responseText ->
-            val root = JSONObject(responseText)
-            if (!root.has("customer")) {
-                throw Exception(root.optString("error", "Customer '$clean' not found in system."))
-            }
-            val custObj = root.getJSONObject("customer")
-            val id = custObj.getString("id")
-            val customerCode = custObj.optString("customerCode", "CUST-${id.takeLast(4)}")
-            val fullName = custObj.getString("fullName")
-            val phone = custObj.optString("phone", "")
-            val billingCycle = custObj.optString("billingCycle", "DAILY_SPOT")
-            val ratePaise = when {
-                custObj.has("pricePerJarPaise") && custObj.optLong("pricePerJarPaise") > 0L -> custObj.optLong("pricePerJarPaise")
-                custObj.has("ratePerJarPaise") && custObj.optLong("ratePerJarPaise") > 0L -> custObj.optLong("ratePerJarPaise")
-                custObj.has("customPrice") && !custObj.isNull("customPrice") && custObj.getJSONObject("customPrice").optLong("pricePerJarPaise", 0L) > 0L ->
-                    custObj.getJSONObject("customPrice").optLong("pricePerJarPaise")
-                else -> 3500L
-            }
-            val defaultQty = if (custObj.has("schedule") && !custObj.isNull("schedule")) {
-                custObj.getJSONObject("schedule").optInt("quantityJars", 2)
-            } else {
-                custObj.optInt("defaultQuantity", 2)
-            }
 
-            var street = ""
-            var locality = ""
-            var city = "Bareilly"
-            if (custObj.has("primaryAddress")) {
-                val addr = custObj.getJSONObject("primaryAddress")
-                street = addr.optString("streetAddress", "")
-                locality = addr.optString("locality", "")
-                city = addr.optString("city", "Bareilly")
+        return if (res.isSuccess) {
+            try {
+                val root = JSONObject(res.getOrThrow())
+                if (root.has("customer")) {
+                    val cust = parseCustomerFromBackend(root.getJSONObject("customer"))
+                    offlineManager.saveCustomers(listOf(cust))
+                    Result.success(cust)
+                } else {
+                    // Create provisional customer so delivery is not blocked
+                    Result.success(offlineManager.createProvisionalCustomer(clean))
+                }
+            } catch (e: Exception) {
+                Result.success(offlineManager.createProvisionalCustomer(clean))
             }
-
-            com.example.saiwatersdriver.model.ResolvedCustomer(
-                id = id,
-                customerCode = customerCode,
-                fullName = fullName,
-                phone = phone,
-                streetAddress = street,
-                locality = locality,
-                city = city,
-                ratePerJarPaise = ratePaise,
-                defaultQuantity = defaultQty,
-                billingCycle = billingCycle
-            )
+        } else {
+            // Completely offline: create provisional profile so delivery continues smoothly!
+            Result.success(offlineManager.createProvisionalCustomer(clean))
         }
     }
 
+    fun findCachedCustomer(query: String): com.example.saiwatersdriver.model.ResolvedCustomer? {
+        return offlineManager.findCachedCustomer(query)
+    }
+
+    suspend fun refreshCustomerInBackground(code: String) {
+        try {
+            val clean = code.replace("urn:sw:c:", "").trim()
+            val baseUrl = sessionManager.backendUrl.trimEnd('/')
+            val url = "$baseUrl/api/customers?customerId=${clean}"
+            val res = ApiClient.get(url)
+            res.onSuccess { text ->
+                val root = JSONObject(text)
+                if (root.has("customer")) {
+                    val fresh = parseCustomerFromBackend(root.getJSONObject("customer"))
+                    offlineManager.saveCustomers(listOf(fresh))
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
     /**
-     * Step 3 Logic: Submit Complete Doorstep Delivery
-     * Calls POST /api/driver/deliver and updates local state & cash collections
+     * Cache all customers from ERP to local disk for offline instant scanning
+     */
+    suspend fun fetchAndCacheAllCustomers() {
+        val baseUrl = sessionManager.backendUrl.trimEnd('/')
+        val url = "$baseUrl/api/customers"
+        val result = ApiClient.get(url)
+        result.onSuccess { responseText ->
+            try {
+                val root = JSONObject(responseText)
+                val custArray = root.optJSONArray("customers") ?: JSONArray()
+                val list = mutableListOf<com.example.saiwatersdriver.model.ResolvedCustomer>()
+                for (i in 0 until custArray.length()) {
+                    val o = custArray.getJSONObject(i)
+                    list.add(parseCustomerFromBackend(o))
+                }
+                if (list.isNotEmpty()) {
+                    offlineManager.saveCustomers(list)
+                }
+            } catch (e: Exception) {
+                Log.e("DriverRepository", "Failed parsing /api/customers: ${e.message}")
+            }
+        }
+    }
+
+    private fun parseCustomerFromBackend(custObj: JSONObject): com.example.saiwatersdriver.model.ResolvedCustomer {
+        val id = custObj.optString("id", "")
+        val customerCode = custObj.optString("customerCode", "CUST-${id.takeLast(4)}")
+        val fullName = custObj.optString("fullName", "Customer")
+        val phone = custObj.optString("phone", "")
+        val billingCycle = custObj.optString("billingCycle", "DAILY_SPOT")
+        val ratePaise = when {
+            custObj.has("pricePerJarPaise") && custObj.optLong("pricePerJarPaise") > 0L -> custObj.optLong("pricePerJarPaise")
+            custObj.has("ratePerJarPaise") && custObj.optLong("ratePerJarPaise") > 0L -> custObj.optLong("ratePerJarPaise")
+            custObj.has("customPrice") && !custObj.isNull("customPrice") && custObj.getJSONObject("customPrice").optLong("pricePerJarPaise", 0L) > 0L ->
+                custObj.getJSONObject("customPrice").optLong("pricePerJarPaise")
+            else -> 3500L
+        }
+        val defaultQty = if (custObj.has("schedule") && !custObj.isNull("schedule")) {
+            custObj.getJSONObject("schedule").optInt("quantityJars", 2)
+        } else {
+            custObj.optInt("defaultQuantity", 2)
+        }
+
+        var street = ""
+        var locality = ""
+        var city = "Bareilly"
+        if (custObj.has("primaryAddress") && !custObj.isNull("primaryAddress")) {
+            val addr = custObj.getJSONObject("primaryAddress")
+            street = addr.optString("streetAddress", "")
+            locality = addr.optString("locality", "")
+            city = addr.optString("city", "Bareilly")
+        } else if (custObj.has("address") && !custObj.isNull("address")) {
+            val addr = custObj.getJSONObject("address")
+            street = addr.optString("streetAddress", "")
+            locality = addr.optString("locality", "")
+            city = addr.optString("city", "Bareilly")
+        }
+
+        return com.example.saiwatersdriver.model.ResolvedCustomer(
+            id = id,
+            customerCode = customerCode,
+            fullName = fullName,
+            phone = phone,
+            streetAddress = street,
+            locality = locality,
+            city = city,
+            ratePerJarPaise = ratePaise,
+            defaultQuantity = defaultQty,
+            billingCycle = billingCycle
+        )
+    }
+
+    /**
+     * Drains offline delivery queue and auto-pushes each delivery to ERP server
+     */
+    suspend fun triggerOfflineQueueSync() {
+        val pending = offlineManager.getPendingDeliveries()
+        if (pending.isEmpty()) return
+
+        Log.i("DriverRepository", "Auto-syncing ${pending.size} offline deliveries to server...")
+        val baseUrl = sessionManager.backendUrl.trimEnd('/')
+        val endpoint = "$baseUrl/api/driver/deliver"
+
+        for (item in pending) {
+            try {
+                val payload = JSONObject().apply {
+                    put("driverId", item.driverId)
+                    put("customerIdentifier", item.customerId)
+                    put("jarCodes", JSONArray(item.jarCodes))
+                    put("emptyJarsCount", item.emptyJarsCount)
+                    put("cashCollectedPaise", item.cashCollectedPaise)
+                    put("unitPricePaise", item.unitPricePaise)
+                    put("clientEventId", item.clientEventId)
+                }.toString()
+
+                val res = ApiClient.postJson(endpoint, payload)
+                res.fold(
+                    onSuccess = { responseText ->
+                        val root = JSONObject(responseText)
+                        if (root.optBoolean("success", false) || root.optBoolean("alreadyProcessed", false) || root.has("orderNumber")) {
+                            offlineManager.markSynced(item.clientEventId)
+                            Log.i("DriverRepository", "Synced offline delivery ${item.clientEventId}")
+                        } else {
+                            offlineManager.markSyncFailed(item.clientEventId, root.optString("error", "Failed"))
+                        }
+                    },
+                    onFailure = { err ->
+                        offlineManager.markSyncFailed(item.clientEventId, err.message ?: "Network unreachable")
+                    }
+                )
+            } catch (e: Exception) {
+                offlineManager.markSyncFailed(item.clientEventId, e.message ?: "Sync error")
+            }
+        }
+
+        fetchLiveCash()
+        fetchLiveOrders()
+    }
+
+    /**
+     * Step 3 Logic: Submit Complete Doorstep Delivery (Offline-First Store & Forward)
+     * 1. Saves to persistent offline outbox in 0ms
+     * 2. Optimistically updates driver cash ledger immediately
+     * 3. Triggers background push to server
+     * 4. Returns celebratory receipt instantly so driver is never delayed
      */
     suspend fun submitDoorstepDelivery(
         customer: com.example.saiwatersdriver.model.ResolvedCustomer,
@@ -552,45 +691,47 @@ class DriverRepository(private val context: Context) {
         cashCollectedPaise: Long,
         paymentMode: PaymentMode
     ): Result<com.example.saiwatersdriver.model.DeliverySuccessReceipt> {
-        val baseUrl = sessionManager.backendUrl.trimEnd('/')
-        val endpoint = "$baseUrl/api/driver/deliver"
+        val orderNumber = "ORD-" + System.currentTimeMillis().toString().takeLast(6)
+        val totalPaise = jarCodes.size * customer.ratePerJarPaise
+        val receiptNumber = "RCP-" + System.currentTimeMillis().toString().takeLast(6)
+        val clientEventId = "deliv_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(6)}"
 
-        val payload = JSONObject().apply {
-            put("driverId", _driverProfile.value.driverId)
-            put("customerIdentifier", customer.id)
-            put("jarCodes", JSONArray(jarCodes))
-            put("emptyJarsCount", emptyJarsCount)
-            put("cashCollectedPaise", cashCollectedPaise)
-            put("unitPricePaise", customer.ratePerJarPaise)
-        }.toString()
+        // 1. Immediately store into persistent offline queue (Survives crashes/reboots)
+        val queued = QueuedDelivery(
+            clientEventId = clientEventId,
+            customerId = customer.id,
+            customerName = customer.fullName,
+            customerCode = customer.customerCode,
+            jarCodes = jarCodes,
+            emptyJarsCount = emptyJarsCount,
+            cashCollectedPaise = cashCollectedPaise,
+            unitPricePaise = customer.ratePerJarPaise,
+            paymentMode = paymentMode,
+            driverId = _driverProfile.value.driverId,
+            timestamp = System.currentTimeMillis()
+        )
+        offlineManager.enqueueDelivery(queued)
 
-        val res = ApiClient.postJson(endpoint, payload)
-        return res.mapCatching { responseText ->
-            val root = JSONObject(responseText)
-            if (!root.optBoolean("success", false) && !root.has("orderNumber")) {
-                throw Exception(root.optString("error", "Delivery recording rejected by server"))
-            }
+        // 2. Record in Cash Collection ONLY if physical cash was collected (immediate optimistic update)
+        if (paymentMode == PaymentMode.CASH && cashCollectedPaise > 0) {
+            val entry = CashCollectionEntry(
+                id = "csh_${System.currentTimeMillis()}",
+                orderNumber = orderNumber,
+                customerName = customer.fullName,
+                amountPaise = cashCollectedPaise,
+                mode = paymentMode,
+                timestamp = System.currentTimeMillis()
+            )
+            _cashCollections.update { listOf(entry) + it }
+        }
 
-            val orderNumber = root.optString("orderNumber", "ORD-" + System.currentTimeMillis().toString().takeLast(6))
-            val totalPaise = root.optLong("totalAmountPaise", jarCodes.size * customer.ratePerJarPaise)
-            val receiptNumber = root.optString("cashReceiptNumber", root.optString("receiptNumber", "RCP-${System.currentTimeMillis().toString().takeLast(6)}"))
+        // 3. Immediately launch background sync to server
+        scope.launch {
+            triggerOfflineQueueSync()
+        }
 
-            // Record in Cash Collection ONLY if physical cash was collected
-            if (paymentMode == PaymentMode.CASH && cashCollectedPaise > 0) {
-                val entry = CashCollectionEntry(
-                    id = "csh_${System.currentTimeMillis()}",
-                    orderNumber = orderNumber,
-                    customerName = customer.fullName,
-                    amountPaise = cashCollectedPaise,
-                    mode = paymentMode,
-                    timestamp = System.currentTimeMillis()
-                )
-                _cashCollections.update { listOf(entry) + it }
-            }
-
-            // Sync timeline and orders in background
-            syncFromBackend()
-
+        // 4. Return instant celebratory receipt so driver NEVER waits!
+        return Result.success(
             com.example.saiwatersdriver.model.DeliverySuccessReceipt(
                 orderNumber = orderNumber,
                 customerName = customer.fullName,
@@ -603,7 +744,7 @@ class DriverRepository(private val context: Context) {
                 paymentMode = paymentMode,
                 timestamp = System.currentTimeMillis()
             )
-        }
+        )
     }
 
     /**
