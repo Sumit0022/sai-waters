@@ -139,34 +139,34 @@ export default function BackupPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Top Banner */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wider">
-              Data Store & Integrity
+            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70">
+              Data integrity
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              PGlite WASM Local Engine
+            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-50 text-slate-600 border border-slate-200/60">
+              PGlite local engine
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Database Backup & Storage Management
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
+            Database backup & recovery
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Zero-risk local storage snapshots, 1-click restore points, and table-level records monitoring
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Local storage snapshots, restore points, and database inventory monitoring.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleCreateBackup}
             disabled={creating}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
           >
-            {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            <span>{creating ? "Creating Snapshot..." : "Create Backup Now"}</span>
+            {creating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            <span>{creating ? "Creating..." : "Create backup"}</span>
           </button>
 
           <button
@@ -175,10 +175,10 @@ export default function BackupPage() {
               setUploadedJson(null);
               setRestoreModalOpen(true);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-sm shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-colors cursor-pointer"
           >
-            <RotateCcw className="w-4 h-4 text-slate-500" />
-            <span>Restore Backup</span>
+            <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+            <span>Restore backup</span>
           </button>
         </div>
       </div>
@@ -186,173 +186,165 @@ export default function BackupPage() {
       {/* Alert Notification */}
       {message && (
         <div
-          className={`p-4 rounded-xl border text-sm font-semibold flex items-center justify-between shadow-xs ${
+          className={`p-3 rounded-lg border text-xs font-medium flex items-center justify-between shadow-2xs ${
             message.type === "success"
               ? "bg-emerald-50 border-emerald-200 text-emerald-900"
               : "bg-rose-50 border-rose-200 text-rose-900"
           }`}
         >
           <span>{message.text}</span>
-          <button onClick={() => setMessage(null)} className="text-xs underline font-bold">
+          <button onClick={() => setMessage(null)} className="text-xs underline font-medium cursor-pointer">
             Dismiss
           </button>
         </div>
       )}
 
       {/* Storage Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Total Database Storage</span>
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <HardDrive className="w-4 h-4" />
-            </div>
+            <span className="text-xs font-medium text-slate-500">Database storage</span>
+            <HardDrive className="w-4 h-4 text-slate-400" />
           </div>
-          <div className="text-2xl font-black text-slate-900">
-            {stats?.totalStorageFormatted || "Calculating..."}
+          <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
+            {stats?.totalStorageFormatted || "0 KB"}
           </div>
-          <p className="text-xs text-slate-500 mt-1">Stored safely on local disk in data/pglite</p>
+          <p className="text-[11px] text-slate-500 mt-1 font-normal">Local storage in data/pglite</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Available Backup Points</span>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Database className="w-4 h-4" />
-            </div>
+            <span className="text-xs font-medium text-slate-500">Backup snapshots</span>
+            <Database className="w-4 h-4 text-slate-400" />
           </div>
-          <div className="text-2xl font-black text-slate-900">{stats?.totalBackupsCount || 0}</div>
-          <p className="text-xs text-slate-500 mt-1">Stored in data/backups JSON snapshots</p>
+          <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{stats?.totalBackupsCount || 0}</div>
+          <p className="text-[11px] text-slate-500 mt-1 font-normal">JSON snapshot points</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Total Recorded Jars</span>
-            <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
-              <FileText className="w-4 h-4" />
-            </div>
+            <span className="text-xs font-medium text-slate-500">Recorded jars</span>
+            <FileText className="w-4 h-4 text-slate-400" />
           </div>
-          <div className="text-2xl font-black text-slate-900">{stats?.counts?.jars || 0}</div>
-          <p className="text-xs text-slate-500 mt-1">Tracked individually with QR tokens</p>
+          <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{stats?.counts?.jars || 0}</div>
+          <p className="text-[11px] text-slate-500 mt-1 font-normal">Serialized with QR tokens</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Accounting Ledger Integrity</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
+            <span className="text-xs font-medium text-slate-500">Ledger integrity</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-black text-emerald-700">
-            {stats?.doubleEntryStatus?.isBalanced ? "100% Balanced" : "Discrepancy"}
+          <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
+            {stats?.doubleEntryStatus?.isBalanced ? "Balanced" : "Review"}
           </div>
-          <p className="text-xs text-slate-500 mt-1">Σ Dr ₹{stats?.doubleEntryStatus?.totalDebitsRupees} == Σ Cr</p>
+          <p className="text-[11px] text-slate-500 mt-1 font-normal tabular-nums">Σ Dr ₹{stats?.doubleEntryStatus?.totalDebitsRupees || 0} = Σ Cr</p>
         </div>
       </div>
 
       {/* Table Records Breakdown */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-          Live Database Table Inventory
+      <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs">
+        <h3 className="text-xs font-medium text-slate-500 mb-2.5">
+          Table record counts
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <span className="text-[11px] text-slate-500 font-semibold block">Users</span>
-            <span className="text-lg font-black text-slate-900">{stats?.counts?.users || 0}</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center tabular-nums">
+          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
+            <span className="text-[11px] text-slate-500 font-normal block">Users</span>
+            <span className="text-base font-semibold text-slate-900">{stats?.counts?.users || 0}</span>
           </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <span className="text-[11px] text-slate-500 font-semibold block">Customers</span>
-            <span className="text-lg font-black text-slate-900">{stats?.counts?.customers || 0}</span>
+          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
+            <span className="text-[11px] text-slate-500 font-normal block">Customers</span>
+            <span className="text-base font-semibold text-slate-900">{stats?.counts?.customers || 0}</span>
           </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <span className="text-[11px] text-slate-500 font-semibold block">20L Jars</span>
-            <span className="text-lg font-black text-slate-900">{stats?.counts?.jars || 0}</span>
+          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
+            <span className="text-[11px] text-slate-500 font-normal block">20L Jars</span>
+            <span className="text-base font-semibold text-slate-900">{stats?.counts?.jars || 0}</span>
           </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <span className="text-[11px] text-slate-500 font-semibold block">Orders</span>
-            <span className="text-lg font-black text-slate-900">{stats?.counts?.orders || 0}</span>
+          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
+            <span className="text-[11px] text-slate-500 font-normal block">Orders</span>
+            <span className="text-base font-semibold text-slate-900">{stats?.counts?.orders || 0}</span>
           </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <span className="text-[11px] text-slate-500 font-semibold block">Invoices</span>
-            <span className="text-lg font-black text-slate-900">{stats?.counts?.invoices || 0}</span>
+          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
+            <span className="text-[11px] text-slate-500 font-normal block">Invoices</span>
+            <span className="text-base font-semibold text-slate-900">{stats?.counts?.invoices || 0}</span>
           </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <span className="text-[11px] text-slate-500 font-semibold block">Journal Entries</span>
-            <span className="text-lg font-black text-slate-900">{stats?.counts?.journalEntries || 0}</span>
+          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
+            <span className="text-[11px] text-slate-500 font-normal block">Journal</span>
+            <span className="text-base font-semibold text-slate-900">{stats?.counts?.journalEntries || 0}</span>
           </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <span className="text-[11px] text-slate-500 font-semibold block">Jar Movements</span>
-            <span className="text-lg font-black text-slate-900">{stats?.counts?.jarMovementEvents || 0}</span>
+          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
+            <span className="text-[11px] text-slate-500 font-normal block">Movements</span>
+            <span className="text-base font-semibold text-slate-900">{stats?.counts?.jarMovementEvents || 0}</span>
           </div>
         </div>
       </div>
 
       {/* Backup Snapshots History Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+      <div className="bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-2xs">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h3 className="font-extrabold text-slate-900 text-base">Historical Backup Snapshots</h3>
+            <h3 className="font-semibold text-slate-900 text-sm">Backup snapshots</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Download backup JSON files to external flash drives or restore any previous state
+              Download backup JSON files or restore previous state.
             </p>
           </div>
           <button
             onClick={loadData}
-            title="Refresh Backups List"
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+            title="Refresh backups"
+            className="h-8 w-8 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-              <tr>
-                <th className="py-3 px-4">Backup Snapshot File</th>
-                <th className="py-3 px-4">Created Date & Time</th>
-                <th className="py-3 px-4">Total Records</th>
-                <th className="py-3 px-4">File Size</th>
-                <th className="py-3 px-4">SHA-256 Checksum</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200/80 bg-slate-50/70 text-slate-500 font-medium">
+                <th className="py-2.5 px-4">Backup file</th>
+                <th className="py-2.5 px-4">Created date</th>
+                <th className="py-2.5 px-4">Records</th>
+                <th className="py-2.5 px-4">Size</th>
+                <th className="py-2.5 px-4">Checksum</th>
+                <th className="py-2.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {backups.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400 text-sm font-medium">
-                    No backup snapshots created yet. Click &quot;Create Backup Now&quot; above.
+                  <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
+                    No backup snapshots created yet.
                   </td>
                 </tr>
               ) : (
                 backups.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900 flex items-center gap-2">
-                        <Database className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <div className="font-medium text-slate-900 flex items-center gap-2">
+                        <Database className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <span>{b.filename}</span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-xs text-slate-600">
+                    <td className="py-3 px-4 text-xs text-slate-500 tabular-nums">
                       {formatDateTimeIST(b.createdAt)}
                     </td>
-                    <td className="py-3 px-4 text-xs font-semibold text-slate-700">
+                    <td className="py-3 px-4 text-xs text-slate-700 tabular-nums">
                       {b.totalRecords} records ({b.tablesCount} tables)
                     </td>
-                    <td className="py-3 px-4 text-xs font-mono text-slate-600">
+                    <td className="py-3 px-4 text-xs font-mono text-slate-600 tabular-nums">
                       {(b.sizeBytes / 1024).toFixed(1)} KB
                     </td>
                     <td className="py-3 px-4 text-xs font-mono text-slate-400 truncate max-w-[120px]">
                       {b.checksum?.substring(0, 16)}...
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
                         <a
                           href={`/api/backup/download?filename=${encodeURIComponent(b.filename)}`}
                           download={b.filename}
-                          className="inline-flex items-center gap-1 py-1 px-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors"
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors"
                         >
-                          <Download className="w-3.5 h-3.5" />
+                          <Download className="w-3 h-3 text-slate-400" />
                           <span>Download</span>
                         </a>
 
@@ -362,9 +354,9 @@ export default function BackupPage() {
                             setUploadedJson(null);
                             setRestoreModalOpen(true);
                           }}
-                          className="inline-flex items-center gap-1 py-1 px-2.5 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors cursor-pointer"
                         >
-                          <RotateCcw className="w-3.5 h-3.5" />
+                          <RotateCcw className="w-3 h-3 text-slate-400" />
                           <span>Restore</span>
                         </button>
                       </div>

@@ -257,8 +257,14 @@ export async function GET(request: Request) {
       .innerJoin(jarMasters, eq(jarCustodies.jarId, jarMasters.id))
       .where(
         and(
-          eq(jarCustodies.customerId, cust.id),
-          eq(jarCustodies.custodyType, "WITH_CUSTOMER")
+          or(
+            eq(jarCustodies.customerId, cust.id),
+            eq(jarCustodies.customerId, cust.customerCode)
+          ),
+          or(
+            eq(jarCustodies.custodyType, "WITH_CUSTOMER"),
+            eq(jarMasters.currentStatus, "DELIVERED_CUSTOMER")
+          )
         )
       )
       .orderBy(desc(jarCustodies.transferredAt));
@@ -286,6 +292,7 @@ export async function GET(request: Request) {
         customPrice: priceAgreement[0] || null,
         priceAgreements: priceAgreement,
         pricePerJarPaise,
+        ratePerJarPaise: pricePerJarPaise,
         schedule: schedule[0] || null,
       },
       custodyJars: customerCustodyJars,
@@ -318,7 +325,12 @@ export async function GET(request: Request) {
     })
     .from(jarCustodies)
     .innerJoin(jarMasters, eq(jarCustodies.jarId, jarMasters.id))
-    .where(eq(jarCustodies.custodyType, "WITH_CUSTOMER"));
+    .where(
+      or(
+        eq(jarCustodies.custodyType, "WITH_CUSTOMER"),
+        eq(jarMasters.currentStatus, "DELIVERED_CUSTOMER")
+      )
+    );
 
   const enriched = allCustomers.map((c: any) => {
     const custPrice = allPrices.find((p: any) => p.customerId === c.id);
@@ -326,7 +338,7 @@ export async function GET(request: Request) {
     const custOrders = allOrders.filter((o: any) => o.customerId === c.id);
     const latestOrder = custOrders[0];
     const pricePerJarPaise = custPrice?.pricePerJarPaise ?? latestOrder?.unitPricePaise ?? 2000;
-    const custodyJars = allCustodies.filter((cj: any) => cj.customerId === c.id);
+    const custodyJars = allCustodies.filter((cj: any) => cj.customerId === c.id || cj.customerId === c.customerCode);
     const effectiveHeldJarsCount = Math.max(c.heldJarsCount || 0, custodyJars.length);
 
     return {
@@ -339,6 +351,7 @@ export async function GET(request: Request) {
       customPrice: custPrice || null,
       priceAgreements: custAgreements,
       pricePerJarPaise,
+      ratePerJarPaise: pricePerJarPaise,
       schedule: allSchedules.find((s: any) => s.customerId === c.id),
     };
   });

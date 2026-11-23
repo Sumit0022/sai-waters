@@ -357,153 +357,144 @@ export default function InvoicesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">
-              Statutory Bill of Supply Format (0% Tax)
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70">
+              Bill of supply (0% tax)
             </span>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Commercial Billing & Invoices
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
+            Commercial billing & invoices
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Monthly consolidated customer billing, spot bills, dynamic UPI links, and 1-Click WhatsApp dispatch
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Monthly consolidated customer billing, spot bills, dynamic UPI links, and WhatsApp sharing.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Month-End Auto-Billing Trigger Button */}
           <button
             onClick={handleOpenMonthEndModal}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-colors cursor-pointer"
           >
-            <Zap className="w-4 h-4" />
-            <span>⚡ Run Month-End Auto Billing</span>
+            <Zap className="w-3.5 h-3.5 text-slate-400" />
+            <span>Month-end auto billing</span>
           </button>
 
           <button
             onClick={() => setCreateModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>+ Custom Invoice</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Create invoice</span>
           </button>
         </div>
       </div>
 
       {/* Month-End Invoicing Alert Banner if unbilled regular customers exist */}
       {batchSummary && batchSummary.unbilledCount > 0 && (
-        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-sky-50 border border-purple-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-500/20">
-              <Zap className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+              <Zap className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-sm font-black text-slate-900">
-                Month-End Billing Ready ({batchSummary.unbilledCount} Regular Customers Pending)
+              <h4 className="text-xs font-semibold text-slate-900">
+                Month-end billing ready ({batchSummary.unbilledCount} regular customers pending)
               </h4>
               <p className="text-xs text-slate-500 mt-0.5">
-                Regular daily customers have unbilled deliveries recorded for {batchSummary.targetMonth}.
+                Regular clients have unbilled deliveries recorded for {batchSummary.targetMonth}.
               </p>
             </div>
           </div>
           <button
             onClick={handleOpenMonthEndModal}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5"
+            className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium rounded-lg transition-colors shrink-0 cursor-pointer flex items-center gap-1.5"
           >
-            <Zap className="w-3.5 h-3.5" />
-            <span>Generate Invoices Now</span>
+            <span>Generate invoices</span>
           </button>
         </div>
       )}
 
       {/* Financial Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Total Invoiced</span>
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <Receipt className="w-4 h-4" />
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-medium text-slate-500">Total invoiced</span>
+            <Receipt className="w-4 h-4 text-slate-400" />
           </div>
-          <div className="text-2xl font-black text-slate-900">
+          <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
             {formatINR(invoices.reduce((s, i) => s + (i.totalAmountPaise || 0), 0))}
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5">{invoices.length} Bills issued</p>
+          <p className="text-[11px] text-slate-500 mt-1 font-normal tabular-nums">{invoices.length} bills issued</p>
         </div>
 
-        <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200 shadow-xs">
-          <div className="flex items-center justify-between text-emerald-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total Collected</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-medium text-slate-500">Total collected</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-black text-emerald-950">
+          <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
             {formatINR(invoices.reduce((s, i) => s + (i.paidAmountPaise || 0), 0))}
           </div>
-          <p className="text-[11px] text-emerald-800/80 mt-0.5">Advance + Driver collections</p>
+          <p className="text-[11px] text-slate-500 mt-1 font-normal">Advance & doorstep collections</p>
         </div>
 
-        <div className="bg-rose-50/70 p-4 rounded-2xl border border-rose-200 shadow-xs">
-          <div className="flex items-center justify-between text-rose-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Outstanding Dues</span>
-            <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
-              <AlertCircle className="w-4 h-4" />
-            </div>
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-medium text-slate-500">Outstanding dues</span>
+            <AlertCircle className="w-4 h-4 text-rose-500" />
           </div>
-          <div className="text-2xl font-black text-rose-950">
+          <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
             {formatINR(invoices.reduce((s, i) => s + (i.outstandingPaise || 0), 0))}
           </div>
-          <p className="text-[11px] text-rose-800/80 mt-0.5">Pending collection from customers</p>
+          <p className="text-[11px] text-slate-500 mt-1 font-normal">Pending collection from customers</p>
         </div>
 
-        <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200 shadow-xs">
-          <div className="flex items-center justify-between text-amber-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Pending Settlement</span>
-            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-              <Clock className="w-4 h-4" />
-            </div>
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-medium text-slate-500">Pending settlement</span>
+            <Clock className="w-4 h-4 text-slate-400" />
           </div>
-          <div className="text-2xl font-black text-amber-950">
+          <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
             {invoices.filter((i) => (i.outstandingPaise || 0) > 0).length}{" "}
-            <span className="text-xs font-normal text-amber-800">Invoices</span>
+            <span className="text-xs font-normal text-slate-500">invoices</span>
           </div>
-          <p className="text-[11px] text-amber-800/80 mt-0.5">Unpaid or partially paid bills</p>
+          <p className="text-[11px] text-slate-500 mt-1 font-normal">Unpaid or partially paid bills</p>
         </div>
       </div>
 
       {/* Search Bar & Status Filters */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-4 justify-between items-center">
+      <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row gap-3 justify-between items-center text-xs">
         <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Search Invoice #, Customer Name, Mobile..."
+            placeholder="Search invoice #, customer, mobile..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-sky-500/20"
+            className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs font-normal focus:outline-hidden focus:ring-1 focus:ring-sky-500"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-1 p-0.5 bg-slate-100 rounded-lg w-full md:w-auto text-xs font-normal">
           {[
             { id: "ALL", label: `All (${invoices.length})` },
-            { id: "DUE", label: `Due / Pending (${invoices.filter((i) => (i.outstandingPaise || 0) > 0).length})` },
-            { id: "PARTIALLY_PAID", label: `Partially Paid (${invoices.filter((i) => i.status === "PARTIALLY_PAID").length})` },
-            { id: "PAID", label: `Fully Paid (${invoices.filter((i) => i.status === "PAID").length})` },
+            { id: "DUE", label: `Due (${invoices.filter((i) => (i.outstandingPaise || 0) > 0).length})` },
+            { id: "PARTIALLY_PAID", label: `Partially paid (${invoices.filter((i) => i.status === "PARTIALLY_PAID").length})` },
+            { id: "PAID", label: `Fully paid (${invoices.filter((i) => i.status === "PAID").length})` },
             { id: "UNPAID", label: `Unpaid (${invoices.filter((i) => (i.paidAmountPaise || 0) === 0).length})` },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id as any)}
-              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
                 statusFilter === tab.id
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  ? "bg-white text-slate-900 shadow-2xs font-medium"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               {tab.label}
@@ -513,112 +504,112 @@ export default function InvoicesPage() {
       </div>
 
       {/* Invoices List */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+      <div className="bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-              <tr>
-                <th className="py-3.5 px-4">Invoice # & Date</th>
-                <th className="py-3.5 px-4">Customer</th>
-                <th className="py-3.5 px-4">Billing Model</th>
-                <th className="py-3.5 px-4">Invoiced Total</th>
-                <th className="py-3.5 px-4">Payment Breakdown</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200/80 bg-slate-50/70 text-slate-500 font-medium">
+                <th className="py-2.5 px-4">Invoice # & date</th>
+                <th className="py-2.5 px-4">Customer</th>
+                <th className="py-2.5 px-4">Billing model</th>
+                <th className="py-2.5 px-4">Invoiced total</th>
+                <th className="py-2.5 px-4">Payment breakdown</th>
+                <th className="py-2.5 px-4">Status</th>
+                <th className="py-2.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 italic">
-                    No invoices found. Generate monthly batch invoices above or issue a custom invoice.
+                  <td colSpan={7} className="py-10 text-center text-slate-400">
+                    No invoices found. Generate monthly batch invoices above or create a custom invoice.
                   </td>
                 </tr>
               ) : (
                 filteredInvoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <span className="font-extrabold text-slate-900 block">{inv.invoiceNumber}</span>
-                      <span className="text-[11px] text-slate-400">{inv.invoiceDate} (Due: {inv.dueDate})</span>
+                  <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-3 px-4">
+                      <span className="font-semibold text-slate-900 block">{inv.invoiceNumber}</span>
+                      <span className="text-[11px] text-slate-400 tabular-nums">{inv.invoiceDate} (Due: {inv.dueDate})</span>
                     </td>
 
-                    <td className="py-3.5 px-4">
-                      <span className="font-bold text-slate-900 block">{inv.customerName}</span>
-                      <span className="text-[11px] text-slate-400 font-mono">{inv.customerPhone}</span>
+                    <td className="py-3 px-4">
+                      <span className="font-medium text-slate-900 block">{inv.customerName}</span>
+                      <span className="text-[11px] text-slate-400 font-mono tabular-nums">{inv.customerPhone}</span>
                     </td>
 
-                    <td className="py-3.5 px-4 text-xs font-semibold">
+                    <td className="py-3 px-4 text-xs">
                       {inv.billingType === "MONTHLY_CONSOLIDATED" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          <Calendar className="w-3 h-3" />
-                          <span>Monthly Statement</span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          <span>Monthly statement</span>
                         </span>
                       ) : inv.billingType === "EVENT_SETTLEMENT" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                          Bulk Event
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-50 text-slate-600 border border-slate-200/60">
+                          Bulk event
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
-                          Spot Delivery
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-50 text-slate-600">
+                          Spot delivery
                         </span>
                       )}
                     </td>
 
                     {/* Invoiced Total */}
-                    <td className="py-3.5 px-4 font-black text-slate-900 text-base">
+                    <td className="py-3 px-4 font-semibold text-slate-900 text-sm tabular-nums">
                       {formatINR(inv.totalAmountPaise)}
                     </td>
 
                     {/* Payment Breakdown (Paid vs Due) */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3 px-4 tabular-nums">
                       <div className="text-xs space-y-0.5">
                         {inv.paidAmountPaise > 0 ? (
-                          <span className="text-emerald-700 font-extrabold flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700 font-medium flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             Paid: {formatINR(inv.paidAmountPaise)}
                           </span>
                         ) : (
                           <span className="text-slate-400 text-[11px]">No payment recorded</span>
                         )}
                         {inv.outstandingPaise > 0 ? (
-                          <span className="text-rose-600 font-black flex items-center gap-1">
-                            <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                          <span className="text-rose-600 font-medium flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 text-rose-500" />
                             Due: {formatINR(inv.outstandingPaise)}
                           </span>
                         ) : (
-                          <span className="text-emerald-600 font-semibold text-[11px]">Fully Cleared</span>
+                          <span className="text-emerald-600 font-normal text-[11px]">Fully cleared</span>
                         )}
                       </div>
                     </td>
 
                     {/* Status Badge */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       {inv.status === "PAID" || inv.outstandingPaise === 0 ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          <CheckCircle2 className="w-3 h-3" /> Fully Paid
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/70">
+                          <CheckCircle2 className="w-3 h-3" /> Fully paid
                         </span>
                       ) : inv.status === "PARTIALLY_PAID" || (inv.paidAmountPaise > 0 && inv.outstandingPaise > 0) ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300">
-                          <Clock className="w-3 h-3 text-amber-700" /> Partially Paid
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/70">
+                          <Clock className="w-3 h-3 text-amber-600" /> Partially paid
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200/70">
                           <AlertCircle className="w-3 h-3 text-rose-600" /> Unpaid
                         </span>
                       )}
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
                         {/* Inspect Invoice Button */}
                         <button
                           onClick={() => {
                             setActiveInvoice(inv);
                             setInspectModalOpen(true);
                           }}
-                          title="Inspect Invoice Breakdown & Payment History"
-                          className="p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+                          title="Inspect invoice"
+                          className="h-7 w-7 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
@@ -627,21 +618,21 @@ export default function InvoicesPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenWhatsApp(inv)}
-                          title="Share Invoice on WhatsApp (Direct Web/App with Clean Emojis)"
-                          className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors cursor-pointer"
+                          title="Share on WhatsApp"
+                          className="h-7 w-7 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
                         >
                           <Share2 className="w-3.5 h-3.5" />
                         </button>
 
-                        {/* Copy WhatsApp Message with Emojis */}
+                        {/* Copy WhatsApp Message */}
                         <button
                           type="button"
                           onClick={() => handleCopyWhatsAppMessage(inv)}
-                          title="Copy WhatsApp Bill Message (With Clean Emojis)"
-                          className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                          title="Copy WhatsApp bill"
+                          className={`h-7 w-7 rounded-md border transition-colors flex items-center justify-center cursor-pointer ${
                             copiedInvoiceId === (inv.id || inv.invoiceId || inv.invoiceNumber)
-                              ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                              : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-900 border-slate-200"
                           }`}
                         >
                           {copiedInvoiceId === (inv.id || inv.invoiceId || inv.invoiceNumber) ? (
@@ -657,8 +648,8 @@ export default function InvoicesPage() {
                             setActiveInvoice(inv);
                             setUpiModalOpen(true);
                           }}
-                          title="Display Dynamic UPI QR Code"
-                          className="p-2 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition-colors cursor-pointer"
+                          title="UPI QR code"
+                          className="h-7 w-7 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
                         >
                           <QrCode className="w-3.5 h-3.5" />
                         </button>
@@ -669,8 +660,8 @@ export default function InvoicesPage() {
                             setActiveInvoice(inv);
                             setPrintModalOpen(true);
                           }}
-                          title="View / Print Commercial Invoice"
-                          className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
+                          title="Print invoice"
+                          className="h-7 w-7 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
                         >
                           <Printer className="w-3.5 h-3.5" />
                         </button>

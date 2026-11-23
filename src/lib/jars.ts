@@ -437,12 +437,19 @@ export async function reconcileJarCustodies(): Promise<{ success: boolean; messa
       ) AND current_status NOT IN ('DELIVERED_CUSTOMER', 'CONFIRMED_LOST', 'RETIRED');
     `);
 
-    // 4. Reconcile customers held_jars_count to match actual custody jars
+    // 4. Reconcile customers held_jars_count to match actual custody jars (supporting both UUID and customerCode)
+    await db.execute(sql`
+      UPDATE jar_custodies
+      SET customer_id = (SELECT id FROM customers WHERE customers.customer_code = jar_custodies.customer_id)
+      WHERE customer_id IN (SELECT customer_code FROM customers);
+    `);
+
     await db.execute(sql`
       UPDATE customers c
       SET held_jars_count = (
         SELECT COUNT(*) FROM jar_custodies jc 
-        WHERE jc.customer_id = c.id AND jc.custody_type = 'WITH_CUSTOMER'
+        WHERE (jc.customer_id = c.id OR jc.customer_id = c.customer_code) 
+          AND (jc.custody_type = 'WITH_CUSTOMER' OR (SELECT current_status FROM jar_masters WHERE id = jc.jar_id) = 'DELIVERED_CUSTOMER')
       );
     `);
 

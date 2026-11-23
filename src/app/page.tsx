@@ -286,57 +286,51 @@ export default function DashboardPage() {
       {/* =========================================================================
           1. HEADER COMMAND STRIP
           ========================================================================= */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white rounded-3xl p-6 sm:p-7 shadow-lg relative overflow-hidden">
-        {/* Subtle background glow */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className="bg-white rounded-xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div>
-            <div className="flex flex-wrap items-center gap-2.5 mb-2.5">
-              <span className="px-3 py-1 rounded-full text-[11px] font-black bg-sky-500/20 text-sky-300 border border-sky-400/30 uppercase tracking-widest flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-sky-400" />
-                Operations Command
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70">
+                Operations
               </span>
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-white/10 text-slate-300 border border-white/10">
-                GST: Unregistered (Bill of Supply)
+              <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-50 text-slate-500 border border-slate-200/60">
+                Bill of supply
               </span>
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                <span className={`w-2 h-2 rounded-full bg-emerald-400 ${livePulsing ? "scale-150 animate-ping" : "animate-pulse"}`}></span>
-                <span>Driver Telemetry: Live (5s)</span>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-50 text-slate-600 border border-slate-200/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>Driver sync: 5s</span>
               </div>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white flex items-center gap-3">
-              Sai Waters Operations Command
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
+              Sai Waters Operations
             </h1>
-            <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
-              20L Jar serialized tracking, doorstep driver cash collection, and double-entry General Ledger control.
+            <p className="text-slate-500 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
+              Serialized 20L jar tracking, doorstep driver collections, and double-entry accounts ledger.
             </p>
           </div>
 
           {/* Quick Header Telemetry & Refresh */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             {/* General Ledger Health Badge */}
-            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-white shadow-xs">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              </div>
+            <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200/70">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <div className="text-left">
-                <span className="text-[10px] font-black text-emerald-400 block uppercase tracking-wider">
-                  General Ledger Invariant
+                <span className="text-[10px] font-medium text-slate-500 block">
+                  General ledger
                 </span>
-                <span className="text-xs font-bold text-slate-200">
-                  {financials?.isTrialBalanceBalanced ? "Σ Dr = Σ Cr (₹0 Variance)" : "Discrepancy Detected"}
+                <span className="text-xs font-semibold text-slate-800 tabular-nums">
+                  {financials?.isTrialBalanceBalanced ? "Balanced (₹0 variance)" : "Discrepancy detected"}
                 </span>
               </div>
             </div>
 
             {/* Live IST Clock Badge */}
-            <div className="px-3.5 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-right">
-              <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
-                IST Operational Date
+            <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200/70 text-left">
+              <span className="text-[10px] font-medium text-slate-500 block">
+                Operational date
               </span>
-              <span className="text-xs font-extrabold text-white">
+              <span className="text-xs font-semibold text-slate-800 tabular-nums">
                 {formatDateIST(new Date())}
               </span>
             </div>
@@ -346,9 +340,10 @@ export default function DashboardPage() {
               onClick={handleManualRefresh}
               disabled={isRefreshing}
               title="Refresh all real-time stats and sync events"
-              className="p-3 rounded-2xl bg-sky-500 hover:bg-sky-400 text-white transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+              className="h-9 px-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
         </div>
@@ -370,94 +365,85 @@ export default function DashboardPage() {
       {/* =========================================================================
           2. CORE EXECUTIVE KPI CARDS (4 HIGH-IMPACT PILLARS)
           ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Card 1: Today's Deliveries / Dispatch Progress */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between">
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-slate-500 mb-2.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Today&apos;s Deliveries</span>
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                <Truck className="w-4 h-4" />
-              </div>
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-xs font-medium text-slate-500">Today&apos;s deliveries</span>
+              <Truck className="w-4 h-4 text-slate-400" />
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-900">
-                {deliveredOrders} <span className="text-lg text-slate-400 font-semibold">/ {totalOrders}</span>
+              <span className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
+                {deliveredOrders} <span className="text-sm text-slate-400 font-normal">/ {totalOrders}</span>
               </span>
-              <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80 tabular-nums">
                 {fulfillmentPct}%
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1.5 font-medium">
+            <p className="text-[11px] text-slate-500 mt-1 font-normal">
               {logistics?.todayTotalJarsDelivered || 0} of {logistics?.todayTotalJarsScheduled || 0} jars delivered today
             </p>
 
             {/* Progress bar */}
-            <div className="w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden">
+            <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
               <div
-                className="bg-emerald-500 h-2 rounded-full transition-all duration-700"
+                className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500"
                 style={{ width: `${fulfillmentPct}%` }}
               ></div>
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-            <span className="text-slate-500 font-medium">In-Transit: {dispatchedOrders} | Pending: {pendingOrders}</span>
-            <Link href="/orders" className="font-bold text-sky-600 hover:text-sky-700 flex items-center gap-0.5 group">
-              Manage Orders <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+            <span className="text-slate-500 font-normal">Transit: {dispatchedOrders} • Pending: {pendingOrders}</span>
+            <Link href="/orders" className="font-medium text-sky-600 hover:text-sky-700 flex items-center gap-1">
+              Orders <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
         </div>
 
-        {/* Card 2: Driver Cash in Transit (A/C 1120) — HIGH IMPACT FUNCTIONAL CARD */}
-        <div
-          className={`p-5 rounded-3xl border shadow-xs transition-all flex flex-col justify-between ${
-            (financials?.driverClearingPaise || 0) > 0
-              ? "bg-amber-50/70 border-amber-300 ring-2 ring-amber-400/20"
-              : "bg-white border-slate-200"
-          }`}
-        >
+        {/* Card 2: Driver Cash in Transit (A/C 1120) */}
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-slate-500 mb-2.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                Driver Cash in Transit
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-xs font-medium text-slate-500">
+                Driver cash in transit
               </span>
-              <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
-                <Wallet className="w-4 h-4" />
-              </div>
+              <Wallet className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-3xl font-black text-amber-950">
+            <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
               {formatINR(financials?.driverClearingPaise || 0)}
             </div>
-            <p className="text-[11px] text-amber-800/90 mt-1.5 font-medium">
+            <p className="text-[11px] text-slate-500 mt-1 font-normal">
               {(financials?.driverClearingPaise || 0) > 0
-                ? "Collected at doorstep, awaiting cashier handover (A/C 1120)"
+                ? "Collected at doorstep, pending cashier handover"
                 : "All field cash deposited into central vault"}
             </p>
 
             {/* Driver names holding cash */}
             {financials?.pendingCashDrivers && financials.pendingCashDrivers.length > 0 && (
-              <div className="mt-2.5 bg-amber-100/70 rounded-xl p-2 border border-amber-200/80 text-[11px] text-amber-900">
-                <span className="font-bold block">
+              <div className="mt-2.5 bg-slate-50 rounded-lg p-2 border border-slate-200/70 text-[11px] text-slate-700">
+                <span className="font-medium block tabular-nums">
                   {financials.pendingCashDrivers[0].driverName}: {formatINR(financials.pendingCashDrivers[0].totalPendingPaise)}
                 </span>
               </div>
             )}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-amber-200/60 flex items-center justify-between text-[11px]">
+          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
             {(financials?.driverClearingPaise || 0) > 0 ? (
               <button
                 onClick={() => openHandoverModal()}
-                className="w-full py-1.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                className="w-full h-8 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                Approve & Handover to Vault
+                <span>Handover to vault</span>
               </button>
             ) : (
-              <div className="flex items-center justify-between w-full text-emerald-700 font-bold">
-                <span>✓ Vault Reconciled</span>
-                <Link href="/accounting" className="hover:underline">
+              <div className="flex items-center justify-between w-full text-slate-600 font-medium">
+                <span className="flex items-center gap-1 text-emerald-600">
+                  <Check className="w-3.5 h-3.5" /> Vault reconciled
+                </span>
+                <Link href="/accounting" className="hover:text-slate-900">
                   Ledger →
                 </Link>
               </div>
@@ -466,183 +452,179 @@ export default function DashboardPage() {
         </div>
 
         {/* Card 3: Accounts Receivable / Customer Dues (A/C 1150) */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between">
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-slate-500 mb-2.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-700">Customer Dues</span>
-              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-                <Receipt className="w-4 h-4" />
-              </div>
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-xs font-medium text-slate-500">Customer receivables</span>
+              <Receipt className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-3xl font-black text-slate-900">
+            <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
               {formatINR(financials?.accountsReceivablePaise || 0)}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1.5 font-medium">
-              Total uncollected receivables on customer accounts (A/C 1150)
+            <p className="text-[11px] text-slate-500 mt-1 font-normal">
+              Total uncollected receivables on customer accounts (1150)
             </p>
 
-            <div className="mt-3 flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200">
-                {financials?.dueInvoicesCount || 0} Pending Invoices
+            <div className="mt-2.5 flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70 tabular-nums">
+                {financials?.dueInvoicesCount || 0} pending invoices
               </span>
-              <span className="text-[11px] text-slate-400 font-medium">
+              <span className="text-[11px] text-slate-500 font-normal tabular-nums">
                 {formatINR(financials?.totalDueAmountPaise || 0)} due
               </span>
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-            <span className="text-slate-500 font-medium">{crm?.totalCustomers || 0} total customers</span>
+          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+            <span className="text-slate-500 font-normal">{crm?.totalCustomers || 0} customers</span>
             <Link
               href="/invoices"
-              className="font-bold text-purple-700 hover:text-purple-800 flex items-center gap-0.5 group"
+              className="font-medium text-sky-600 hover:text-sky-700 flex items-center gap-1"
             >
-              Collect Dues <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              Collect dues <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
         </div>
 
         {/* Card 4: Operating Liquidity (Vault Cash + Bank Balance) */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between">
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-slate-500 mb-2.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-sky-700">Liquid Reserves</span>
-              <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
-                <Building2 className="w-4 h-4" />
-              </div>
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-xs font-medium text-slate-500">Liquid reserves</span>
+              <Building2 className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-3xl font-black text-slate-900">
+            <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
               {formatINR((financials?.vaultCashPaise || 0) + (financials?.bankBalancePaise || 0))}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1.5 font-medium">
-              Combined Vault Cash (1110) & Operating Bank (1130)
+            <p className="text-[11px] text-slate-500 mt-1 font-normal">
+              Combined vault cash (1110) & bank current (1130)
             </p>
 
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
-              <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-semibold">Vault Cash</span>
-                <span className="font-extrabold text-slate-900 block mt-0.5">
+            <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-[10px]">
+              <div className="bg-slate-50 p-2 rounded-lg border border-slate-200/60">
+                <span className="text-slate-500 block font-normal">Vault cash</span>
+                <span className="font-semibold text-slate-900 block mt-0.5 tabular-nums">
                   {formatINR(financials?.vaultCashPaise || 0)}
                 </span>
               </div>
-              <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-semibold">Bank Current</span>
-                <span className="font-extrabold text-slate-900 block mt-0.5">
+              <div className="bg-slate-50 p-2 rounded-lg border border-slate-200/60">
+                <span className="text-slate-500 block font-normal">Bank current</span>
+                <span className="font-semibold text-slate-900 block mt-0.5 tabular-nums">
                   {formatINR(financials?.bankBalancePaise || 0)}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-            <span className="text-emerald-700 font-bold">
-              Net Profit: {formatINR(financials?.netProfitPaise || 0)}
+          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+            <span className="text-slate-600 font-normal tabular-nums">
+              Net profit: <strong className="text-emerald-700 font-semibold">{formatINR(financials?.netProfitPaise || 0)}</strong>
             </span>
             <Link
               href="/accounting"
-              className="font-bold text-sky-600 hover:text-sky-700 flex items-center gap-0.5 group"
+              className="font-medium text-sky-600 hover:text-sky-700 flex items-center gap-1"
             >
-              Trial Balance <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              Trial balance <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
         </div>
       </div>
 
       {/* =========================================================================
-          3. INTERACTIVE OPERATIONAL COMMAND DOCK
+          3. INTERACTIVE OPERATIONAL ACTIONS
           ========================================================================= */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+        <div className="flex items-center justify-between mb-2.5">
+          <h2 className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-slate-400" />
-            Quick Command Actions
+            Quick actions
           </h2>
-          <span className="text-[11px] text-slate-400 font-medium">Direct one-click workflow triggers</span>
+          <span className="text-[11px] text-slate-400 font-normal">Common workflows</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
           {/* Action 1: Dispatch Jars */}
           <Link
             href="/orders"
-            className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-sky-400 hover:shadow-md transition-all flex flex-col items-center text-center group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 transition-colors flex flex-col items-center text-center cursor-pointer shadow-2xs"
           >
-            <div className="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-sky-500 group-hover:text-white transition-all shadow-xs">
-              <Truck className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center mb-2 text-slate-600">
+              <Truck className="w-4 h-4" />
             </div>
-            <span className="text-xs font-black text-slate-900 group-hover:text-sky-600 transition-colors">
-              Dispatch Orders
+            <span className="text-xs font-medium text-slate-900">
+              Dispatch orders
             </span>
-            <span className="text-[10px] text-slate-400 mt-0.5">Vehicle scan loading</span>
+            <span className="text-[10px] text-slate-500 mt-0.5">Vehicle loading</span>
           </Link>
 
           {/* Action 2: New Event / Bulk Order */}
           <Link
             href="/orders"
-            className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md transition-all flex flex-col items-center text-center group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 transition-colors flex flex-col items-center text-center cursor-pointer shadow-2xs"
           >
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-xs">
-              <Package className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center mb-2 text-slate-600">
+              <Package className="w-4 h-4" />
             </div>
-            <span className="text-xs font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
-              New Bulk Order
+            <span className="text-xs font-medium text-slate-900">
+              Bulk event
             </span>
-            <span className="text-[10px] text-slate-400 mt-0.5">Events & weddings</span>
+            <span className="text-[10px] text-slate-500 mt-0.5">Events & functions</span>
           </Link>
 
           {/* Action 3: Settle Driver Cash */}
           <button
             onClick={() => openHandoverModal()}
-            className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-md transition-all flex flex-col items-center text-center group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 transition-colors flex flex-col items-center text-center cursor-pointer shadow-2xs"
           >
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-amber-500 group-hover:text-white transition-all shadow-xs">
-              <Wallet className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center mb-2 text-slate-600">
+              <Wallet className="w-4 h-4" />
             </div>
-            <span className="text-xs font-black text-slate-900 group-hover:text-amber-700 transition-colors">
-              Handover Cash
+            <span className="text-xs font-medium text-slate-900">
+              Handover cash
             </span>
-            <span className="text-[10px] text-slate-400 mt-0.5">Deposit into vault</span>
+            <span className="text-[10px] text-slate-500 mt-0.5">Deposit into vault</span>
           </button>
 
           {/* Action 4: Invoices & UPI */}
           <Link
             href="/invoices"
-            className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-purple-400 hover:shadow-md transition-all flex flex-col items-center text-center group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 transition-colors flex flex-col items-center text-center cursor-pointer shadow-2xs"
           >
-            <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-purple-500 group-hover:text-white transition-all shadow-xs">
-              <Receipt className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center mb-2 text-slate-600">
+              <Receipt className="w-4 h-4" />
             </div>
-            <span className="text-xs font-black text-slate-900 group-hover:text-purple-600 transition-colors">
-              Invoices & Dues
+            <span className="text-xs font-medium text-slate-900">
+              Invoices & dues
             </span>
-            <span className="text-[10px] text-slate-400 mt-0.5">UPI bills & WhatsApp</span>
+            <span className="text-[10px] text-slate-500 mt-0.5">Monthly billing</span>
           </Link>
 
           {/* Action 5: Bulk 1-Click Return */}
           <Link
             href="/jars"
-            className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-cyan-400 hover:shadow-md transition-all flex flex-col items-center text-center group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 transition-colors flex flex-col items-center text-center cursor-pointer shadow-2xs"
           >
-            <div className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-cyan-500 group-hover:text-white transition-all shadow-xs">
-              <QrCode className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center mb-2 text-slate-600">
+              <QrCode className="w-4 h-4" />
             </div>
-            <span className="text-xs font-black text-slate-900 group-hover:text-cyan-600 transition-colors">
-              Jar Registry
+            <span className="text-xs font-medium text-slate-900">
+              Jar registry
             </span>
-            <span className="text-[10px] text-slate-400 mt-0.5">1-Click event returns</span>
+            <span className="text-[10px] text-slate-500 mt-0.5">Inspect & returns</span>
           </Link>
 
           {/* Action 6: Customers & CRM */}
           <Link
             href="/customers"
-            className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all flex flex-col items-center text-center group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 transition-colors flex flex-col items-center text-center cursor-pointer shadow-2xs"
           >
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-indigo-500 group-hover:text-white transition-all shadow-xs">
-              <Users className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center mb-2 text-slate-600">
+              <Users className="w-4 h-4" />
             </div>
-            <span className="text-xs font-black text-slate-900 group-hover:text-indigo-600 transition-colors">
-              Customer Directory
+            <span className="text-xs font-medium text-slate-900">
+              Customers
             </span>
-            <span className="text-[10px] text-slate-400 mt-0.5">Recurring & bulk</span>
+            <span className="text-[10px] text-slate-500 mt-0.5">Client accounts</span>
           </Link>
         </div>
       </div>
@@ -650,104 +632,104 @@ export default function DashboardPage() {
       {/* =========================================================================
           4. 20L SERIALIZED JAR FLEET CUSTODY & STATUS BAR
           ========================================================================= */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+      <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div>
-            <h2 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <Droplets className="w-5 h-5 text-sky-600" />
-              20L Serialized Jar Fleet Custody
+            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <Droplets className="w-4 h-4 text-sky-600" />
+              20L jar fleet custody
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Live location breakdown of {jars?.total || 0} capitalized asset jars in circulation
+              Location breakdown of {jars?.total || 0} serialized asset jars
             </p>
           </div>
           <Link
             href="/jars"
-            className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 self-start sm:self-auto"
+            className="text-xs font-medium text-sky-600 hover:text-sky-700 flex items-center gap-1 self-start sm:self-auto"
           >
-            Manage All Jars <ArrowUpRight className="w-3.5 h-3.5" />
+            View all jars <ArrowUpRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
         {/* Visual Multi-Segment Bar */}
-        <div className="w-full bg-slate-100 rounded-2xl h-4 overflow-hidden flex mb-5 p-0.5 border border-slate-200/80">
+        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden flex my-3.5">
           <div
             title={`Available: ${jars?.available || 0} jars (${pctAvailable}%)`}
             style={{ width: `${pctAvailable}%` }}
-            className="bg-emerald-500 h-full rounded-l-xl transition-all duration-500"
+            className="bg-emerald-500 h-full transition-all duration-500"
           ></div>
           <div
             title={`In Transit: ${jars?.inTransit || 0} jars (${pctTransit}%)`}
             style={{ width: `${pctTransit}%` }}
-            className="bg-blue-500 h-full transition-all duration-500"
+            className="bg-sky-500 h-full transition-all duration-500"
           ></div>
           <div
             title={`With Customers: ${jars?.withCustomer || 0} jars (${pctCustomer}%)`}
             style={{ width: `${pctCustomer}%` }}
-            className="bg-purple-500 h-full transition-all duration-500"
+            className="bg-indigo-500 h-full transition-all duration-500"
           ></div>
           <div
             title={`Returned/Inspect: ${jars?.returnedInspect || 0} jars (${pctInspect}%)`}
             style={{ width: `${pctInspect}%` }}
-            className="bg-cyan-500 h-full transition-all duration-500"
+            className="bg-slate-400 h-full transition-all duration-500"
           ></div>
           <div
             title={`Under Repair/Damaged: ${jars?.underRepair || 0} jars (${pctRepair}%)`}
             style={{ width: `${pctRepair}%` }}
-            className="bg-rose-500 h-full rounded-r-xl transition-all duration-500"
+            className="bg-rose-500 h-full transition-all duration-500"
           ></div>
         </div>
 
         {/* Grid of 5 Status Tiles */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
           {/* Tile 1: Available */}
-          <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 text-left">
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 text-left">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-emerald-800">Available at Plant</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span className="text-[11px] font-medium text-slate-600">Available at plant</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
             </div>
-            <span className="text-2xl font-black text-emerald-950 block mt-1">{jars?.available || 0}</span>
-            <span className="text-[10px] text-emerald-700 block mt-0.5">{pctAvailable}% of fleet • Ready</span>
+            <span className="text-xl font-semibold text-slate-900 block mt-1 tabular-nums">{jars?.available || 0}</span>
+            <span className="text-[10px] text-slate-500 block mt-0.5 tabular-nums">{pctAvailable}% • Ready</span>
           </div>
 
           {/* Tile 2: In-Transit */}
-          <div className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200/80 text-left">
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 text-left">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-blue-800">On Delivery Trucks</span>
-              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+              <span className="text-[11px] font-medium text-slate-600">On delivery trucks</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
             </div>
-            <span className="text-2xl font-black text-blue-950 block mt-1">{jars?.inTransit || 0}</span>
-            <span className="text-[10px] text-blue-700 block mt-0.5">{pctTransit}% of fleet • In-Transit</span>
+            <span className="text-xl font-semibold text-slate-900 block mt-1 tabular-nums">{jars?.inTransit || 0}</span>
+            <span className="text-[10px] text-slate-500 block mt-0.5 tabular-nums">{pctTransit}% • In transit</span>
           </div>
 
           {/* Tile 3: With Customers */}
-          <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-200/80 text-left">
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 text-left">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-purple-800">With Customers</span>
-              <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+              <span className="text-[11px] font-medium text-slate-600">With customers</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
             </div>
-            <span className="text-2xl font-black text-purple-950 block mt-1">{jars?.withCustomer || 0}</span>
-            <span className="text-[10px] text-purple-700 block mt-0.5">{pctCustomer}% of fleet • Custody</span>
+            <span className="text-xl font-semibold text-slate-900 block mt-1 tabular-nums">{jars?.withCustomer || 0}</span>
+            <span className="text-[10px] text-slate-500 block mt-0.5 tabular-nums">{pctCustomer}% • Custody</span>
           </div>
 
           {/* Tile 4: Factory Inspection */}
-          <div className="p-3.5 rounded-2xl bg-cyan-50/60 border border-cyan-200/80 text-left">
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 text-left">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-cyan-800">Empty Return Bay</span>
-              <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+              <span className="text-[11px] font-medium text-slate-600">Empty return bay</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
             </div>
-            <span className="text-2xl font-black text-cyan-950 block mt-1">{jars?.returnedInspect || 0}</span>
-            <span className="text-[10px] text-cyan-700 block mt-0.5">{pctInspect}% of fleet • Unloaded</span>
+            <span className="text-xl font-semibold text-slate-900 block mt-1 tabular-nums">{jars?.returnedInspect || 0}</span>
+            <span className="text-[10px] text-slate-500 block mt-0.5 tabular-nums">{pctInspect}% • Unloaded</span>
           </div>
 
           {/* Tile 5: Under Repair / Damaged */}
-          <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200/80 text-left col-span-2 sm:col-span-1">
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 text-left col-span-2 sm:col-span-1">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-rose-800">Repair & QA Bay</span>
-              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span className="text-[11px] font-medium text-slate-600">Repair & QA bay</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
             </div>
-            <span className="text-2xl font-black text-rose-950 block mt-1">{jars?.underRepair || 0}</span>
-            <span className="text-[10px] text-rose-700 block mt-0.5">{pctRepair}% of fleet • Maintenance</span>
+            <span className="text-xl font-semibold text-slate-900 block mt-1 tabular-nums">{jars?.underRepair || 0}</span>
+            <span className="text-[10px] text-slate-500 block mt-0.5 tabular-nums">{pctRepair}% • Maintenance</span>
           </div>
         </div>
       </div>
@@ -755,57 +737,57 @@ export default function DashboardPage() {
       {/* =========================================================================
           5. DUAL LIVE OPERATIONS PANELS (ORDERS PIPELINE VS LIVE STREAM)
           ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Panel: Today's Orders & Dispatch Telemetry */}
-        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left Panel: Today's Orders & Dispatch Status */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+            <div className="flex items-center justify-between mb-3.5 pb-2.5 border-b border-slate-100">
               <div>
-                <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                <h3 className="font-semibold text-slate-900 text-sm flex items-center gap-2">
                   <Package className="w-4 h-4 text-sky-600" />
-                  Today&apos;s Order Pipeline & Dispatch Status
+                  Today&apos;s orders & dispatch
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Route orders scheduled for {logistics?.todayDate || getTodayIST()}
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Route orders for {logistics?.todayDate || getTodayIST()}
                 </p>
               </div>
 
               {/* Status Filter Tabs */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-[10px] font-bold">
+              <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg text-xs font-normal">
                 <button
                   onClick={() => setOrderStatusFilter("ALL")}
-                  className={`px-2 py-1 rounded-lg transition-all ${
-                    orderStatusFilter === "ALL" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-700"
+                  className={`px-2 py-0.5 rounded-md transition-colors ${
+                    orderStatusFilter === "ALL" ? "bg-white text-slate-900 shadow-2xs font-medium" : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   All ({allOrdersList.length})
                 </button>
                 <button
                   onClick={() => setOrderStatusFilter("DELIVERED")}
-                  className={`px-2 py-1 rounded-lg transition-all ${
+                  className={`px-2 py-0.5 rounded-md transition-colors ${
                     orderStatusFilter === "DELIVERED"
-                      ? "bg-white text-emerald-800 shadow-xs"
-                      : "text-slate-500 hover:text-slate-700"
+                      ? "bg-white text-emerald-800 shadow-2xs font-medium"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   Done
                 </button>
                 <button
                   onClick={() => setOrderStatusFilter("DISPATCHED")}
-                  className={`px-2 py-1 rounded-lg transition-all ${
+                  className={`px-2 py-0.5 rounded-md transition-colors ${
                     orderStatusFilter === "DISPATCHED"
-                      ? "bg-white text-blue-800 shadow-xs"
-                      : "text-slate-500 hover:text-slate-700"
+                      ? "bg-white text-sky-800 shadow-2xs font-medium"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   Transit
                 </button>
                 <button
                   onClick={() => setOrderStatusFilter("PENDING")}
-                  className={`px-2 py-1 rounded-lg transition-all ${
+                  className={`px-2 py-0.5 rounded-md transition-colors ${
                     orderStatusFilter === "PENDING"
-                      ? "bg-white text-amber-800 shadow-xs"
-                      : "text-slate-500 hover:text-slate-700"
+                      ? "bg-white text-slate-900 shadow-2xs font-medium"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   Pending
@@ -814,43 +796,35 @@ export default function DashboardPage() {
             </div>
 
             {/* Orders List */}
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {filteredOrders.length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <p className="text-xs text-slate-500 font-semibold">No orders matching this filter.</p>
+                <div className="p-6 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                  <p className="text-xs text-slate-500">No orders matching this filter.</p>
                   <Link
                     href="/orders"
-                    className="inline-block mt-2 text-xs font-bold text-sky-600 hover:underline"
+                    className="inline-block mt-1 text-xs font-medium text-sky-600 hover:underline"
                   >
-                    Create a new order →
+                    Create order →
                   </Link>
                 </div>
               ) : (
                 filteredOrders.slice(0, 5).map((ord: any) => (
                   <div
                     key={ord.id}
-                    className="p-3.5 rounded-2xl bg-slate-50/80 hover:bg-slate-50 border border-slate-100 flex items-center justify-between text-xs transition-colors"
+                    className="p-2.5 rounded-lg bg-slate-50/70 hover:bg-slate-50 border border-slate-200/60 flex items-center justify-between text-xs transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-[11px] shrink-0 ${
-                          ord.status === "DELIVERED"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : ord.status === "DISPATCHED"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-amber-100 text-amber-800"
-                        }`}
-                      >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-md bg-slate-100 flex items-center justify-center font-medium text-slate-700 text-xs shrink-0 tabular-nums">
                         {ord.quantityJars}J
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-slate-900">{ord.customerName}</span>
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-slate-200/80 text-slate-700">
-                            {ord.orderType === "ONE_TIME_EVENT" ? "Bulk Event" : "Daily"}
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-slate-900">{ord.customerName}</span>
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-normal bg-slate-100 text-slate-600 border border-slate-200/60">
+                            {ord.orderType === "ONE_TIME_EVENT" ? "Bulk" : "Daily"}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                        <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 tabular-nums">
                           <span>{ord.orderNumber}</span>
                           <span>•</span>
                           <span>₹{(ord.unitPricePaise / 100).toFixed(0)}/jar</span>
@@ -860,12 +834,12 @@ export default function DashboardPage() {
 
                     <div className="text-right">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-medium ${
                           ord.status === "DELIVERED"
-                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200/70"
                             : ord.status === "DISPATCHED"
-                            ? "bg-blue-100 text-blue-800 border border-blue-200"
-                            : "bg-amber-100 text-amber-800 border border-amber-200"
+                            ? "bg-sky-50 text-sky-800 border border-sky-200/70"
+                            : "bg-slate-100 text-slate-700 border border-slate-200/70"
                         }`}
                       >
                         {ord.status}
@@ -877,81 +851,77 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="pt-3 mt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500 font-medium">Fulfillment tracking updated live</span>
-            <Link href="/orders" className="text-sky-600 font-bold hover:underline flex items-center gap-0.5">
-              Open Full Orders Hub →
+          <div className="pt-2.5 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-slate-500 font-normal">Updated live</span>
+            <Link href="/orders" className="text-sky-600 font-medium hover:underline flex items-center gap-0.5">
+              Orders hub →
             </Link>
           </div>
         </div>
 
         {/* Right Panel: Live Driver Activity & Cash Stream */}
-        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+            <div className="flex items-center justify-between mb-3.5 pb-2.5 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 <div>
-                  <h3 className="font-black text-slate-900 text-sm">
-                    Live Driver Activity & Cash Stream
+                  <h3 className="font-semibold text-slate-900 text-sm">
+                    Live driver activity
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-mono">
+                  <p className="text-[10px] text-slate-500 tabular-nums">
                     Last update: {lastLiveUpdate || "Connecting..."}
                   </p>
                 </div>
               </div>
 
               {/* Feed Tabs */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-[10px] font-bold">
+              <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg text-xs font-normal">
                 <button
                   onClick={() => setActivityTab("ALL")}
-                  className={`px-2 py-1 rounded-lg transition-all ${
-                    activityTab === "ALL" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-700"
+                  className={`px-2 py-0.5 rounded-md transition-colors ${
+                    activityTab === "ALL" ? "bg-white text-slate-900 shadow-2xs font-medium" : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   All
                 </button>
                 <button
                   onClick={() => setActivityTab("SCANS")}
-                  className={`px-2 py-1 rounded-lg transition-all ${
-                    activityTab === "SCANS" ? "bg-white text-sky-800 shadow-xs" : "text-slate-500 hover:text-slate-700"
+                  className={`px-2 py-0.5 rounded-md transition-colors ${
+                    activityTab === "SCANS" ? "bg-white text-sky-800 shadow-2xs font-medium" : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  QR Scans
+                  QR scans
                 </button>
                 <button
                   onClick={() => setActivityTab("CASH")}
-                  className={`px-2 py-1 rounded-lg transition-all ${
-                    activityTab === "CASH" ? "bg-white text-amber-800 shadow-xs" : "text-slate-500 hover:text-slate-700"
+                  className={`px-2 py-0.5 rounded-md transition-colors ${
+                    activityTab === "CASH" ? "bg-white text-slate-900 shadow-2xs font-medium" : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  Cash Collections
+                  Cash
                 </button>
               </div>
             </div>
 
             {/* Events Stream */}
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {combinedActivities.length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <p className="text-xs text-slate-400">Waiting for real-time mobile driver events...</p>
+                <div className="p-6 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                  <p className="text-xs text-slate-500">Awaiting mobile driver events...</p>
                 </div>
               ) : (
                 combinedActivities.slice(0, 5).map((act) => (
                   <div
                     key={act.id}
-                    className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs"
+                    className="p-2.5 rounded-lg bg-slate-50/70 border border-slate-200/60 flex items-center justify-between text-xs"
                   >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-[10px] shrink-0 ${
-                          act.type === "CASH" ? "bg-amber-100 text-amber-800" : "bg-sky-100 text-sky-800"
-                        }`}
-                      >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center font-medium text-xs shrink-0">
                         {act.type === "CASH" ? "₹" : "QR"}
                       </div>
                       <div>
-                        <span className="font-extrabold text-slate-900 block leading-tight">
+                        <span className="font-medium text-slate-900 block leading-tight">
                           {act.title}
                         </span>
                         <span className="text-[10px] text-slate-500 mt-0.5 block">{act.subtitle}</span>
@@ -959,15 +929,15 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="text-right">
-                      <span className="text-[10px] font-mono text-slate-400 block">
+                      <span className="text-[10px] font-mono text-slate-500 block tabular-nums">
                         {formatTimeIST(act.timestamp)}
                       </span>
                       {act.type === "CASH" && (
                         <button
                           onClick={() => openHandoverModal()}
-                          className="mt-1 text-[10px] font-bold text-amber-700 hover:underline cursor-pointer"
+                          className="mt-0.5 text-[10px] font-medium text-sky-600 hover:underline cursor-pointer"
                         >
-                          Approve Handover →
+                          Handover →
                         </button>
                       )}
                     </div>
@@ -977,70 +947,70 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="pt-3 mt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500 font-medium">PWA Mobile Driver Scanning Online</span>
-            <Link href="/accounting" className="text-sky-600 font-bold hover:underline">
-              View Cash Audit Log →
+          <div className="pt-2.5 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-slate-500 font-normal">Driver scanning online</span>
+            <Link href="/accounting" className="text-sky-600 font-medium hover:underline">
+              Cash audit log →
             </Link>
           </div>
         </div>
       </div>
 
       {/* =========================================================================
-          6. MODAL: QUICK DRIVER CASH HANDOVER TO VAULT (ACTUAL LIVE FUNCTIONALITY)
+          6. MODAL: QUICK DRIVER CASH HANDOVER TO VAULT
           ========================================================================= */}
       {handoverModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-lg w-full p-5 relative">
             <button
               onClick={() => setHandoverModalOpen(false)}
-              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center">
-                <Wallet className="w-6 h-6" />
+              <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+                <Wallet className="w-4.5 h-4.5" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-slate-900">
-                  Verify & Handover Driver Cash
+                <h3 className="text-base font-semibold text-slate-900">
+                  Verify driver cash handover
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Transfer field cash from Driver Clearing (A/C 1120) into Central Vault or Bank
+                  Transfer cash from Driver clearing (1120) to Central vault or bank
                 </p>
               </div>
             </div>
 
             {handoverSuccessBanner && (
-              <div className="p-3.5 mb-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold">
+              <div className="p-3 mb-3.5 rounded-lg bg-emerald-50 border border-emerald-200/80 text-emerald-900 text-xs font-medium">
                 {handoverSuccessBanner}
               </div>
             )}
 
             {handoverErrorBanner && (
-              <div className="p-3.5 mb-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-semibold">
+              <div className="p-3 mb-3.5 rounded-lg bg-rose-50 border border-rose-200/80 text-rose-900 text-xs font-medium">
                 {handoverErrorBanner}
               </div>
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {/* Driver info */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 flex items-center justify-between text-xs">
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
-                    Driver Account
+                  <span className="text-slate-500 block text-[10px] font-medium">
+                    Driver
                   </span>
-                  <span className="font-extrabold text-slate-900 text-sm">
+                  <span className="font-semibold text-slate-900 text-sm">
                     {selectedDriverHandover?.driverName || "Driver"}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
-                    Un-cleared Balance
+                  <span className="text-slate-500 block text-[10px] font-medium">
+                    Uncleared balance
                   </span>
-                  <span className="font-black text-amber-800 text-sm">
+                  <span className="font-semibold text-slate-900 text-sm tabular-nums">
                     {formatINR(selectedDriverHandover?.totalPendingPaise || 0)}
                   </span>
                 </div>
@@ -1048,31 +1018,31 @@ export default function DashboardPage() {
 
               {/* Amount input */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Verified Physical Cash Amount (₹ Rupees)
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Verified cash amount (₹)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-extrabold text-slate-400">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₹</span>
                   <input
                     type="number"
                     step="1"
                     value={handoverAmountRupees}
                     onChange={(e) => setHandoverAmountRupees(e.target.value)}
-                    placeholder="Enter verified cash amount"
-                    className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 font-extrabold text-slate-900 text-base focus:outline-hidden focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    placeholder="Enter amount"
+                    className="w-full pl-7 pr-3 py-2 rounded-lg border border-slate-200 font-semibold text-slate-900 text-sm focus:outline-hidden focus:ring-1 focus:ring-sky-500 tabular-nums"
                   />
                 </div>
               </div>
 
               {/* Target Account selector */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Deposit Target Account
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Deposit target account
                 </label>
                 <select
                   value={handoverTargetAccount}
                   onChange={(e) => setHandoverTargetAccount(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-800 text-xs focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 font-medium text-slate-800 text-xs focus:outline-hidden focus:ring-1 focus:ring-sky-500"
                 >
                   <option value={1110}>1110 — Central Vault Cash-in-Hand (Physical Safe)</option>
                   <option value={1130}>1130 — Operating Bank Current Account</option>
@@ -1081,54 +1051,54 @@ export default function DashboardPage() {
 
               {/* Notes */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Handover Notes / Verification Memo
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Verification memo
                 </label>
                 <input
                   type="text"
                   value={handoverNotes}
                   onChange={(e) => setHandoverNotes(e.target.value)}
-                  placeholder="e.g. End of day cash count verified by cashier"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  placeholder="e.g. End of day cash count verified"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 font-normal focus:outline-hidden focus:ring-1 focus:ring-sky-500"
                 />
               </div>
 
               {/* Double-Entry Preview Box */}
-              <div className="p-3 rounded-2xl bg-amber-50/60 border border-amber-200/80 text-[11px] space-y-1">
-                <span className="font-extrabold text-amber-900 block">General Ledger Journal Preview:</span>
-                <div className="flex justify-between font-mono text-amber-800">
-                  <span>Dr. {handoverTargetAccount} {handoverTargetAccount === 1110 ? "Central Vault Cash" : "Bank Current"}</span>
-                  <span className="font-bold">+₹{parseFloat(handoverAmountRupees || "0").toFixed(2)}</span>
+              <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/70 text-[11px] space-y-1">
+                <span className="font-medium text-slate-700 block">General ledger journal preview:</span>
+                <div className="flex justify-between font-mono text-slate-600 tabular-nums">
+                  <span>Dr. {handoverTargetAccount} {handoverTargetAccount === 1110 ? "Central vault cash" : "Bank current"}</span>
+                  <span className="font-semibold text-slate-900">+₹{parseFloat(handoverAmountRupees || "0").toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-mono text-amber-800">
-                  <span>Cr. 1120 Driver Collection Clearing</span>
-                  <span className="font-bold">-₹{parseFloat(handoverAmountRupees || "0").toFixed(2)}</span>
+                <div className="flex justify-between font-mono text-slate-600 tabular-nums">
+                  <span>Cr. 1120 Driver collection clearing</span>
+                  <span className="font-semibold text-slate-900">-₹{parseFloat(handoverAmountRupees || "0").toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
             {/* Modal actions */}
-            <div className="mt-6 flex items-center justify-end gap-3">
+            <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 onClick={() => setHandoverModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="h-9 px-3 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer border border-slate-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmHandover}
                 disabled={isSubmittingHandover}
-                className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                className="h-9 px-4 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors active:scale-98 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isSubmittingHandover ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    Posting to Ledger...
+                    Posting...
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Confirm Vault Handover
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Confirm handover
                   </>
                 )}
               </button>

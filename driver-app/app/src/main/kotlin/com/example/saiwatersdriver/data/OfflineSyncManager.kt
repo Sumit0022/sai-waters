@@ -172,7 +172,7 @@ class OfflineSyncManager(private val context: Context) {
             streetAddress = "Bareilly",
             locality = "Civil Lines",
             city = "Bareilly",
-            ratePerJarPaise = 3500L,
+            ratePerJarPaise = 2000L,
             defaultQuantity = 2,
             billingCycle = "DAILY_SPOT"
         )
@@ -187,7 +187,7 @@ class OfflineSyncManager(private val context: Context) {
             streetAddress = o.optString("streetAddress", ""),
             locality = o.optString("locality", ""),
             city = o.optString("city", "Bareilly"),
-            ratePerJarPaise = o.optLong("ratePerJarPaise", 3500L),
+            ratePerJarPaise = o.optLong("ratePerJarPaise", o.optLong("pricePerJarPaise", 2000L)),
             defaultQuantity = o.optInt("defaultQuantity", 2),
             billingCycle = o.optString("billingCycle", "DAILY_SPOT")
         )

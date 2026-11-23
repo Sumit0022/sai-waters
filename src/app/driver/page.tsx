@@ -416,10 +416,11 @@ export default function DriverAppPage() {
   };
 
   const currentRateRupees = Math.round(
-    (customerInfo?.pricePerJarPaise ??
+    (customerInfo?.ratePerJarPaise ??
+      customerInfo?.pricePerJarPaise ??
       customerInfo?.customPrice?.pricePerJarPaise ??
       customerInfo?.priceAgreements?.[0]?.pricePerJarPaise ??
-      3500) / 100
+      2000) / 100
   );
   const currentTotalRupees = scannedJars.length * currentRateRupees;
 

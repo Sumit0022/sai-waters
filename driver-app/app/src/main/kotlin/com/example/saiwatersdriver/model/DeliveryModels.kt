@@ -82,7 +82,7 @@ data class ResolvedCustomer(
     val streetAddress: String = "",
     val locality: String = "",
     val city: String = "Bareilly",
-    val ratePerJarPaise: Long = 3500L,
+    val ratePerJarPaise: Long = 2000L,
     val defaultQuantity: Int = 2,
     val billingCycle: String = "DAILY_SPOT"
 ) {

@@ -478,16 +478,21 @@ export default function AccountingPage() {
   const tGrandTotalPaise = Math.max(totalTDebitsPaise, totalTCreditsPaise);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+      <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Scale className="w-7 h-7 text-sky-600" />
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70">
+              General ledger & statements
+            </span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+            <Scale className="w-5 h-5 text-sky-600" />
             Accounting & General Ledger
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
-            Double-Entry General Ledger, T-Account View, General Journal, Bank Reconciliation (BRS), and P&L
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Double-entry ledger, T-accounts, general journal, BRS, and financial statements.
           </p>
         </div>
 
@@ -495,106 +500,96 @@ export default function AccountingPage() {
           {/* Quick Expense Settle Button */}
           <button
             onClick={() => setExpenseModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-colors cursor-pointer"
           >
-            <Receipt className="w-4 h-4" />
-            <span>Record Expense</span>
+            <Receipt className="w-3.5 h-3.5 text-slate-400" />
+            <span>Record expense</span>
           </button>
 
           {/* New Custom Account Button */}
           <button
             onClick={() => setCreateAccountModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-colors cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Account</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add account</span>
           </button>
 
           {/* Manual Journal Entry */}
           <button
             onClick={() => setManualJvModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Journal Voucher</span>
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Journal voucher</span>
           </button>
 
           {/* Refresh Ledger */}
           <button
             onClick={loadAll}
             title="Refresh Ledger"
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 shadow-xs cursor-pointer"
+            className="h-9 w-9 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {/* Double-Entry Balancing Banner */}
-      <div
-        className={`p-3.5 rounded-2xl border flex items-center justify-between gap-4 ${
-          tbData?.isBalanced
-            ? "bg-emerald-50/90 border-emerald-200 text-emerald-950"
-            : "bg-rose-50 border-rose-200 text-rose-950"
-        }`}
-      >
+      <div className="p-3 rounded-xl border border-slate-200/80 bg-slate-50 flex items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center gap-3">
           {tbData?.isBalanced ? (
-            <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
+            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
           ) : (
-            <ShieldAlert className="w-6 h-6 text-rose-600 shrink-0" />
+            <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />
           )}
           <div>
-            <h4 className="font-extrabold text-xs">
+            <h4 className="font-semibold text-xs text-slate-900">
               {tbData?.isBalanced
-                ? "Double-Entry Invariant Satisfied: General Ledger is Perfectly Balanced"
-                : "Double-Entry Invariant Discrepancy Detected!"}
+                ? "General ledger is balanced"
+                : "Ledger discrepancy detected"}
             </h4>
-            <p className="text-[11px] opacity-80 mt-0.5">
-              Total Debits: <strong>{formatINR(tbData?.grandTotalDebitPaise || 0)}</strong> • Total
-              Credits: <strong>{formatINR(tbData?.grandTotalCreditPaise || 0)}</strong>
+            <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+              Total debits: <strong className="text-slate-700 font-medium">{formatINR(tbData?.grandTotalDebitPaise || 0)}</strong> • Total
+              credits: <strong className="text-slate-700 font-medium">{formatINR(tbData?.grandTotalCreditPaise || 0)}</strong>
               {!tbData?.isBalanced && ` • Variance: ${formatINR(tbData?.variancePaise || 0)}`}
             </p>
           </div>
         </div>
 
-        <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-1 bg-white rounded-lg border border-current shadow-xs">
-          {tbData?.isBalanced ? "Balanced ✓" : "Alert ⚠️"}
+        <span className="text-[11px] font-medium px-2 py-0.5 bg-white text-slate-700 rounded-md border border-slate-200/80 shadow-2xs">
+          {tbData?.isBalanced ? "Balanced" : "Review"}
         </span>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold border-b border-slate-200">
+      <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg overflow-x-auto text-xs font-normal">
         {[
-          { id: "TB", label: "Trial Balance", icon: Scale },
-          { id: "TL", label: "T-Account Ledger", icon: BookOpen },
-          { id: "JV", label: "General Journal", icon: FileSpreadsheet },
-          { id: "BRS", label: "Bank Reconciliation (BRS)", icon: Landmark },
+          { id: "TB", label: "Trial balance", icon: Scale },
+          { id: "TL", label: "T-Accounts", icon: BookOpen },
+          { id: "JV", label: "Journal vouchers", icon: FileSpreadsheet },
+          { id: "BRS", label: "Bank reconciliation", icon: Landmark },
           { id: "EXP", label: "Expenses", icon: Receipt },
-          { id: "PNL", label: "Profit & Loss (P&L)", icon: TrendingUp },
-          { id: "BS", label: "Balance Sheet", icon: Building2 },
-          { id: "CASH_REC", label: "Driver Cash Clearing", icon: Coins },
-          { id: "DEP", label: "Jar Depreciation", icon: Sparkles },
+          { id: "PNL", label: "Profit & loss", icon: TrendingUp },
+          { id: "BS", label: "Balance sheet", icon: Building2 },
+          { id: "CASH_REC", label: "Driver clearing", icon: Coins },
+          { id: "DEP", label: "Depreciation", icon: Sparkles },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id as any)}
-              className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shrink-0 ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                 activeTab === tab.id
-                  ? "bg-sky-600 text-white font-extrabold shadow-xs"
-                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  ? "bg-white text-slate-900 shadow-2xs font-medium"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="w-3.5 h-3.5 text-slate-400" />
               <span>{tab.label}</span>
               {tab.id === "CASH_REC" && (cashRecData?.totalUnclearedCashPaise || 0) > 0 && (
-                <span
-                  className={`px-1.5 py-0.5 text-[9px] font-black rounded-full ${
-                    activeTab === tab.id ? "bg-amber-400 text-slate-900" : "bg-amber-500 text-white"
-                  }`}
-                >
+                <span className="px-1.5 py-0.2 text-[9px] font-medium rounded-full bg-slate-200 text-slate-700 tabular-nums">
                   {formatINR(cashRecData.totalUnclearedCashPaise)}
                 </span>
               )}

@@ -263,7 +263,13 @@ fun ScannerTab(
 
             // Refresh latest data in background if connected
             scope.launch {
-                repository.refreshCustomerInBackground(code)
+                val fresh = repository.refreshCustomerInBackground(code)
+                if (fresh != null && customerInfo?.id == fresh.id) {
+                    customerInfo = fresh
+                    if (paymentMode == PaymentMode.CASH) {
+                        cashCollectedRupees = (scannedJars.size * fresh.ratePerJarRupees.toInt()).toString()
+                    }
+                }
             }
             return
         }

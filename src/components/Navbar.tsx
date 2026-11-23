@@ -62,34 +62,34 @@ export function Navbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs print:hidden">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 print:hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-3">
+        <div className="flex items-center justify-between h-14 gap-3">
           {/* Left: Brand Identity */}
           <div className="flex items-center gap-3 shrink-0">
             <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform">
-                <Droplets className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center text-white">
+                <Droplets className="w-4 h-4 text-white" />
               </div>
-              <div>
+              <div className="leading-tight">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-base sm:text-lg font-black tracking-tight text-slate-900">
+                  <span className="text-sm font-semibold tracking-tight text-slate-900">
                     Sai Waters
                   </span>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200">
+                  <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200/70">
                     ERP
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold -mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>System Live</span>
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>Operational</span>
                 </div>
               </div>
             </Link>
           </div>
 
-          {/* Middle: Desktop Navigation (Spacious, fits all tabs without horizontal scroll) */}
-          <nav className="hidden md:flex items-center gap-1 lg:gap-2 py-1">
+          {/* Middle: Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-1 py-1">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;
@@ -97,10 +97,10 @@ export function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                     isActive
-                      ? "bg-sky-50 text-sky-700 shadow-xs border border-sky-200/80"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
+                      ? "bg-slate-100 text-slate-900 border border-slate-200/80 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                   }`}
                 >
                   <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-sky-600" : "text-slate-400"}`} />
@@ -116,19 +116,19 @@ export function Navbar() {
             <button
               onClick={handleLogout}
               title="Log Out of ERP"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-600 hover:text-rose-600 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-medium transition-colors cursor-pointer"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-3.5 h-3.5 text-slate-400" />
               <span className="hidden sm:inline">Logout</span>
             </button>
 
             {/* Mobile Menu Hamburger */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+              className="md:hidden p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
               aria-label="Toggle Menu"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -136,8 +136,8 @@ export function Navbar() {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-5 space-y-2 shadow-xl animate-in slide-in-from-top duration-150">
-          <div className="grid grid-cols-2 gap-2">
+        <div className="md:hidden bg-white border-b border-slate-200 px-4 pt-2.5 pb-4 space-y-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;
@@ -146,13 +146,13 @@ export function Navbar() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-2 p-2.5 rounded-xl text-xs font-bold ${
+                  className={`flex items-center gap-2 h-9 px-2.5 rounded-lg text-xs font-medium ${
                     isActive
-                      ? "bg-sky-50 text-sky-700 border border-sky-200"
-                      : "text-slate-700 hover:bg-slate-50"
+                      ? "bg-slate-100 text-slate-900 border border-slate-200/80"
+                      : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  <Icon className="w-4 h-4 text-sky-600" />
+                  <Icon className="w-3.5 h-3.5 text-slate-400" />
                   <span>{link.label}</span>
                 </Link>
               );

@@ -541,20 +541,23 @@ class DriverRepository(private val context: Context) {
         return offlineManager.findCachedCustomer(query)
     }
 
-    suspend fun refreshCustomerInBackground(code: String) {
-        try {
+    suspend fun refreshCustomerInBackground(code: String): com.example.saiwatersdriver.model.ResolvedCustomer? {
+        return try {
             val clean = code.replace("urn:sw:c:", "").trim()
             val baseUrl = sessionManager.backendUrl.trimEnd('/')
             val url = "$baseUrl/api/customers?customerId=${clean}"
             val res = ApiClient.get(url)
-            res.onSuccess { text ->
-                val root = JSONObject(text)
+            if (res.isSuccess) {
+                val root = JSONObject(res.getOrThrow())
                 if (root.has("customer")) {
                     val fresh = parseCustomerFromBackend(root.getJSONObject("customer"))
                     offlineManager.saveCustomers(listOf(fresh))
-                }
-            }
-        } catch (_: Exception) {}
+                    fresh
+                } else null
+            } else null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /**
@@ -593,7 +596,7 @@ class DriverRepository(private val context: Context) {
             custObj.has("ratePerJarPaise") && custObj.optLong("ratePerJarPaise") > 0L -> custObj.optLong("ratePerJarPaise")
             custObj.has("customPrice") && !custObj.isNull("customPrice") && custObj.getJSONObject("customPrice").optLong("pricePerJarPaise", 0L) > 0L ->
                 custObj.getJSONObject("customPrice").optLong("pricePerJarPaise")
-            else -> 3500L
+            else -> 2000L
         }
         val defaultQty = if (custObj.has("schedule") && !custObj.isNull("schedule")) {
             custObj.getJSONObject("schedule").optInt("quantityJars", 2)

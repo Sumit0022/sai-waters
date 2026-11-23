@@ -497,34 +497,34 @@ export default function OrdersPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Top Banner */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 uppercase tracking-wider">
-              Bulk & Event Logistics Hub
+            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70">
+              Bulk orders & events
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-              Dispatch & Reverse Settlement Active
+            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-50 text-slate-600 border border-slate-200/60">
+              Dispatch & settlement
             </span>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Event & Bulk Orders Management
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
+            Event & bulk orders
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Manage weddings, bulk functions, vehicle dispatch loading, and doorstep delivery settlements
+            Bulk functions, vehicle dispatch loading, and doorstep delivery settlements.
           </p>
         </div>
 
         {/* Dual Actions: Dispatch Order & Book Order */}
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
             onClick={() => handleOpenDispatch()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-colors cursor-pointer"
           >
-            <Truck className="w-4 h-4" />
-            <span>Dispatch Bulk Order</span>
+            <Truck className="w-3.5 h-3.5 text-slate-400" />
+            <span>Dispatch order</span>
           </button>
 
           <button
@@ -532,55 +532,55 @@ export default function OrdersPage() {
               setUseExistingCustomer(false);
               setAddModalOpen(true);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Book Event / Bulk Order</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Book order</span>
           </button>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 justify-between items-center">
+      <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row gap-3 justify-between items-center">
         {/* Status Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl overflow-x-auto w-full md:w-auto">
+        <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg overflow-x-auto w-full md:w-auto text-xs font-normal">
           <button
             type="button"
             onClick={() => setStatusFilter("ALL")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              statusFilter === "ALL" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+            className={`px-3 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+              statusFilter === "ALL" ? "bg-white text-slate-900 shadow-2xs font-medium" : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            All Bookings ({allCount})
+            All ({allCount})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter("CONFIRMED")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-3 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
               statusFilter === "CONFIRMED"
-                ? "bg-amber-600 text-white shadow-xs"
+                ? "bg-white text-slate-900 shadow-2xs font-medium"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            Pending Dispatch ({pendingCount})
+            Pending ({pendingCount})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter("IN_TRANSIT")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-3 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
               statusFilter === "IN_TRANSIT"
-                ? "bg-purple-600 text-white shadow-xs"
+                ? "bg-white text-sky-800 shadow-2xs font-medium"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            In-Transit / Truck Loaded ({inTransitCount})
+            In transit ({inTransitCount})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter("DELIVERED")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-3 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
               statusFilter === "DELIVERED"
-                ? "bg-emerald-600 text-white shadow-xs"
+                ? "bg-white text-emerald-800 shadow-2xs font-medium"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
@@ -593,32 +593,32 @@ export default function OrdersPage() {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Search Order #, Event Name, Customer..."
+            placeholder="Search order #, event, customer..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 rounded-lg border border-slate-200 text-xs sm:text-sm focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs sm:text-sm font-normal focus:outline-hidden focus:ring-1 focus:ring-sky-500"
           />
         </div>
       </div>
 
       {/* Month Filter Bar & Selected Month Summary */}
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 justify-between items-center">
-        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 mr-1">
+      <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row gap-3 justify-between items-center text-xs">
+        <div className="flex items-center gap-1.5 flex-wrap w-full md:w-auto">
+          <div className="flex items-center gap-1 text-slate-500 mr-1">
             <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span>Month:</span>
+            <span className="font-medium">Month:</span>
           </div>
 
           <button
             type="button"
             onClick={() => setSelectedMonth("ALL")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
               selectedMonth === "ALL"
-                ? "bg-slate-900 text-white shadow-xs"
+                ? "bg-slate-900 text-white font-medium"
                 : "bg-slate-100 hover:bg-slate-200 text-slate-700"
             }`}
           >
-            All Months
+            All months
           </button>
 
           {availableMonths.map((m) => (
@@ -626,9 +626,9 @@ export default function OrdersPage() {
               key={m}
               type="button"
               onClick={() => setSelectedMonth(m)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
                 selectedMonth === m
-                  ? "bg-indigo-600 text-white shadow-xs"
+                  ? "bg-slate-900 text-white font-medium"
                   : "bg-slate-100 hover:bg-slate-200 text-slate-700"
               }`}
             >
@@ -641,35 +641,35 @@ export default function OrdersPage() {
             type="month"
             value={selectedMonth === "ALL" ? "" : selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value || "ALL")}
-            className="px-2.5 py-1 text-xs border border-slate-200 rounded-xl font-bold text-slate-700 bg-white"
+            className="px-2 py-0.5 text-xs border border-slate-200 rounded-md font-medium text-slate-700 bg-white"
           />
         </div>
 
         {/* Live Filter Stats */}
-        <div className="flex items-center gap-3 text-xs bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shrink-0">
-          <span className="text-slate-600 font-medium">
-            Orders: <strong className="text-slate-900">{filteredOrders.length}</strong>
+        <div className="flex items-center gap-2.5 text-xs bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/70 shrink-0 tabular-nums">
+          <span className="text-slate-600 font-normal">
+            Orders: <strong className="text-slate-900 font-medium">{filteredOrders.length}</strong>
           </span>
           <span className="text-slate-300">•</span>
-          <span className="text-slate-600 font-medium">
-            Jars: <strong className="text-sky-700">{filteredOrders.reduce((sum, o) => sum + (o.deliveredCount ?? o.quantityJars ?? 0), 0)}</strong>
+          <span className="text-slate-600 font-normal">
+            Jars: <strong className="text-slate-900 font-medium">{filteredOrders.reduce((sum, o) => sum + (o.deliveredCount ?? o.quantityJars ?? 0), 0)}</strong>
           </span>
           <span className="text-slate-300">•</span>
-          <span className="text-emerald-700 font-black">
+          <span className="text-slate-900 font-semibold">
             {formatINR(filteredOrders.reduce((sum, o) => sum + (o.totalAmountPaise || 0), 0))}
           </span>
         </div>
       </div>
 
       {/* Orders Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {filteredOrders.length === 0 ? (
-          <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-slate-200 p-6">
-            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
-              <ShoppingCart className="w-6 h-6" />
+          <div className="col-span-full py-10 text-center bg-white rounded-xl border border-slate-200/80 p-6">
+            <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2.5">
+              <ShoppingCart className="w-5 h-5" />
             </div>
-            <h3 className="font-bold text-slate-700 text-sm">No bulk orders found</h3>
-            <p className="text-xs text-slate-500 mt-1">
+            <h3 className="font-medium text-slate-800 text-sm">No bulk orders found</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
               {statusFilter === "CONFIRMED"
                 ? "No pending bulk orders waiting for dispatch."
                 : statusFilter === "IN_TRANSIT"
@@ -686,53 +686,47 @@ export default function OrdersPage() {
             return (
               <div
                 key={ord.id}
-                className={`bg-white rounded-2xl border p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between ${
-                  isInTransit
-                    ? "border-purple-300 ring-1 ring-purple-200"
-                    : isPending
-                    ? "border-amber-200"
-                    : "border-slate-200"
-                }`}
+                className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs hover:border-slate-300 transition-colors flex flex-col justify-between"
               >
                 <div>
                   {/* Card Header */}
-                  <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-slate-100">
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        <span className="text-[10px] font-mono font-medium text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200/70">
                           {ord.orderNumber}
                         </span>
                         {ord.eventName && (
-                          <span className="text-[10px] font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 truncate max-w-40">
+                          <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-1.5 py-0.2 rounded border border-slate-200/60 truncate max-w-40">
                             {ord.eventName}
                           </span>
                         )}
                       </div>
-                      <h3 className="font-black text-slate-900 text-base mt-1.5">{ord.customerName}</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm mt-1">{ord.customerName}</h3>
                     </div>
 
                     <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase shrink-0 ${
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium shrink-0 ${
                         isInTransit
-                          ? "bg-purple-100 text-purple-800 animate-pulse"
+                          ? "bg-sky-50 text-sky-800 border border-sky-200/70"
                           : isPending
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-emerald-100 text-emerald-800"
+                          ? "bg-slate-100 text-slate-700 border border-slate-200/70"
+                          : "bg-emerald-50 text-emerald-800 border border-emerald-200/70"
                       }`}
                     >
-                      {isInTransit ? "IN TRANSIT (ON TRUCK)" : ord.status}
+                      {isInTransit ? "In transit" : isPending ? "Pending" : "Delivered"}
                     </span>
                   </div>
 
                   {/* Card Details */}
-                  <div className="py-3 space-y-1.5 text-xs text-slate-600">
+                  <div className="py-2.5 space-y-1 text-xs text-slate-600">
                     <p className="flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>
-                        Date: <strong>{ord.scheduledDate}</strong>
+                      <span className="tabular-nums">
+                        Date: {ord.scheduledDate}
                       </span>
                     </p>
-                    <p className="flex items-start gap-1.5">
+                    <p className="flex items-start gap-1.5 text-slate-500">
                       <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                       <span className="truncate">
                         {ord.streetAddress}, {ord.locality}
@@ -740,49 +734,49 @@ export default function OrdersPage() {
                     </p>
                     <p className="flex items-center gap-1.5">
                       <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{ord.customerPhone}</span>
+                      <span className="tabular-nums">{ord.customerPhone}</span>
                     </p>
                     {isInTransit && (
-                      <p className="flex items-center gap-1.5 text-purple-700 font-bold bg-purple-50 p-1.5 rounded-lg border border-purple-100">
-                        <Truck className="w-3.5 h-3.5 shrink-0" />
+                      <p className="flex items-center gap-1.5 text-slate-700 font-normal bg-slate-50 p-1.5 rounded-lg border border-slate-200/60">
+                        <Truck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <span>
-                          Driver: {ord.assignedDriverName || "Vikram Singh"} ({ord.vehicleNumber || "UP 25 SW 1001"})
+                          Driver: {ord.assignedDriverName || "Driver"} ({ord.vehicleNumber || "Vehicle"})
                         </span>
                       </p>
                     )}
                   </div>
 
                   {/* Jars & Amount Summary */}
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs mb-3">
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/60 flex items-center justify-between text-xs mb-2.5 tabular-nums">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">
+                      <span className="text-[10px] font-medium text-slate-500 block">
                         {isInTransit ? "Dispatched" : isDelivered ? "Delivered" : "Target"}
                       </span>
-                      <span className="text-sm font-black text-slate-900">
-                        {ord.deliveredCount ?? ord.quantityJars} Jars
+                      <span className="text-sm font-semibold text-slate-900">
+                        {ord.deliveredCount ?? ord.quantityJars} jars
                       </span>
-                      <span className="text-[11px] font-bold text-sky-700 block mt-0.5">
-                        Rate: ₹{Math.round((ord.unitPricePaise || 2000) / 100)}/jar
+                      <span className="text-[11px] text-slate-500 block mt-0.5">
+                        ₹{Math.round((ord.unitPricePaise || 2000) / 100)} / jar
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Amount</span>
-                      <span className="text-sm font-black text-slate-900">{formatINR(ord.totalAmountPaise)}</span>
+                      <span className="text-[10px] font-medium text-slate-500 block">Total</span>
+                      <span className="text-sm font-semibold text-slate-900">{formatINR(ord.totalAmountPaise)}</span>
                       {ord.paymentType === "PREPAID" ? (
-                        <span className="text-[10px] font-black text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded block mt-0.5">
-                          💳 100% Prepaid (Collect ₹0)
+                        <span className="text-[10px] font-medium text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/70 block mt-0.5">
+                          Prepaid (Collect ₹0)
                         </span>
                       ) : ord.paymentType === "PARTIAL_ADVANCE" ? (
-                        <span className="text-[10px] font-black text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded block mt-0.5">
+                        <span className="text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200/70 block mt-0.5">
                           Adv: ₹{Math.round((ord.advanceReceivedPaise || 0) / 100)} • Due: ₹{Math.round((ord.balanceDuePaise || 0) / 100)}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-slate-500 block mt-0.5">
-                          💵 Pay on Delivery
+                        <span className="text-[10px] font-normal text-slate-500 block mt-0.5">
+                          Pay on delivery
                         </span>
                       )}
                       {ord.depositAmountPaise > 0 && (
-                        <span className="text-[10px] text-amber-700 font-bold block mt-0.5">
+                        <span className="text-[10px] text-slate-600 block mt-0.5">
                           Deposit: {formatINR(ord.depositAmountPaise)}
                         </span>
                       )}
@@ -791,16 +785,16 @@ export default function OrdersPage() {
                 </div>
 
                 {/* Card Action Buttons */}
-                <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
                   {/* Primary Workflow Button */}
                   {isPending && (
                     <button
                       type="button"
                       onClick={() => handleOpenDispatch(ord)}
-                      className="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                      className="w-full h-8 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <Truck className="w-4 h-4" />
-                      <span>Dispatch Jars for Order</span>
+                      <Truck className="w-3.5 h-3.5" />
+                      <span>Dispatch jars</span>
                     </button>
                   )}
 
@@ -808,54 +802,54 @@ export default function OrdersPage() {
                     <button
                       type="button"
                       onClick={() => handleOpenSettle(ord)}
-                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                      className="w-full h-8 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <CheckCheck className="w-4 h-4" />
-                      <span>Settle & Approve Delivery (Owner)</span>
+                      <CheckCheck className="w-3.5 h-3.5" />
+                      <span>Settle delivery</span>
                     </button>
                   )}
 
                   {isDelivered && (
-                    <div className="w-full py-2 px-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs font-bold text-emerald-800">
+                    <div className="w-full py-1.5 px-2.5 rounded-lg bg-slate-50 border border-slate-200/70 flex items-center justify-between text-xs font-normal text-slate-700">
                       <span className="flex items-center gap-1.5">
-                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Delivered & Invoiced</span>
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Delivered</span>
                       </span>
                       <button
                         type="button"
                         onClick={() => handleOpenInspect(ord)}
-                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black rounded-lg text-[11px] shadow-xs cursor-pointer flex items-center gap-1 transition-all"
+                        className="h-6 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-medium rounded-md text-[11px] cursor-pointer flex items-center gap-1 transition-colors"
                       >
-                        <Eye className="w-3 h-3" />
-                        <span>Inspect Order</span>
+                        <Eye className="w-3 h-3 text-slate-400" />
+                        <span>Inspect</span>
                       </button>
                     </div>
                   )}
 
                   {/* Secondary Management Buttons: Inspect, Edit & Delete */}
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1">
                     <button
                       type="button"
                       onClick={() => handleOpenInspect(ord)}
-                      className="py-1.5 px-2 rounded-xl border border-sky-200 bg-sky-50/70 hover:bg-sky-100 text-sky-800 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      className="h-7 px-2 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     >
-                      <Eye className="w-3.5 h-3.5 text-sky-600" />
+                      <Eye className="w-3 h-3 text-slate-400" />
                       <span>Inspect</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(ord)}
-                      className="py-1.5 px-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      className="h-7 px-2 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     >
-                      <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                      <Edit3 className="w-3 h-3 text-slate-400" />
                       <span>Edit</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenDelete(ord)}
-                      className="py-1.5 px-2 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100/80 text-rose-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      className="h-7 px-2 rounded-md border border-slate-200 hover:bg-rose-50 text-slate-400 hover:text-rose-600 hover:border-rose-200 font-medium text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <Trash2 className="w-3 h-3" />
                       <span>Delete</span>
                     </button>
                   </div>
